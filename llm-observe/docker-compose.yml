@@ -1,0 +1,18 @@
+# Optional: Local Supabase setup (stub)
+# Uncomment and configure if you want to run Supabase locally
+#
+# version: '3.8'
+# services:
+#   postgres:
+#     image: supabase/postgres:latest
+#     environment:
+#       POSTGRES_PASSWORD: your-password
+#       POSTGRES_DB: postgres
+#     ports:
+#       - "5432:5432"
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+#
+# volumes:
+#   postgres_data:
+
