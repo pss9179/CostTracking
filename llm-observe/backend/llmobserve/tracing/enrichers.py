@@ -24,6 +24,10 @@ from llmobserve.semantics import (
     LLM_USAGE_COMPLETION_TOKENS,
     LLM_USAGE_PROMPT_TOKENS,
     LLM_USAGE_TOTAL_TOKENS,
+    VECTOR_COST_USD,
+    VECTOR_INDEX_NAME,
+    VECTOR_PROVIDER,
+    VECTOR_TOP_K,
     WORKFLOW_TENANT_ID,
     hash_prompt,
     hash_response,
@@ -247,6 +251,59 @@ class SpanEnricher:
             "tenant_id": tenant_id,
         }
         self._write_queue.put(summary)
+
+    def enrich_vector_span(
+        self,
+        span: Span,
+        provider: str,
+        operation: str,
+        latency_ms: float,
+        request_size: Optional[int],
+        cost: float,
+        index_name: Optional[str] = None,
+        top_k: Optional[int] = None,
+    ) -> None:
+        """
+        Enrich vector database span with attributes and queue for DB write.
+        
+        Args:
+            span: OpenTelemetry span
+            provider: Vector DB provider name (e.g., "weaviate", "qdrant")
+            operation: Operation name (e.g., "query", "search")
+            latency_ms: Latency in milliseconds
+            request_size: Request size (e.g., number of queries, vectors)
+            cost: Cost in USD
+            index_name: Optional index/collection name
+            top_k: Optional top_k parameter
+        """
+        span_context = span.get_span_context()
+        if not span_context.is_valid:
+            return
+
+        # Set vector-specific attributes
+        span.set_attribute(VECTOR_PROVIDER, provider)
+        span.set_attribute(VECTOR_COST_USD, cost)
+        if index_name:
+            span.set_attribute(VECTOR_INDEX_NAME, index_name)
+        if top_k is not None:
+            span.set_attribute(VECTOR_TOP_K, top_k)
+
+        # Also set generic API attributes for compatibility
+        span.set_attribute(API_PROVIDER, provider)
+        span.set_attribute(API_OPERATION, operation)
+        span.set_attribute(API_LATENCY_MS, latency_ms)
+        span.set_attribute(API_COST_USD, cost)
+        if request_size:
+            span.set_attribute(API_REQUEST_SIZE, request_size)
+
+        # Get tenant from baggage
+        tenant_id = baggage.get_baggage(WORKFLOW_TENANT_ID) or "default"
+        if tenant_id:
+            span.set_attribute(WORKFLOW_TENANT_ID, tenant_id)
+
+        # Queue for async DB write if repo available
+        if self.span_repo:
+            self._queue_api_span_write(span, operation, latency_ms, request_size, cost)
 
     def shutdown(self) -> None:
         """Shutdown async writer."""

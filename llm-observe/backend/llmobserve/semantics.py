@@ -41,6 +41,19 @@ API_LATENCY_MS = "api.latency_ms"
 API_REQUEST_SIZE = "api.request_size"
 API_COST_USD = "api.cost_usd"
 
+# Vector database semantic convention attributes
+VECTOR_PROVIDER = "vector.provider"
+VECTOR_INDEX_NAME = "vector.index_name"
+VECTOR_TOP_K = "vector.top_k"
+VECTOR_COST_USD = "vector.cost_usd"
+
+# Generic AI semantic convention attributes (for both LLM and vector)
+AI_PROVIDER = "ai.provider"
+AI_MODEL = "ai.model"
+AI_OPERATION = "ai.operation"
+AI_LATENCY_MS = "ai.latency_ms"
+AI_COST_USD = "ai.cost_usd"
+
 # Span names
 SPAN_NAME_LLM_REQUEST = "llm.request"
 SPAN_NAME_AGENT_WORKFLOW = "agent.workflow"

@@ -57,6 +57,41 @@ class PricingRegistry:
 
         return prompt_cost + completion_cost
 
+    def cost_for_vector_db(
+        self,
+        provider: str,
+        operation: str,
+        request_size: int = 1,
+    ) -> float:
+        """
+        Calculate cost in USD for a vector database operation.
+
+        Args:
+            provider: Provider name (e.g., "weaviate", "qdrant")
+            operation: Operation type (e.g., "query", "search", "upsert")
+            request_size: Number of requests/vectors (default: 1)
+
+        Returns:
+            Cost in USD (0.0 if pricing not found)
+        """
+        # Build pricing key: "{provider}-{operation}"
+        pricing_key = f"{provider}-{operation}"
+        price = self.get_price(pricing_key)
+        if not price:
+            return 0.0
+
+        # Support both "request" and "vector" pricing structures
+        if "request" in price:
+            # Price per request (e.g., $0.096 per 1K queries = 0.000096 per query)
+            price_per_unit = price["request"]
+            return request_size * price_per_unit
+        elif "vector" in price:
+            # Price per vector (e.g., $0.12 per 100K vectors = 0.0000012 per vector)
+            price_per_vector = price["vector"]
+            return request_size * price_per_vector
+        else:
+            return 0.0
+
     def update_prices(self, prices: dict) -> None:
         """Update pricing registry."""
         self._prices.update(prices)

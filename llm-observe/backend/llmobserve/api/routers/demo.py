@@ -59,19 +59,15 @@ async def simulate_agent(
     add_tenant_baggage(tenant_id)
 
     try:
-        result = await simulate_agent_workflow(workflow_name=request.workflow_name)
-        trace_id = result["trace_id"]
-        workflow_name = result["workflow_name"]
+        result = await simulate_agent_workflow()
         
-        # Wait a bit for spans to be written, then aggregate trace with workflow_name
+        # Get trace_id from the most recent trace (auto-created by instrumentation)
         import asyncio
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)  # Wait for spans to be written
         
-        # Aggregate trace with workflow_name
-        try:
-            repo.aggregate_trace(trace_id, tenant_id, workflow_name=workflow_name)
-        except Exception:
-            pass  # Trace might already exist or spans not ready yet
+        traces = repo.get_traces(limit=1)
+        trace_id = traces[0].trace_id if traces else None
+        workflow_name = traces[0].workflow_name if traces else None
         
         return {
             "status": "success",

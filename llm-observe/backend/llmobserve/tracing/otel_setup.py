@@ -10,10 +10,11 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
 from llmobserve.config import settings
+from llmobserve.tracing.genai_span_processor import GenAISpanProcessor
 from llmobserve.tracing.sampler import ParentBasedSampler
 
 
-def setup_tracing() -> None:
+def setup_tracing(span_repo=None) -> None:
     """Initialize OpenTelemetry tracing with Console and optional OTLP exporters."""
     # Create resource with service metadata
     resource = Resource.create(
@@ -39,6 +40,11 @@ def setup_tracing() -> None:
         otlp_exporter = _create_otlp_exporter()
         if otlp_exporter:
             tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+
+    # Add GenAI span processor if using official GenAI instrumentor and span_repo provided
+    if settings.use_genai_instrumentor and span_repo:
+        genai_processor = GenAISpanProcessor(span_repo=span_repo)
+        tracer_provider.add_span_processor(genai_processor)
 
     # Set as global tracer provider
     trace.set_tracer_provider(tracer_provider)

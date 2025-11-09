@@ -10,8 +10,7 @@ from llmobserve.storage.db import init_db
 from llmobserve.storage.repo import SpanRepository
 from llmobserve.tracing.enrichers import SpanEnricher, add_tenant_baggage
 from llmobserve.tracing.instrumentors.base import instrumentor_registry
-from llmobserve.tracing.instrumentors.openai_instr import OpenAIInstrumentor
-from llmobserve.tracing.instrumentors.pinecone_instr import PineconeInstrumentor
+from llmobserve.tracing.instrumentors import instrument_all
 from llmobserve.tracing.otel_setup import setup_tracing
 
 from .routers import demo, health, spans
@@ -35,19 +34,17 @@ span_enricher = SpanEnricher(span_repo=span_repo)
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
     # Startup
-    setup_tracing()
-    
-    # Initialize database
+    # Initialize database first (needed for span_repo)
     init_db()
     
-    # Register and apply instrumentors
-    openai_instr = OpenAIInstrumentor(span_enricher=span_enricher)
-    instrumentor_registry.register(openai_instr)
+    # Setup tracing with span_repo for GenAI span processor
+    setup_tracing(span_repo=span_repo)
     
-    pinecone_instr = PineconeInstrumentor(span_enricher=span_enricher)
-    instrumentor_registry.register(pinecone_instr)
-    
-    instrumentor_registry.instrument_all()
+    # Auto-instrumentation is handled automatically on package import
+    # But we can re-instrument with span_repo for DB persistence if needed
+    # (instrument_all() was already called on import, but without span_repo)
+    # Re-instrument with span_repo to enable DB persistence
+    instrument_all(span_repo=span_repo)
     
     yield
     
