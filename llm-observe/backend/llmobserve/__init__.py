@@ -22,19 +22,31 @@ if _auto_instrument:
 
 # Auto-function tracing on import (can be disabled via environment variable)
 _auto_function_tracing = os.getenv("LLMOBSERVE_AUTO_FUNCTION_TRACING", "true").lower() != "false"
+_use_v2_system = os.getenv("LLMOBSERVE_USE_V2_SYSTEM", "false").lower() == "true"
 
 if _auto_function_tracing:
     try:
-        from llmobserve.tracing.context_propagator import enable_context_propagation
-        from llmobserve.tracing.import_hook import enable_function_wrapping
-        
-        # Enable context propagation for threading, async, etc.
-        enable_context_propagation()
-        
-        # Enable automatic function wrapping via import hook
-        enable_function_wrapping()
+        if _use_v2_system:
+            # Use new v2 system with lazy workflow span creation
+            from llmobserve.tracing.context_propagator import enable_context_propagation
+            from llmobserve.tracing.import_hook_v2 import enable_import_hook_v2
+            
+            # Enable context propagation for threading, async, etc.
+            enable_context_propagation()
+            
+            # Enable automatic function wrapping via import hook v2
+            enable_import_hook_v2()
+        else:
+            # Use old system (backward compatibility)
+            from llmobserve.tracing.context_propagator import enable_context_propagation
+            from llmobserve.tracing.import_hook import enable_function_wrapping
+            
+            # Enable context propagation for threading, async, etc.
+            enable_context_propagation()
+            
+            # Enable automatic function wrapping via import hook
+            enable_function_wrapping()
     except Exception:
         # Silently fail if function tracing can't be enabled
         # This allows the package to be imported even if dependencies are missing
         pass
-

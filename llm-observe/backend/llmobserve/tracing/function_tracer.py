@@ -1,30 +1,16 @@
-"""Function-level workflow tracing using contextvars."""
+"""Function-level workflow tracing using workflow_manager (no spans on entry)."""
 
-import contextvars
 import functools
 import inspect
 import os
-import time
 from typing import Any, Callable, Optional
 
-from opentelemetry import trace
-
 from llmobserve.config import settings
-
-tracer = trace.get_tracer(__name__)
-
-# Context variables for workflow tracking
-current_workflow_span: contextvars.ContextVar[Optional[trace.Span]] = contextvars.ContextVar(
-    "current_workflow_span", default=None
-)
-workflow_function_name: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
-    "workflow_function_name", default=None
-)
-workflow_start_time: contextvars.ContextVar[Optional[float]] = contextvars.ContextVar(
-    "workflow_start_time", default=None
-)
-workflow_call_stack: contextvars.ContextVar[list] = contextvars.ContextVar(
-    "workflow_call_stack", default=[]
+from llmobserve.tracing.workflow_manager import (
+    begin_function,
+    end_function,
+    end_workflow_span,
+    get_current_workflow_span,
 )
 
 
@@ -61,8 +47,9 @@ def should_wrap_function(func: Callable, module_name: str) -> bool:
                     return False
     
     # Check function patterns from config
+    # Default to "*" to wrap ALL user functions automatically (not just specific patterns)
     function_patterns = os.getenv(
-        "LLMOBSERVE_FUNCTION_PATTERNS", "*_workflow,*_agent,*_handler"
+        "LLMOBSERVE_FUNCTION_PATTERNS", "*"
     ).split(",")
     
     # If pattern is "*" or empty, wrap all user functions
@@ -84,7 +71,7 @@ def should_wrap_function(func: Callable, module_name: str) -> bool:
 
 def wrap_function(func: Callable, module_name: str) -> Callable:
     """
-    Wrap a function to create workflow spans on entry.
+    Wrap a function to track execution state (no spans on entry).
     
     Args:
         func: Function to wrap
@@ -100,130 +87,138 @@ def wrap_function(func: Callable, module_name: str) -> Callable:
 
 
 def wrap_sync_function(func: Callable, module_name: str) -> Callable:
-    """Wrap a synchronous function."""
+    """Wrap a synchronous function to track state only."""
     
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         # Get function metadata
         func_name = func.__name__
-        workflow_name = f"workflow.{func_name}"
+        function_key = f"{module_name}.{func_name}"
         
-        # Get current workflow span (for nested calls)
-        parent_workflow = current_workflow_span.get()
+        # Get function file path
+        function_file = None
+        try:
+            if hasattr(func, "__code__") and func.__code__.co_filename:
+                function_file = func.__code__.co_filename
+        except Exception:
+            pass
         
-        # Create workflow span on function entry (before any code runs)
-        # This ensures the span exists before any API calls happen
-        with tracer.start_as_current_span(workflow_name) as workflow_span:
-            # Set workflow attributes
-            workflow_span.set_attribute("function.name", func_name)
-            workflow_span.set_attribute("function.module", module_name)
-            workflow_span.set_attribute("workflow.type", "auto")
+        # Track function entry (returns recursion depth) - pass metadata
+        depth = begin_function(function_key, func_name, module_name, function_file)
+        
+        # Store metadata for lazy span creation
+        # The workflow span will be created lazily on first API call
+        # via workflow_manager.ensure_parent_for_first_api_call()
+        
+        try:
+            # Execute the function
+            result = func(*args, **kwargs)
+            return result
+        except Exception as e:
+            # Record exception on workflow span if it exists
+            workflow_span = get_current_workflow_span()
+            if workflow_span:
+                try:
+                    workflow_span.record_exception(e)
+                    workflow_span.set_status(
+                        __import__("opentelemetry").trace.Status(
+                            __import__("opentelemetry").trace.StatusCode.ERROR, str(e)
+                        )
+                    )
+                except Exception:
+                    pass  # Best-effort: don't crash user app
+            raise
+        finally:
+            # Track function exit
+            remaining_depth = end_function(function_key)
             
-            # Try to get file path
-            try:
-                if hasattr(func, "__code__") and func.__code__.co_filename:
-                    workflow_span.set_attribute("function.file", func.__code__.co_filename)
-            except Exception:
-                pass
-            
-            # Set workflow context
-            token_span = current_workflow_span.set(workflow_span)
-            token_name = workflow_function_name.set(func_name)
-            token_time = workflow_start_time.set(time.time())
-            
-            # Update call stack
-            stack = workflow_call_stack.get().copy()
-            stack.append(workflow_span)
-            token_stack = workflow_call_stack.set(stack)
-            
-            try:
-                # Execute the function
-                result = func(*args, **kwargs)
-                return result
-            except Exception as e:
-                # Record exception on span
-                workflow_span.record_exception(e)
-                workflow_span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
-                raise
-            finally:
-                # Always restore context (even on exceptions)
-                current_workflow_span.reset(token_span)
-                workflow_function_name.reset(token_name)
-                workflow_start_time.reset(token_time)
-                workflow_call_stack.reset(token_stack)
-                
-                # Restore parent workflow if it existed
-                if parent_workflow:
-                    current_workflow_span.set(parent_workflow)
+            # End workflow span only when outermost call exits
+            if remaining_depth == 0:
+                try:
+                    # Check if exception occurred
+                    import sys
+                    exc_info = sys.exc_info()
+                    exception = exc_info[1] if exc_info[0] else None
+                    end_workflow_span(exception)
+                except Exception:
+                    pass  # Best-effort: don't crash user app
     
     wrapper._llmobserve_wrapped = True
+    wrapper._llmobserve_module = module_name
+    wrapper._llmobserve_function_name = func_name
+    wrapper._llmobserve_function_file = getattr(func, "__code__", None) and getattr(
+        func.__code__, "co_filename", None
+    )
     return wrapper
 
 
 def wrap_async_function(func: Callable, module_name: str) -> Callable:
-    """Wrap an asynchronous function."""
+    """Wrap an asynchronous function to track state only."""
     
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         # Get function metadata
         func_name = func.__name__
-        workflow_name = f"workflow.{func_name}"
+        function_key = f"{module_name}.{func_name}"
         
-        # Get current workflow span (for nested calls)
-        parent_workflow = current_workflow_span.get()
+        # Get function file path
+        function_file = None
+        try:
+            if hasattr(func, "__code__") and func.__code__.co_filename:
+                function_file = func.__code__.co_filename
+        except Exception:
+            pass
         
-        # Create workflow span on function entry (before any code runs)
-        # This ensures the span exists before any API calls happen
-        with tracer.start_as_current_span(workflow_name) as workflow_span:
-            # Set workflow attributes
-            workflow_span.set_attribute("function.name", func_name)
-            workflow_span.set_attribute("function.module", module_name)
-            workflow_span.set_attribute("workflow.type", "auto")
+        # Track function entry (returns recursion depth) - pass metadata
+        depth = begin_function(function_key, func_name, module_name, function_file)
+        
+        # Store metadata for lazy span creation
+        # The workflow span will be created lazily on first API call
+        # via workflow_manager.ensure_parent_for_first_api_call()
+        
+        try:
+            # Execute the async function
+            result = await func(*args, **kwargs)
+            return result
+        except Exception as e:
+            # Record exception on workflow span if it exists
+            workflow_span = get_current_workflow_span()
+            if workflow_span:
+                try:
+                    workflow_span.record_exception(e)
+                    workflow_span.set_status(
+                        __import__("opentelemetry").trace.Status(
+                            __import__("opentelemetry").trace.StatusCode.ERROR, str(e)
+                        )
+                    )
+                except Exception:
+                    pass  # Best-effort: don't crash user app
+            raise
+        finally:
+            # Track function exit
+            remaining_depth = end_function(function_key)
             
-            # Try to get file path
-            try:
-                if hasattr(func, "__code__") and func.__code__.co_filename:
-                    workflow_span.set_attribute("function.file", func.__code__.co_filename)
-            except Exception:
-                pass
-            
-            # Set workflow context
-            token_span = current_workflow_span.set(workflow_span)
-            token_name = workflow_function_name.set(func_name)
-            token_time = workflow_start_time.set(time.time())
-            
-            # Update call stack
-            stack = workflow_call_stack.get().copy()
-            stack.append(workflow_span)
-            token_stack = workflow_call_stack.set(stack)
-            
-            try:
-                # Execute the async function
-                result = await func(*args, **kwargs)
-                return result
-            except Exception as e:
-                # Record exception on span
-                workflow_span.record_exception(e)
-                workflow_span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
-                raise
-            finally:
-                # Always restore context (even on exceptions)
-                current_workflow_span.reset(token_span)
-                workflow_function_name.reset(token_name)
-                workflow_start_time.reset(token_time)
-                workflow_call_stack.reset(token_stack)
-                
-                # Restore parent workflow if it existed
-                if parent_workflow:
-                    current_workflow_span.set(parent_workflow)
+            # End workflow span only when outermost call exits
+            if remaining_depth == 0:
+                try:
+                    # Check if exception occurred
+                    import sys
+                    exc_info = sys.exc_info()
+                    exception = exc_info[1] if exc_info[0] else None
+                    end_workflow_span(exception)
+                except Exception:
+                    pass  # Best-effort: don't crash user app
     
     wrapper._llmobserve_wrapped = True
+    wrapper._llmobserve_module = module_name
+    wrapper._llmobserve_function_name = func_name
+    wrapper._llmobserve_function_file = getattr(func, "__code__", None) and getattr(
+        func.__code__, "co_filename", None
+    )
     return wrapper
 
 
-def get_current_workflow_span() -> Optional[trace.Span]:
-    """Get the current workflow span from contextvars."""
-    return current_workflow_span.get()
+# get_current_workflow_span is imported from workflow_manager above
 
 
 def workflow_trace(func: Callable) -> Callable:
@@ -233,14 +228,13 @@ def workflow_trace(func: Callable) -> Callable:
     Usage:
         @workflow_trace
         def my_function():
-            # This function will create a workflow span
+            # This function will track execution state
             pass
     """
     # Get module name from function's module
     module_name = getattr(func, "__module__", "unknown")
     if module_name == "unknown":
         try:
-            import inspect
             frame = inspect.currentframe()
             if frame and frame.f_back:
                 module_name = frame.f_back.f_globals.get("__name__", "unknown")
@@ -248,4 +242,3 @@ def workflow_trace(func: Callable) -> Callable:
             pass
     
     return wrap_function(func, module_name)
-

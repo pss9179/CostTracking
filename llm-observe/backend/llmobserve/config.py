@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     
     # Function tracing configuration
     auto_function_tracing: bool = Field(default=True, alias="LLMOBSERVE_AUTO_FUNCTION_TRACING")
-    function_patterns: str = Field(default="*_workflow,*_agent,*_handler", alias="LLMOBSERVE_FUNCTION_PATTERNS")
+    function_patterns: str = Field(default="*", alias="LLMOBSERVE_FUNCTION_PATTERNS")  # Default to "*" to wrap all functions
     exclude_modules: str = Field(default="test,__pycache__", alias="LLMOBSERVE_EXCLUDE_MODULES")
 
     model_config = SettingsConfigDict(

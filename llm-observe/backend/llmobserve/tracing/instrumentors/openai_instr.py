@@ -9,6 +9,7 @@ from opentelemetry import trace
 from llmobserve.semantics import LLM_MODEL, LLM_PROVIDER, LLM_REQUEST_MODEL, LLM_RESPONSE_MODEL, LLM_STATUS_CODE
 from llmobserve.tracing.enrichers import SpanEnricher
 from llmobserve.tracing.instrumentors.base import Instrumentor, ensure_root_span
+from llmobserve.tracing.tracer import get_wrapped_tracer
 
 # TODO: Production hardening
 # 1. Implement tail-based sampling for high-volume traces
@@ -17,7 +18,8 @@ from llmobserve.tracing.instrumentors.base import Instrumentor, ensure_root_span
 # 4. Add retry logic for failed span exports
 # 5. Implement span batching for better throughput
 
-tracer = trace.get_tracer(__name__)
+# Use wrapped tracer instead of raw OpenTelemetry tracer
+tracer = get_wrapped_tracer(__name__)
 
 
 class OpenAIInstrumentor(Instrumentor):
@@ -145,7 +147,7 @@ class OpenAIInstrumentor(Instrumentor):
             # Create child span for the actual LLM request
             # If ensure_root_span created a parent, this will link to it
             # If a parent already existed, this will link to that parent
-            with tracer.start_as_current_span("llm.request") as span:
+            with tracer.start_span("llm.request") as span:
                 span.set_attribute(LLM_PROVIDER, "openai")
                 span.set_attribute(LLM_REQUEST_MODEL, model)
                 span.set_attribute(LLM_MODEL, model)
@@ -194,7 +196,7 @@ class OpenAIInstrumentor(Instrumentor):
             # Create child span for the actual LLM request
             # If ensure_root_span created a parent, this will link to it
             # If a parent already existed, this will link to that parent
-            with tracer.start_as_current_span("llm.request") as span:
+            with tracer.start_span("llm.request") as span:
                 span.set_attribute(LLM_PROVIDER, "openai")
                 span.set_attribute(LLM_REQUEST_MODEL, model)
                 span.set_attribute(LLM_MODEL, model)

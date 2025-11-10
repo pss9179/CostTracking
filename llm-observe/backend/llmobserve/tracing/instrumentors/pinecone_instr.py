@@ -11,8 +11,10 @@ from llmobserve.pricing import pricing_registry
 from llmobserve.semantics import API_COST_USD, API_LATENCY_MS, API_OPERATION, API_PROVIDER, API_REQUEST_SIZE
 from llmobserve.tracing.enrichers import SpanEnricher
 from llmobserve.tracing.instrumentors.base import Instrumentor, ensure_root_span
+from llmobserve.tracing.tracer import get_wrapped_tracer
 
-tracer = trace.get_tracer(__name__)
+# Use wrapped tracer instead of raw OpenTelemetry tracer
+tracer = get_wrapped_tracer(__name__)
 
 
 class PineconeInstrumentor(Instrumentor):
@@ -155,7 +157,7 @@ class PineconeInstrumentor(Instrumentor):
             # Create child span for the actual API operation
             # If ensure_root_span created a parent, this will link to it
             # If a parent already existed, this will link to that parent
-            with tracer.start_as_current_span(span_name) as span:
+            with tracer.start_span(span_name) as span:
                 span.set_attribute(API_PROVIDER, "pinecone")
                 span.set_attribute(API_OPERATION, operation)
 
@@ -379,7 +381,7 @@ class SimplePineconeInstrumentor(Instrumentor):
             # Create child span for the actual query operation
             # If ensure_root_span created a parent, this will link to it
             # If a parent already existed, this will link to that parent
-            with tracer.start_as_current_span(span_name) as span:
+            with tracer.start_span(span_name) as span:
                 # Set required attributes
                 span.set_attribute("service.name", "pinecone")
                 span.set_attribute("pinecone.index_name", index_name)
