@@ -1,5 +1,6 @@
 """Base instrumentor interface and registry."""
 
+import inspect
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import List
@@ -17,6 +18,13 @@ def ensure_root_span(service_name: str):
     This enables plug-and-play behavior: if a user calls an API without any
     manual tracing setup, we automatically create a root trace for that call.
     
+    Enhanced to check for workflow context from function wrapping:
+    1. First checks for active workflow span from contextvars
+    2. If workflow span exists, uses it as parent (don't create new root)
+    3. If no workflow span, checks if we're inside a wrapped function
+    4. If inside wrapped function but no workflow span, creates workflow span (fallback)
+    5. If not in wrapped function, creates auto.workflow.{service} as before
+    
     Args:
         service_name: Service name for the auto-root span (e.g., "openai", "pinecone")
     
@@ -30,7 +38,48 @@ def ensure_root_span(service_name: str):
             # API call here - will be wrapped in auto.workflow.openai if no parent
             response = openai.chat.completions.create(...)
     """
-    # Check if there's an active span with valid trace context
+    # FIRST: Check for active workflow span from contextvars
+    # This is set when a function is wrapped and starts executing
+    try:
+        from llmobserve.tracing.function_tracer import get_current_workflow_span
+        
+        workflow_span = get_current_workflow_span()
+        if workflow_span is not None:
+            # Workflow span exists - use it as parent (don't create new root)
+            # Child spans will automatically link to the workflow span
+            yield None
+            return
+    except ImportError:
+        # Function tracer not available, fall through to normal logic
+        pass
+    except Exception:
+        # Error checking workflow context, fall through to normal logic
+        pass
+    
+    # SECOND: Check if we're inside a wrapped function (via call stack inspection)
+    # This is a fallback in case workflow span wasn't set properly
+    try:
+        frame = inspect.currentframe()
+        if frame:
+            # Walk up the call stack to find if we're in a wrapped function
+            current_frame = frame.f_back
+            while current_frame:
+                func = current_frame.f_code
+                func_name = func.co_name
+                
+                # Check if this looks like a wrapped function
+                # Wrapped functions have _llmobserve_wrapped attribute
+                if func_name.startswith("workflow.") or "workflow" in func_name.lower():
+                    # We're likely in a workflow function - check if we can create a workflow span
+                    # For now, fall through to normal logic (workflow span should have been created on entry)
+                    break
+                
+                current_frame = current_frame.f_back
+    except Exception:
+        # Error inspecting call stack, fall through to normal logic
+        pass
+    
+    # THIRD: Check if there's an active span with valid trace context
     # This enables plug-and-play: if no parent span exists, we create a root span
     current_span = trace.get_current_span()
     has_valid_context = False

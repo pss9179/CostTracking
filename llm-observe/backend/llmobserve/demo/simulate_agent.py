@@ -4,8 +4,10 @@ import asyncio
 import openai
 from pinecone import Pinecone
 from llmobserve.config import settings
+from llmobserve.tracing.function_tracer import workflow_trace
 
 
+@workflow_trace
 async def simulate_agent_workflow() -> dict:
         """Run a simple agent workflow and return results."""
         

@@ -12,6 +12,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExport
 from llmobserve.config import settings
 from llmobserve.tracing.genai_span_processor import GenAISpanProcessor
 from llmobserve.tracing.sampler import ParentBasedSampler
+from llmobserve.tracing.workflow_span_processor import WorkflowSpanProcessor
 
 
 def setup_tracing(span_repo=None) -> None:
@@ -45,6 +46,11 @@ def setup_tracing(span_repo=None) -> None:
     if settings.use_genai_instrumentor and span_repo:
         genai_processor = GenAISpanProcessor(span_repo=span_repo)
         tracer_provider.add_span_processor(genai_processor)
+    
+    # Add Workflow span processor to write workflow spans to database
+    if span_repo:
+        workflow_processor = WorkflowSpanProcessor(span_repo=span_repo)
+        tracer_provider.add_span_processor(workflow_processor)
 
     # Set as global tracer provider
     trace.set_tracer_provider(tracer_provider)

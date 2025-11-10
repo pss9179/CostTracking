@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Workflow, updateWorkflowName } from "@/lib/api";
+import { Workflow, updateWorkflowNameByName } from "@/lib/api";
 import { format } from "date-fns";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -21,8 +21,8 @@ export function WorkflowTable({ workflows, onWorkflowClick }: WorkflowTableProps
   const [editValue, setEditValue] = useState("");
 
   const updateMutation = useMutation({
-    mutationFn: ({ traceId, workflowName }: { traceId: string; workflowName: string }) =>
-      updateWorkflowName(traceId, workflowName),
+    mutationFn: ({ workflowName, newWorkflowName }: { workflowName: string; newWorkflowName: string }) =>
+      updateWorkflowNameByName(workflowName, newWorkflowName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
       queryClient.invalidateQueries({ queryKey: ["traces"] });
@@ -36,9 +36,14 @@ export function WorkflowTable({ workflows, onWorkflowClick }: WorkflowTableProps
   };
 
   const handleSave = (workflow: Workflow) => {
-    // For now, we'll need trace_id to update - this is a limitation
-    // In a real app, we'd need to track trace_id per workflow or have a different endpoint
-    setEditingId(null);
+    if (editValue.trim() && editValue !== workflow.workflow_name) {
+      updateMutation.mutate({
+        workflowName: workflow.workflow_name,
+        newWorkflowName: editValue.trim(),
+      });
+    } else {
+      setEditingId(null);
+    }
   };
 
   if (workflows.length === 0) {

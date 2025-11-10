@@ -20,12 +20,34 @@ class SpanRepository:
     """Repository for span and trace operations."""
 
     def create_span_summary(self, summary: dict) -> SpanSummary:
-        """Create a span summary record."""
+        """Create a span summary record and update/create trace."""
         with get_session() as session:
             span = SpanSummary(**summary)
             session.add(span)
             session.commit()
             session.refresh(span)
+            
+            # Auto-create/update trace after span is written
+            # This ensures traces are always up-to-date
+            try:
+                trace_id = summary["trace_id"]
+                tenant_id = summary["tenant_id"]
+                
+                # Check if trace exists
+                existing_trace = session.exec(
+                    select(Trace).where(Trace.trace_id == trace_id)
+                ).first()
+                
+                if not existing_trace:
+                    # Create new trace by aggregating all spans for this trace_id
+                    self.aggregate_trace(trace_id, tenant_id)
+                else:
+                    # Update existing trace
+                    self.aggregate_trace(trace_id, tenant_id)
+            except Exception:
+                # Don't fail if trace aggregation fails - spans are already written
+                pass
+            
             return span
 
     def get_spans(
@@ -86,6 +108,18 @@ class SpanRepository:
 
         root_span = next((s for s in spans if not s.parent_span_id), spans[0] if spans else None)
         root_span_name = root_span.name if root_span else None
+
+        # Extract workflow_name from root_span_name if not provided
+        # Root span names are like "workflow.workflow_sequence_1" -> extract "workflow_sequence_1"
+        if not workflow_name and root_span_name:
+            if root_span_name.startswith("workflow."):
+                workflow_name = root_span_name.replace("workflow.", "", 1)
+            elif root_span_name.startswith("auto.workflow."):
+                # For auto-created workflows, use the service name
+                workflow_name = root_span_name.replace("auto.workflow.", "", 1)
+            else:
+                # Fallback: use root_span_name as workflow_name
+                workflow_name = root_span_name
 
         trace_start = min(start_times) if start_times else 0.0
         trace_end = max(end_times) if end_times else None

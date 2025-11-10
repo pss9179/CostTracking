@@ -156,3 +156,101 @@ export async function updateWorkflowName(
   return res.json();
 }
 
+export async function updateWorkflowNameByName(
+  workflowName: string,
+  newWorkflowName: string
+): Promise<{ status: string; updated_count: number }> {
+  const res = await fetch(`/api/proxy/workflows/${encodeURIComponent(workflowName)}/name`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ workflow_name: newWorkflowName }),
+  });
+  if (!res.ok) throw new Error("Failed to update workflow name");
+  return res.json();
+}
+
+export async function runGmailWorkflow(): Promise<{
+  status: string;
+  trace_id: string;
+  workflow_name: string;
+  tenant_id: string;
+  result: any;
+}> {
+  const res = await fetch("/api/proxy/demo/gmail-workflow", { method: "POST" });
+  if (!res.ok) throw new Error("Failed to run Gmail workflow");
+  return res.json();
+}
+
+export async function runCalendarWorkflow(): Promise<{
+  status: string;
+  trace_id: string;
+  workflow_name: string;
+  tenant_id: string;
+  result: any;
+}> {
+  const res = await fetch("/api/proxy/demo/calendar-workflow", { method: "POST" });
+  if (!res.ok) throw new Error("Failed to run Calendar workflow");
+  return res.json();
+}
+
+export async function runVapiWorkflow(): Promise<{
+  status: string;
+  trace_id: string;
+  workflow_name: string;
+  tenant_id: string;
+  result: any;
+}> {
+  const res = await fetch("/api/proxy/demo/vapi-workflow", { method: "POST" });
+  if (!res.ok) throw new Error("Failed to run Vapi workflow");
+  return res.json();
+}
+
+export async function runAllWorkflows(): Promise<{
+  status: string;
+  trace_id: string;
+  workflow_name: string;
+  tenant_id: string;
+  result: any;
+}> {
+  const res = await fetch("/api/proxy/demo/run-all-workflows", { method: "POST" });
+  if (!res.ok) throw new Error("Failed to run all workflows");
+  return res.json();
+}
+
+export async function runComplexWorkflows(): Promise<{
+  status: string;
+  trace_ids: string[];
+  workflow_names: string[];
+  tenant_id: string;
+  result: any;
+}> {
+  const res = await fetch("/api/proxy/demo/complex-workflows", { method: "POST" });
+  if (!res.ok) throw new Error("Failed to run complex workflows");
+  return res.json();
+}
+
+export async function runComplexWorkflow(workflowNum: number): Promise<{
+  status: string;
+  trace_id: string;
+  workflow_name: string;
+  workflow_description: string;
+  tenant_id: string;
+  result: any;
+}> {
+  const res = await fetch(`/api/proxy/demo/complex-workflows/${workflowNum}`, { method: "POST" });
+  if (!res.ok) throw new Error(`Failed to run complex workflow ${workflowNum}`);
+  return res.json();
+}
+
+export async function clearAllData(): Promise<{
+  status: string;
+  message: string;
+  spans_deleted: number;
+  traces_deleted: number;
+  tenant_id: string;
+}> {
+  const res = await fetch("/api/proxy/demo/clear-data", { method: "POST" });
+  if (!res.ok) throw new Error("Failed to clear data");
+  return res.json();
+}
+

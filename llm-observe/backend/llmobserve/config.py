@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     
     # Instrumentation toggle - use official GenAI instrumentation if True
     use_genai_instrumentor: bool = Field(default=False, alias="USE_GENAI_INSTRUMENTOR")
+    
+    # Function tracing configuration
+    auto_function_tracing: bool = Field(default=True, alias="LLMOBSERVE_AUTO_FUNCTION_TRACING")
+    function_patterns: str = Field(default="*_workflow,*_agent,*_handler", alias="LLMOBSERVE_FUNCTION_PATTERNS")
+    exclude_modules: str = Field(default="test,__pycache__", alias="LLMOBSERVE_EXCLUDE_MODULES")
 
     model_config = SettingsConfigDict(
         env_file=find_env_file(),

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from llmobserve.storage.models import SpanSummary, Trace
-from llmobserve.storage.repo import SpanRepository
+from llmobserve.storage.repo import SpanRepository, get_session
 
 router = APIRouter()
 repo = SpanRepository()
@@ -116,4 +116,32 @@ async def update_workflow_name(
         return {"status": "success", "trace": trace.dict()}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.patch("/workflows/{workflow_name}/name")
+async def update_workflow_name_by_name(
+    workflow_name: str,
+    request: UpdateWorkflowNameRequest,
+    x_tenant_id: Optional[str] = Header(None, alias="x-tenant-id"),
+):
+    """Update workflow name for all traces with the given workflow_name."""
+    tenant_id = x_tenant_id or "default"
+    
+    # Get all traces with this workflow_name
+    from sqlmodel import select
+    
+    with get_session() as session:
+        statement = select(Trace).where(Trace.workflow_name == workflow_name)
+        if tenant_id:
+            statement = statement.where(Trace.tenant_id == tenant_id)
+        traces = list(session.exec(statement).all())
+        
+        # Update all traces
+        for trace in traces:
+            trace.workflow_name = request.workflow_name
+            session.add(trace)
+        
+        session.commit()
+    
+    return {"status": "success", "updated_count": len(traces)}
 

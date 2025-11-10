@@ -8,6 +8,12 @@ import {
   fetchTraces,
   fetchTrace,
   simulateAgent,
+  runGmailWorkflow,
+  runCalendarWorkflow,
+  runVapiWorkflow,
+  runAllWorkflows,
+  runComplexWorkflows,
+  clearAllData,
 } from "@/lib/api";
 import {
   BarChart,
@@ -27,6 +33,7 @@ import {
 import { WorkflowTable } from "./components/WorkflowTable";
 import { TraceTree } from "./components/TraceTree";
 import { WorkflowModal } from "./components/WorkflowModal";
+import { WorkflowFlowBuilder } from "./components/WorkflowFlowBuilder";
 
 const COLORS = {
   gpt: "#3b82f6", // blue
@@ -45,6 +52,7 @@ export default function Dashboard() {
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
+  const [showComplexWorkflows, setShowComplexWorkflows] = useState(false);
 
   // Load workflows
   const { data: workflows = [], isLoading: workflowsLoading } = useQuery({
@@ -80,6 +88,74 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["metrics"] });
       queryClient.invalidateQueries({ queryKey: ["traces"] });
       setIsModalOpen(false);
+    },
+  });
+
+  // Workflow mutations
+  const gmailMutation = useMutation({
+    mutationFn: runGmailWorkflow,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
+      queryClient.invalidateQueries({ queryKey: ["metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["traces"] });
+    },
+  });
+
+  const calendarMutation = useMutation({
+    mutationFn: runCalendarWorkflow,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
+      queryClient.invalidateQueries({ queryKey: ["metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["traces"] });
+    },
+  });
+
+  const vapiMutation = useMutation({
+    mutationFn: runVapiWorkflow,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
+      queryClient.invalidateQueries({ queryKey: ["metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["traces"] });
+    },
+  });
+
+  const allWorkflowsMutation = useMutation({
+    mutationFn: runAllWorkflows,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
+      queryClient.invalidateQueries({ queryKey: ["metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["traces"] });
+    },
+  });
+
+  const complexWorkflowsMutation = useMutation({
+    mutationFn: runComplexWorkflows,
+    onSuccess: () => {
+      // Keep showComplexWorkflows true if it was already set
+      setShowComplexWorkflows((prev) => prev || true);
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
+      queryClient.invalidateQueries({ queryKey: ["metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["traces"] });
+    },
+  });
+
+  // Handle button click - show flow builder immediately, then run workflows
+  const handleComplexWorkflowsClick = () => {
+    setShowComplexWorkflows(true); // Show flow builder immediately
+    complexWorkflowsMutation.mutate(); // Then run the workflows
+  };
+
+  // Clear data mutation
+  const clearDataMutation = useMutation({
+    mutationFn: clearAllData,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
+      queryClient.invalidateQueries({ queryKey: ["metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["traces"] });
+      setShowComplexWorkflows(false);
+      setSelectedTraceId(null);
+      setSelectedWorkflow(null);
+      alert("All data cleared! You can now run workflows to see fresh data.");
     },
   });
 
@@ -152,12 +228,62 @@ export default function Dashboard() {
               Monitor AI agent workflows, costs, and performance
             </p>
           </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-lg"
-          >
-            Run Test Agent
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-lg"
+            >
+              Run Test Agent
+            </button>
+            <button
+              onClick={() => gmailMutation.mutate()}
+              disabled={gmailMutation.isPending}
+              className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-lg disabled:opacity-50"
+            >
+              {gmailMutation.isPending ? "Running..." : "📧 Gmail"}
+            </button>
+            <button
+              onClick={() => calendarMutation.mutate()}
+              disabled={calendarMutation.isPending}
+              className="px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium shadow-lg disabled:opacity-50"
+            >
+              {calendarMutation.isPending ? "Running..." : "📅 Calendar"}
+            </button>
+            <button
+              onClick={() => vapiMutation.mutate()}
+              disabled={vapiMutation.isPending}
+              className="px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium shadow-lg disabled:opacity-50"
+            >
+              {vapiMutation.isPending ? "Running..." : "📞 Vapi"}
+            </button>
+            <button
+              onClick={() => allWorkflowsMutation.mutate()}
+              disabled={allWorkflowsMutation.isPending}
+              className="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium shadow-lg disabled:opacity-50"
+            >
+              {allWorkflowsMutation.isPending ? "Running..." : "🚀 Run All"}
+            </button>
+            <button
+              onClick={handleComplexWorkflowsClick}
+              disabled={complexWorkflowsMutation.isPending}
+              className="px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium shadow-lg disabled:opacity-50"
+              title="Show visual flow diagrams for complex workflows"
+            >
+              {complexWorkflowsMutation.isPending ? "Running..." : "🔥 Complex Workflows"}
+            </button>
+            <button
+              onClick={() => {
+                if (confirm("Are you sure you want to clear ALL data? This cannot be undone.")) {
+                  clearDataMutation.mutate();
+                }
+              }}
+              disabled={clearDataMutation.isPending}
+              className="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium shadow-lg disabled:opacity-50"
+              title="Clear all spans and traces from the database"
+            >
+              {clearDataMutation.isPending ? "Clearing..." : "🗑️ Clear All Data"}
+            </button>
+          </div>
         </div>
 
         {/* KPIs */}
@@ -291,46 +417,70 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Workflows Table */}
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mb-8">
-          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-            Workflows
-          </h3>
-          {workflowsLoading ? (
-            <p className="text-gray-500 dark:text-gray-400">Loading...</p>
-          ) : (
-            <WorkflowTable
-              workflows={workflows}
-              onWorkflowClick={handleWorkflowClick}
-            />
-          )}
-        </div>
-
-        {/* Trace Tree */}
-        {traceDetail ? (
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Trace Tree - {traceDetail.trace.workflow_name || "Untitled Workflow"}
-              </h3>
+        {/* Workflow Flow Builder (Visual) - Show this INSTEAD of table when button clicked */}
+        {showComplexWorkflows ? (
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Workflow Flow Diagrams
+              </h2>
               <button
-                onClick={() => setSelectedTraceId(null)}
-                className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                onClick={() => {
+                  setShowComplexWorkflows(false);
+                  setSelectedTraceId(null);
+                  setSelectedWorkflow(null);
+                }}
+                className="px-4 py-2 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
               >
-                ✕ Close
+                ← Back to Table View
               </button>
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Click the ✏️ icon next to any span name to rename it. Expand/collapse spans using ▶/▼.
-            </p>
-            <TraceTree spans={traceDetail.spans} onUpdate={() => refetchTrace()} />
+            <WorkflowFlowBuilder workflows={workflows} showComplexOnly={showComplexWorkflows} />
           </div>
-        ) : selectedWorkflow && (
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-            <p className="text-gray-500 dark:text-gray-400">
-              Click on a workflow row above to view its trace tree and spans.
-            </p>
-          </div>
+        ) : (
+          /* Workflows Table - Only show when NOT showing flow builder */
+          <>
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mb-8">
+              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                Workflows
+              </h3>
+              {workflowsLoading ? (
+                <p className="text-gray-500 dark:text-gray-400">Loading...</p>
+              ) : (
+                <WorkflowTable
+                  workflows={workflows}
+                  onWorkflowClick={handleWorkflowClick}
+                />
+              )}
+            </div>
+
+            {/* Trace Tree - Only show when NOT in flow builder mode */}
+            {traceDetail ? (
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Trace Tree - {traceDetail.trace.workflow_name || "Untitled Workflow"}
+                  </h3>
+                  <button
+                    onClick={() => setSelectedTraceId(null)}
+                    className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    ✕ Close
+                  </button>
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                  Click the ✏️ icon next to any span name to rename it. Expand/collapse spans using ▶/▼.
+                </p>
+                <TraceTree spans={traceDetail.spans} onUpdate={() => refetchTrace()} />
+              </div>
+            ) : selectedWorkflow && (
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+                <p className="text-gray-500 dark:text-gray-400">
+                  Click on a workflow row above to view its trace tree and spans.
+                </p>
+              </div>
+            )}
+          </>
         )}
       </div>
 

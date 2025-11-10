@@ -1,8 +1,10 @@
 """Fake app with GPT calls - no manual spans to validate auto-instrumentation."""
 
 from llmobserve.config import settings
+from llmobserve.tracing.function_tracer import workflow_trace
 
 
+@workflow_trace
 async def run_fake_app() -> None:
     """
     Run fake app with GPT calls that have NO manual spans.

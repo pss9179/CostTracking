@@ -152,8 +152,8 @@ function SpanNode({ span, allSpans, onSpanUpdate }: { span: SpanSummary; allSpan
       </div>
       {expanded && children.length > 0 && (
         <div className="ml-4 border-l-2 border-gray-200 dark:border-gray-700 pl-2">
-          {children.map((child) => (
-            <SpanNode key={child.span_id} span={child} allSpans={allSpans} onSpanUpdate={onSpanUpdate} />
+          {children.map((child, idx) => (
+            <SpanNode key={`${child.trace_id}-${child.span_id}-${idx}`} span={child} allSpans={allSpans} onSpanUpdate={onSpanUpdate} />
           ))}
         </div>
       )}
@@ -194,15 +194,15 @@ export function TraceTree({ spans, onUpdate }: TraceTreeProps & { onUpdate?: () 
                 stepName = span.name;
               }
               return (
-                <div key={span.span_id}>
+                <div key={`${span.trace_id}-${span.span_id}-${idx}`}>
                   {stepNum}. <strong>{span.name}</strong> - {stepName}
                 </div>
               );
             })}
         </div>
       </div>
-      {rootSpans.map((root) => (
-        <SpanNode key={root.span_id} span={root} allSpans={spans} onSpanUpdate={onUpdate} />
+      {rootSpans.map((root, idx) => (
+        <SpanNode key={`${root.trace_id}-${root.span_id}-root-${idx}`} span={root} allSpans={spans} onSpanUpdate={onUpdate} />
       ))}
     </div>
   );
