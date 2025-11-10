@@ -1,2 +1,2 @@
-"""FastAPI application."""
+"""API routes package."""
 

@@ -1,52 +1,30 @@
-"""LLM Observability Demo - Auto-instrumentation for LLM calls."""
+"""LLMObserve SDK - Lightweight AI usage and cost tracking."""
+
+from llmobserve.exporter import get_exporter
+from llmobserve.tracer import init_tracer, get_tracer, get_current_trace_id, get_current_span_id
+from llmobserve.langchain_handler import LLMObserveHandler
 
 __version__ = "0.1.0"
 
-# Auto-instrumentation on import (can be disabled via environment variable)
-import os
+__all__ = [
+    "init_tracer",
+    "get_tracer",
+    "get_current_trace_id",
+    "get_current_span_id",
+    "LLMObserveHandler",
+    "get_exporter",
+]
 
-# Check if auto-instrumentation is disabled
-_auto_instrument = os.getenv("LLMOBSERVE_AUTO_INSTRUMENT", "true").lower() != "false"
 
-if _auto_instrument:
-    try:
-        from llmobserve.tracing.instrumentors import instrument_all
-        
-        # Call instrument_all() without span_repo for now
-        # Users can call instrument_all(span_repo=...) manually if they want DB persistence
-        instrument_all()
-    except Exception:
-        # Silently fail if instrumentation can't be enabled
-        # This allows the package to be imported even if dependencies are missing
-        pass
+def use_asgi(app):
+    """
+    Wrap ASGI app to enable middleware.
 
-# Auto-function tracing on import (can be disabled via environment variable)
-_auto_function_tracing = os.getenv("LLMOBSERVE_AUTO_FUNCTION_TRACING", "true").lower() != "false"
-_use_v2_system = os.getenv("LLMOBSERVE_USE_V2_SYSTEM", "false").lower() == "true"
+    Usage:
+        from llmobserve import use_asgi
+        app = use_asgi(app)
+    """
+    # Middleware is already added in main.py
+    # This is a placeholder for SDK-style usage
+    return app
 
-if _auto_function_tracing:
-    try:
-        if _use_v2_system:
-            # Use new v2 system with lazy workflow span creation
-            from llmobserve.tracing.context_propagator import enable_context_propagation
-            from llmobserve.tracing.import_hook_v2 import enable_import_hook_v2
-            
-            # Enable context propagation for threading, async, etc.
-            enable_context_propagation()
-            
-            # Enable automatic function wrapping via import hook v2
-            enable_import_hook_v2()
-        else:
-            # Use old system (backward compatibility)
-            from llmobserve.tracing.context_propagator import enable_context_propagation
-            from llmobserve.tracing.import_hook import enable_function_wrapping
-            
-            # Enable context propagation for threading, async, etc.
-            enable_context_propagation()
-            
-            # Enable automatic function wrapping via import hook
-            enable_function_wrapping()
-    except Exception:
-        # Silently fail if function tracing can't be enabled
-        # This allows the package to be imported even if dependencies are missing
-        pass
