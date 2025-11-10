@@ -13,6 +13,8 @@ export interface CostEvent {
   completion_tokens: number | null;
   total_tokens: number | null;
   operation: string | null;
+  trace_id: string | null;
+  span_id: string | null;
 }
 
 export interface Metrics {

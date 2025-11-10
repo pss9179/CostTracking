@@ -83,6 +83,8 @@ async def get_costs(
                     "completion_tokens": e.completion_tokens,
                     "total_tokens": e.total_tokens,
                     "operation": e.operation,
+                    "trace_id": e.trace_id,
+                    "span_id": e.span_id,
                 }
                 for e in events
             ],

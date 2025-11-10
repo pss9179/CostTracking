@@ -19,31 +19,52 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedTenant, setSelectedTenant] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 5000); // Refresh every 5 seconds
-    return () => clearInterval(interval);
-  }, [selectedTenant]);
-
   const loadData = async () => {
     try {
+      setLoading(true);
+      console.log("Loading data...");
+      
       const [metricsData, costsData, tenantsData, workflowsData] = await Promise.all([
-        fetchMetrics(selectedTenant || undefined),
-        fetchCosts({ limit: 1000, tenant_id: selectedTenant || undefined }),
-        fetchTenants(),
-        fetchWorkflows(selectedTenant || undefined),
+        fetchMetrics(selectedTenant || undefined).catch(e => {
+          console.error("Failed to fetch metrics:", e);
+          return { total_cost_usd: 0, total_tokens: 0, total_requests: 0, cost_by_provider: {}, cost_by_model: {}, cost_over_time: {} };
+        }),
+        fetchCosts({ limit: 1000, tenant_id: selectedTenant || undefined }).catch(e => {
+          console.error("Failed to fetch costs:", e);
+          return { events: [], total: 0 };
+        }),
+        fetchTenants().catch(e => {
+          console.error("Failed to fetch tenants:", e);
+          return { tenants: [] };
+        }),
+        fetchWorkflows(selectedTenant || undefined).catch(e => {
+          console.error("Failed to fetch workflows:", e);
+          return { workflows: [] };
+        }),
       ]);
+
+      console.log("Data loaded:", { metrics: !!metricsData, events: costsData.events.length, tenants: tenantsData.tenants.length, workflows: workflowsData.workflows.length });
 
       setMetrics(metricsData);
       setEvents(costsData.events);
       setTenants(tenantsData.tenants);
       setWorkflows(workflowsData.workflows);
-      setLoading(false);
     } catch (error) {
       console.error("Failed to load data:", error);
+    } finally {
+      console.log("Setting loading to false");
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // Initial load
+    loadData();
+    // Set up auto-refresh
+    const interval = setInterval(loadData, 5000); // Refresh every 5 seconds
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTenant]);
 
   if (loading) {
     return (
@@ -76,18 +97,18 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">LLMObserve Dashboard</h1>
             <p className="text-muted-foreground mt-1">
-              Real-time AI workflow tracking and cost monitoring
+              Real-time AI agent workflow tracking and cost monitoring
             </p>
           </div>
           {tenants.length > 0 && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Badge
                 variant={selectedTenant === null ? "default" : "outline"}
-                className="cursor-pointer"
+                className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
                 onClick={() => setSelectedTenant(null)}
               >
                 All Tenants
@@ -96,10 +117,10 @@ export default function Dashboard() {
                 <Badge
                   key={tenant.tenant_id}
                   variant={selectedTenant === tenant.tenant_id ? "default" : "outline"}
-                  className="cursor-pointer"
+                  className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
                   onClick={() => setSelectedTenant(tenant.tenant_id)}
                 >
-                  {tenant.tenant_id}
+                  {tenant.tenant_id} (${tenant.total_cost_usd.toFixed(4)})
                 </Badge>
               ))}
             </div>

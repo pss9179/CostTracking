@@ -27,7 +27,7 @@ from langchain.chat_models import ChatOpenAI
 
 # LLMObserve imports
 from llmobserve.exporter import get_exporter
-from llmobserve.langchain_handler import LLMObserveHandler
+from llmobserve.langchain_handler import AgentObserveHandler
 from llmobserve.tracer import get_tracer, get_current_trace_id, get_current_span_id
 
 
@@ -473,11 +473,11 @@ def agent_1_workflow(tenant_id: str, workflow_id: str):
                 "agent_type": "customer_support",
             }
         ) as workflow_span:
-            # Create LLM with LLMObserveHandler callback
+            # Create LLM with AgentObserveHandler callback (includes organizational spans)
             llm = ChatOpenAI(
                 model="gpt-4o",
                 temperature=0,
-                callbacks=[LLMObserveHandler()],
+                callbacks=[AgentObserveHandler(agent_name="CustomerSupportAgent")],
             )
             
             # Create tools
@@ -523,11 +523,11 @@ def agent_2_workflow(tenant_id: str, workflow_id: str):
                 "agent_type": "calendar_email_assistant",
             }
         ) as workflow_span:
-            # Create LLM with LLMObserveHandler callback
+            # Create LLM with AgentObserveHandler callback (includes organizational spans)
             llm = ChatOpenAI(
                 model="gpt-4o",
                 temperature=0,
-                callbacks=[LLMObserveHandler()],
+                callbacks=[AgentObserveHandler(agent_name="CalendarEmailAssistant")],
             )
             
             # Create tools
