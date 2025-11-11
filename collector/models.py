@@ -1,9 +1,78 @@
 """
-SQLModel schema for trace events.
+SQLModel schema for trace events, users, and API keys.
 """
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 from sqlmodel import SQLModel, Field, Index, Column, JSON
+
+
+class User(SQLModel, table=True):
+    """User accounts (linked to Clerk authentication)."""
+    __tablename__ = "users"
+    
+    id: Optional[UUID] = Field(default=None, primary_key=True)
+    clerk_user_id: str = Field(unique=True, index=True, description="Clerk's user ID")
+    email: str = Field(unique=True, index=True, description="User email")
+    name: Optional[str] = Field(default=None, description="User display name")
+    created_at: datetime = Field(default_factory=datetime.utcnow, description="Account creation time")
+    subscription_tier: str = Field(default="free", description="Subscription tier: free, pro, enterprise")
+    
+    class Config:
+        indexes = [
+            Index("idx_users_clerk_id", "clerk_user_id"),
+            Index("idx_users_email", "email"),
+        ]
+
+
+class UserCreate(SQLModel):
+    """Schema for creating users."""
+    clerk_user_id: str
+    email: str
+    name: Optional[str] = None
+
+
+class APIKey(SQLModel, table=True):
+    """API keys for SDK authentication."""
+    __tablename__ = "api_keys"
+    
+    id: Optional[UUID] = Field(default=None, primary_key=True)
+    user_id: UUID = Field(foreign_key="users.id", index=True, description="Owner user ID")
+    key_hash: str = Field(unique=True, index=True, description="bcrypt hash of the full API key")
+    key_prefix: str = Field(description="Displayable prefix (e.g., llmo_sk_abc...)")
+    name: str = Field(description="User-friendly name")
+    created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation time")
+    last_used_at: Optional[datetime] = Field(default=None, description="Last usage timestamp")
+    revoked_at: Optional[datetime] = Field(default=None, description="Revocation timestamp")
+    
+    class Config:
+        indexes = [
+            Index("idx_api_keys_user_id", "user_id"),
+            Index("idx_api_keys_hash", "key_hash"),
+        ]
+
+
+class APIKeyCreate(SQLModel):
+    """Schema for creating API keys."""
+    name: str
+
+
+class APIKeyResponse(SQLModel):
+    """Response after creating an API key (includes plaintext key once)."""
+    id: UUID
+    name: str
+    key: str  # Full plaintext key (only returned once!)
+    key_prefix: str
+    created_at: datetime
+
+
+class APIKeyListItem(SQLModel):
+    """API key list item (without full key)."""
+    id: UUID
+    name: str
+    key_prefix: str
+    created_at: datetime
+    last_used_at: Optional[datetime]
 
 
 class TraceEvent(SQLModel, table=True):
@@ -27,8 +96,8 @@ class TraceEvent(SQLModel, table=True):
     provider: str = Field(description="e.g., openai, anthropic, pinecone")
     endpoint: str = Field(description="e.g., chat, embeddings, query, upsert")
     model: Optional[str] = Field(default=None, description="e.g., gpt-4o, text-embedding-3-small")
-    tenant_id: Optional[str] = Field(default=None, index=True, description="Tenant identifier for multi-tenant tracking")
-    customer_id: Optional[str] = Field(default=None, index=True, description="Customer/end-user identifier within a tenant")
+    user_id: Optional[UUID] = Field(default=None, foreign_key="users.id", index=True, description="User identifier (replaces tenant_id)")
+    customer_id: Optional[str] = Field(default=None, index=True, description="Customer/end-user identifier (user's customers)")
     
     # Metrics
     input_tokens: int = Field(default=0, description="Input/prompt tokens")
@@ -56,8 +125,9 @@ class TraceEvent(SQLModel, table=True):
             Index("idx_section_path", "section_path"),
             Index("idx_provider_model", "provider", "model"),
             Index("idx_created_at", "created_at"),
-            Index("idx_tenant_id", "tenant_id"),
+            Index("idx_user_id", "user_id"),
             Index("idx_customer_id", "customer_id"),
+            Index("idx_user_created", "user_id", "created_at"),
         ]
 
 
@@ -73,8 +143,7 @@ class TraceEventCreate(SQLModel):
     provider: str
     endpoint: str
     model: Optional[str] = None
-    tenant_id: Optional[str] = None
-    customer_id: Optional[str] = None
+    customer_id: Optional[str] = None  # customer_id still supported (user's end-customers)
     input_tokens: int = 0
     output_tokens: int = 0
     cached_tokens: int = 0
@@ -84,27 +153,5 @@ class TraceEventCreate(SQLModel):
     is_streaming: bool = False
     stream_cancelled: bool = False
     event_metadata: Optional[dict] = None
-
-
-class Tenant(SQLModel, table=True):
-    """Tenant authentication and metadata."""
-    __tablename__ = "tenants"
-    
-    id: Optional[int] = Field(default=None, primary_key=True)
-    tenant_id: str = Field(unique=True, index=True, description="Unique tenant identifier")
-    name: str = Field(description="Tenant display name")
-    api_key: str = Field(unique=True, index=True, description="API key for authentication")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Tenant creation time")
-    
-    class Config:
-        indexes = [
-            Index("idx_tenant_id", "tenant_id"),
-            Index("idx_api_key", "api_key"),
-        ]
-
-
-class TenantCreate(SQLModel):
-    """Schema for creating tenants."""
-    tenant_id: str
-    name: str
+    # Note: user_id will be extracted from API key, not sent by client
 

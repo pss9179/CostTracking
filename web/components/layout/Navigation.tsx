@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { UserButton, useUser } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -9,6 +10,7 @@ import {
   TrendingUp,
   Bell,
   DollarSign,
+  Settings,
 } from "lucide-react";
 
 const navItems = [
@@ -32,10 +34,21 @@ const navItems = [
     href: "/insights",
     icon: Bell,
   },
+  {
+    label: "Settings",
+    href: "/settings",
+    icon: Settings,
+  },
 ];
 
 export function Navigation() {
   const pathname = usePathname();
+  const { isSignedIn } = useUser();
+
+  // Don't show nav on auth pages
+  if (pathname?.startsWith('/sign-')) {
+    return null;
+  }
 
   return (
     <nav className="border-b bg-background">
@@ -47,9 +60,9 @@ export function Navigation() {
             <span className="font-bold text-lg">LLM Observe</span>
           </Link>
 
-          {/* Nav Items */}
+          {/* Nav Items + User */}
           <div className="flex items-center gap-1">
-            {navItems.map((item) => {
+            {isSignedIn && navItems.map((item) => {
               const Icon = item.icon;
               const isActive =
                 pathname === item.href ||
@@ -71,6 +84,19 @@ export function Navigation() {
                 </Link>
               );
             })}
+            
+            {isSignedIn && (
+              <div className="ml-4">
+                <UserButton 
+                  afterSignOutUrl="/sign-in"
+                  appearance={{
+                    elements: {
+                      avatarBox: "h-10 w-10"
+                    }
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
