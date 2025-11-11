@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -15,12 +15,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { FilterBar } from "@/components/filters/FilterBar";
 import { fetchRunDetail, fetchRuns, type Run } from "@/lib/api";
 import {
   aggregateByProvider,
   aggregateByModel,
-  aggregateBySectionPath,
+  aggregateByAgent,
   aggregateByDay,
 } from "@/lib/aggregations";
 import {
@@ -31,7 +30,7 @@ import {
 } from "@/lib/stats";
 import { exportToCSV, exportToJSON } from "@/lib/export";
 import { Button } from "@/components/ui/button";
-import { Download, BarChart3, PieChart, TrendingUp } from "lucide-react";
+import { Download, BarChart3, PieChart, TrendingUp, ChevronDown, ChevronRight } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -44,16 +43,93 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  LineChart,
+  Line,
 } from "recharts";
 
 const COLORS = ["#3b82f6", "#a855f7", "#f97316", "#10b981", "#6366f1", "#ec4899"];
 
+// Group models by provider
+interface ProviderGroup {
+  provider: string;
+  totalCost: number;
+  totalCalls: number;
+  totalTokens: number;
+  avgLatency: number;
+  models: Array<{
+    model: string;
+    cost: number;
+    calls: number;
+    tokens: number;
+    avgLatency: number;
+  }>;
+}
+
+function groupModelsByProvider(events: any[]): ProviderGroup[] {
+  const providerMap = new Map<string, ProviderGroup>();
+
+  events.forEach((event) => {
+    // Extract provider from model string (e.g., "gpt-4" -> "openai", "claude" -> "anthropic")
+    let provider = event.provider || "unknown";
+    const model = event.model || "unknown";
+
+    if (!providerMap.has(provider)) {
+      providerMap.set(provider, {
+        provider,
+        totalCost: 0,
+        totalCalls: 0,
+        totalTokens: 0,
+        avgLatency: 0,
+        models: [],
+      });
+    }
+
+    const group = providerMap.get(provider)!;
+    group.totalCost += event.cost_usd || 0;
+    group.totalCalls += 1;
+    group.totalTokens += (event.input_tokens || 0) + (event.output_tokens || 0);
+    group.avgLatency += event.latency_ms || 0;
+
+    // Find or create model entry
+    let modelEntry = group.models.find((m) => m.model === model);
+    if (!modelEntry) {
+      modelEntry = {
+        model,
+        cost: 0,
+        calls: 0,
+        tokens: 0,
+        avgLatency: 0,
+      };
+      group.models.push(modelEntry);
+    }
+
+    modelEntry.cost += event.cost_usd || 0;
+    modelEntry.calls += 1;
+    modelEntry.tokens += (event.input_tokens || 0) + (event.output_tokens || 0);
+    modelEntry.avgLatency += event.latency_ms || 0;
+  });
+
+  // Calculate averages
+  const results = Array.from(providerMap.values()).map((group) => ({
+    ...group,
+    avgLatency: group.totalCalls > 0 ? group.avgLatency / group.totalCalls : 0,
+    models: group.models.map((m) => ({
+      ...m,
+      avgLatency: m.calls > 0 ? m.avgLatency / m.calls : 0,
+    })).sort((a, b) => b.cost - a.cost),
+  }));
+
+  return results.sort((a, b) => b.totalCost - a.totalCost);
+}
+
 export default function CostsPage() {
-  const searchParams = useSearchParams();
+  const router = useRouter();
   const [runs, setRuns] = useState<Run[]>([]);
   const [allEvents, setAllEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set());
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
 
   useEffect(() => {
     async function loadData() {
@@ -79,6 +155,39 @@ export default function CostsPage() {
     loadData();
   }, []);
 
+  const toggleProvider = (provider: string) => {
+    const newExpanded = new Set(expandedProviders);
+    if (newExpanded.has(provider)) {
+      newExpanded.delete(provider);
+    } else {
+      newExpanded.add(provider);
+    }
+    setExpandedProviders(newExpanded);
+  };
+
+  const handleAgentClick = (agentName: string) => {
+    // Find the most expensive run for this agent
+    const agentEvents = allEvents.filter((e) => 
+      (e.section_path || e.section).includes(agentName)
+    );
+    
+    if (agentEvents.length === 0) return;
+
+    // Group by run_id and find the most expensive
+    const runCosts = new Map<string, number>();
+    agentEvents.forEach((e) => {
+      const current = runCosts.get(e.run_id) || 0;
+      runCosts.set(e.run_id, current + (e.cost_usd || 0));
+    });
+
+    const mostExpensiveRun = Array.from(runCosts.entries())
+      .sort((a, b) => b[1] - a[1])[0];
+
+    if (mostExpensiveRun) {
+      router.push(`/runs/${mostExpensiveRun[0]}`);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-8 space-y-8">
@@ -103,8 +212,8 @@ export default function CostsPage() {
 
   // Aggregate data
   const byProvider = aggregateByProvider(allEvents);
-  const byModel = aggregateByModel(allEvents);
-  const bySectionPath = aggregateBySectionPath(allEvents);
+  const byAgent = aggregateByAgent(allEvents);
+  const providerGroups = groupModelsByProvider(allEvents);
   const byDay = aggregateByDay(allEvents);
 
   const totalCost = allEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
@@ -116,6 +225,15 @@ export default function CostsPage() {
   const handleExportJSON = (data: any, filename: string) => {
     exportToJSON(data, filename);
   };
+
+  // Filter events for chart based on selected models
+  const chartData = selectedModels.length > 0
+    ? providerGroups.flatMap((pg) =>
+        pg.models
+          .filter((m) => selectedModels.includes(m.model))
+          .map((m) => ({ name: m.model, cost: m.cost }))
+      )
+    : providerGroups.map((pg) => ({ name: pg.provider, cost: pg.totalCost }));
 
   return (
     <div className="p-8 space-y-8">
@@ -139,7 +257,7 @@ export default function CostsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => handleExportJSON({ byProvider, byModel, bySectionPath }, "cost-analysis.json")}
+              onClick={() => handleExportJSON({ byProvider, byAgent, providerGroups }, "cost-analysis.json")}
             >
               <Download className="mr-2 h-4 w-4" />
               Export JSON
@@ -184,9 +302,9 @@ export default function CostsPage() {
             <PieChart className="mr-2 h-4 w-4" />
             By Model
           </TabsTrigger>
-          <TabsTrigger value="section">
+          <TabsTrigger value="agent">
             <TrendingUp className="mr-2 h-4 w-4" />
-            By Section Path
+            By Agent
           </TabsTrigger>
         </TabsList>
 
@@ -259,17 +377,18 @@ export default function CostsPage() {
           </div>
         </TabsContent>
 
-        {/* By Model */}
+        {/* By Model - Grouped by Provider */}
         <TabsContent value="model" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Model Breakdown</CardTitle>
+              <CardTitle>Model Breakdown by Provider</CardTitle>
+              <p className="text-sm text-muted-foreground">Click on a provider to expand and see individual models</p>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Model</TableHead>
+                    <TableHead>Provider / Model</TableHead>
                     <TableHead className="text-right">Cost</TableHead>
                     <TableHead className="text-right">Calls</TableHead>
                     <TableHead className="text-right">Tokens</TableHead>
@@ -278,41 +397,83 @@ export default function CostsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {byModel.map((item) => (
-                    <TableRow key={item.key}>
-                      <TableCell>
-                        <Badge variant="outline">{item.key}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatCost(item.cost)}
-                      </TableCell>
-                      <TableCell className="text-right">{item.count}</TableCell>
-                      <TableCell className="text-right">
-                        {formatTokens(item.tokens || 0)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatDuration(item.avgLatency || 0)}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {calculatePercentage(item.cost, totalCost).toFixed(1)}%
-                      </TableCell>
-                    </TableRow>
+                  {providerGroups.map((group) => (
+                    <>
+                      {/* Provider Row */}
+                      <TableRow
+                        key={group.provider}
+                        className="cursor-pointer hover:bg-muted/50 font-semibold"
+                        onClick={() => toggleProvider(group.provider)}
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {expandedProviders.has(group.provider) ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                            <Badge variant="secondary">{group.provider}</Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {formatCost(group.totalCost)}
+                        </TableCell>
+                        <TableCell className="text-right">{group.totalCalls}</TableCell>
+                        <TableCell className="text-right">
+                          {formatTokens(group.totalTokens)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatDuration(group.avgLatency)}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {calculatePercentage(group.totalCost, totalCost).toFixed(1)}%
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Expanded Model Rows */}
+                      {expandedProviders.has(group.provider) &&
+                        group.models.map((model) => (
+                          <TableRow key={`${group.provider}-${model.model}`} className="bg-muted/20">
+                            <TableCell className="pl-12">
+                              <Badge variant="outline">{model.model}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatCost(model.cost)}
+                            </TableCell>
+                            <TableCell className="text-right">{model.calls}</TableCell>
+                            <TableCell className="text-right">
+                              {formatTokens(model.tokens)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatDuration(model.avgLatency)}
+                            </TableCell>
+                            <TableCell className="text-right text-muted-foreground">
+                              {calculatePercentage(model.cost, totalCost).toFixed(1)}%
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </>
                   ))}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
 
-          {/* Bar Chart */}
+          {/* Bar Chart for Model Comparison */}
           <Card>
             <CardHeader>
-              <CardTitle>Cost by Model</CardTitle>
+              <CardTitle>Cost Comparison</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {selectedModels.length > 0
+                  ? `Comparing selected models`
+                  : `Showing provider-level totals (expand providers above to compare individual models)`}
+              </p>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={byModel.slice(0, 10)}>
+                <BarChart data={chartData.slice(0, 10)}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="key" angle={-45} textAnchor="end" height={100} />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
                   <YAxis tickFormatter={(value) => formatCost(value)} />
                   <Tooltip formatter={(value: any) => formatCost(Number(value))} />
                   <Bar dataKey="cost" fill="#3b82f6" />
@@ -322,50 +483,80 @@ export default function CostsPage() {
           </Card>
         </TabsContent>
 
-        {/* By Section Path */}
-        <TabsContent value="section" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Section Path Breakdown</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Section Path</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
-                    <TableHead className="text-right">Calls</TableHead>
-                    <TableHead className="text-right">Avg Latency</TableHead>
-                    <TableHead className="text-right">%</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bySectionPath.slice(0, 20).map((item) => (
-                    <TableRow key={item.key}>
-                      <TableCell>
-                        <Badge variant="secondary" className="font-mono text-xs">
-                          {item.key}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatCost(item.cost)}
-                      </TableCell>
-                      <TableCell className="text-right">{item.count}</TableCell>
-                      <TableCell className="text-right">
-                        {formatDuration(item.avgLatency || 0)}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {calculatePercentage(item.cost, totalCost).toFixed(1)}%
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+        {/* By Agent */}
+        <TabsContent value="agent" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Agent Breakdown</CardTitle>
+                <p className="text-sm text-muted-foreground">Click on an agent to see its most expensive run</p>
+              </CardHeader>
+              <CardContent>
+                {byAgent.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No agent data available.</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Agent</TableHead>
+                        <TableHead className="text-right">Cost</TableHead>
+                        <TableHead className="text-right">Calls</TableHead>
+                        <TableHead className="text-right">Avg Latency</TableHead>
+                        <TableHead className="text-right">%</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {byAgent.map((item) => (
+                        <TableRow
+                          key={item.key}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => handleAgentClick(item.key)}
+                        >
+                          <TableCell>
+                            <Badge variant="secondary">{item.key}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {formatCost(item.cost)}
+                          </TableCell>
+                          <TableCell className="text-right">{item.count}</TableCell>
+                          <TableCell className="text-right">
+                            {formatDuration(item.avgLatency || 0)}
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {calculatePercentage(item.cost, totalCost).toFixed(1)}%
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Agent Cost Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Agent Cost Distribution</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={byAgent.slice(0, 10)}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="key" angle={-45} textAnchor="end" height={100} />
+                    <YAxis tickFormatter={(value) => formatCost(value)} />
+                    <Tooltip
+                      formatter={(value: any) => formatCost(Number(value))}
+                      labelFormatter={(label) => `Agent: ${label}`}
+                    />
+                    <Bar dataKey="cost" fill="#10b981" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
   );
 }
-

@@ -124,126 +124,40 @@ export default function RunDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Breakdown Tabs */}
-      <Tabs defaultValue="section">
-        <TabsList>
-          <TabsTrigger value="section">By Section</TabsTrigger>
-          <TabsTrigger value="provider">By Provider</TabsTrigger>
-          <TabsTrigger value="model">By Model</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="section">
-          <Card>
-            <CardHeader>
-              <CardTitle>Cost Breakdown by Section</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Section</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
-                    <TableHead className="text-right">Calls</TableHead>
-                    <TableHead className="text-right">% of Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {detail.breakdown.by_section.map((item) => (
-                    <TableRow key={item.section}>
-                      <TableCell>
-                        <Badge variant="secondary">{item.section}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        ${item.cost.toFixed(6)}
-                      </TableCell>
-                      <TableCell className="text-right">{item.count}</TableCell>
-                      <TableCell className="text-right">
-                        {item.percentage.toFixed(1)}%
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="provider">
-          <Card>
-            <CardHeader>
-              <CardTitle>Cost Breakdown by Provider</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Provider</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
-                    <TableHead className="text-right">Calls</TableHead>
-                    <TableHead className="text-right">% of Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {detail.breakdown.by_provider.map((item) => (
-                    <TableRow key={item.provider}>
-                      <TableCell>
-                        <Badge>{item.provider}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        ${item.cost.toFixed(6)}
-                      </TableCell>
-                      <TableCell className="text-right">{item.count}</TableCell>
-                      <TableCell className="text-right">
-                        {item.percentage.toFixed(1)}%
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="model">
-          <Card>
-            <CardHeader>
-              <CardTitle>Cost Breakdown by Model</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {detail.breakdown.by_model.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No model data available.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Model</TableHead>
-                      <TableHead className="text-right">Cost</TableHead>
-                      <TableHead className="text-right">Calls</TableHead>
-                      <TableHead className="text-right">% of Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {detail.breakdown.by_model.map((item) => (
-                      <TableRow key={item.model}>
-                        <TableCell>
-                          <Badge variant="outline">{item.model}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-semibold">
-                          ${item.cost.toFixed(6)}
-                        </TableCell>
-                        <TableCell className="text-right">{item.count}</TableCell>
-                        <TableCell className="text-right">
-                          {item.percentage.toFixed(1)}%
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {/* Section Breakdown */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Cost Breakdown by Section</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Section</TableHead>
+                <TableHead className="text-right">Cost</TableHead>
+                <TableHead className="text-right">Calls</TableHead>
+                <TableHead className="text-right">% of Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {detail.breakdown.by_section.map((item) => (
+                <TableRow key={item.section}>
+                  <TableCell>
+                    <Badge variant="secondary">{item.section}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right font-semibold">
+                    ${item.cost.toFixed(6)}
+                  </TableCell>
+                  <TableCell className="text-right">{item.count}</TableCell>
+                  <TableCell className="text-right">
+                    {item.percentage.toFixed(1)}%
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       {/* Events View - Hierarchical or Flat */}
       <Tabs defaultValue="hierarchy">

@@ -166,9 +166,9 @@ function TreeNodeComponent({
       {/* Children */}
       {hasChildren && isExpanded && (
         <div className="mt-1">
-          {node.children.map((child) => (
+          {node.children.map((child, idx) => (
             <TreeNodeComponent
-              key={child.event.span_id}
+              key={`${child.event.span_id}-${depth}-${idx}`}
               node={child}
               depth={depth + 1}
             />
@@ -190,9 +190,9 @@ export function HierarchicalTrace({ events }: HierarchicalTraceProps) {
         <p className="text-sm text-muted-foreground mb-4">
           No hierarchical structure detected. Displaying flat event list.
         </p>
-        {events.map((event) => (
+        {events.map((event, idx) => (
           <div
-            key={event.span_id}
+            key={`${event.span_id}-${idx}`}
             className="flex items-center gap-3 p-3 border rounded hover:bg-gray-50"
           >
             <Badge variant="secondary" className="text-xs">
@@ -234,8 +234,8 @@ export function HierarchicalTrace({ events }: HierarchicalTraceProps) {
           explore nested agent, tool, and step calls.
         </p>
       </div>
-      {tree.map((node) => (
-        <TreeNodeComponent key={node.event.span_id} node={node} />
+      {tree.map((node, idx) => (
+        <TreeNodeComponent key={`${node.event.span_id}-${idx}`} node={node} />
       ))}
     </div>
   );
