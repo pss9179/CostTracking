@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llmobserve"
+version = "0.1.0"
+description = "Auto-instrumentation SDK for LLM and API cost tracking"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+openai = ["openai>=1.0.0", "tiktoken>=0.5.0"]
+pinecone = ["pinecone-client>=3.0.0"]
+all = ["openai>=1.0.0", "tiktoken>=0.5.0", "pinecone-client>=3.0.0"]
+dev = [
+    "pytest>=7.4.0",
+    "openai>=1.0.0",
+    "tiktoken>=0.5.0",
+    "pinecone-client>=3.0.0",
+]
+
+[tool.setuptools]
+packages = ["llmobserve"]
+

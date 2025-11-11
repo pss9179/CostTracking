@@ -1,0 +1,110 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TraceEvent",
+  "description": "Schema for a trace event in LLM observability",
+  "type": "object",
+  "required": [
+    "id",
+    "run_id",
+    "span_id",
+    "section",
+    "span_type",
+    "provider",
+    "endpoint"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (UUID4)"
+    },
+    "run_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Groups all calls in one user request"
+    },
+    "span_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique span identifier"
+    },
+    "parent_span_id": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Parent span ID (null for flat structure)"
+    },
+    "section": {
+      "type": "string",
+      "description": "User-defined label (e.g., 'retrieval', 'reasoning')"
+    },
+    "section_path": {
+      "type": ["string", "null"],
+      "description": "Full hierarchical section path (e.g., 'agent:researcher/tool:web_search')"
+    },
+    "span_type": {
+      "type": "string",
+      "enum": ["llm", "vector_db", "api", "other"],
+      "description": "Type of operation"
+    },
+    "provider": {
+      "type": "string",
+      "description": "Provider name (e.g., 'openai', 'pinecone')"
+    },
+    "endpoint": {
+      "type": "string",
+      "description": "Endpoint name (e.g., 'chat', 'embeddings', 'query')"
+    },
+    "model": {
+      "type": ["string", "null"],
+      "description": "Model name (e.g., 'gpt-4o', 'text-embedding-3-small')"
+    },
+    "tenant_id": {
+      "type": ["string", "null"],
+      "description": "Tenant identifier for multi-tenant tracking"
+    },
+    "customer_id": {
+      "type": ["string", "null"],
+      "description": "Customer/end-user identifier within a tenant"
+    },
+    "input_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Input/prompt tokens"
+    },
+    "output_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Output/completion tokens"
+    },
+    "cost_usd": {
+      "type": "number",
+      "minimum": 0,
+      "default": 0.0,
+      "description": "Cost in USD"
+    },
+    "latency_ms": {
+      "type": "number",
+      "minimum": 0,
+      "default": 0.0,
+      "description": "Latency in milliseconds"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error"],
+      "default": "ok",
+      "description": "Operation status"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Event creation timestamp"
+    },
+    "event_metadata": {
+      "type": ["object", "null"],
+      "description": "Arbitrary metadata (tenant_id, user_id, etc.)"
+    }
+  }
+}
+
