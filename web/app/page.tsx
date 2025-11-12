@@ -75,7 +75,7 @@ export default function DashboardPage() {
     // Refresh every 30 seconds
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
-  }, [isLoaded, user, selectedCustomer]);
+  }, [user, selectedCustomer]);
 
   // Filter events by customer if selected
   const filteredEvents = selectedCustomer
@@ -464,7 +464,7 @@ export default function DashboardPage() {
         </div>
         </CardContent>
       </Card>
-      </div>
+    </div>
     </ProtectedLayout>
   );
 }
