@@ -19,6 +19,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [userType, setUserType] = useState<"solo_dev" | "saas_founder">("solo_dev");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   
@@ -32,7 +33,7 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const result = await signup(email, password, name || undefined);
+      const result = await signup(email, password, name || undefined, userType);
       saveAuth(result.token, result.user);
       setApiKey(result.api_key.key);
       setStep("onboarding");
@@ -199,6 +200,64 @@ export default function SignupPage() {
                 onChange={(e) => setName(e.target.value)}
                 disabled={loading}
               />
+            </div>
+
+            {/* User Type Selection */}
+            <div className="space-y-3">
+              <Label className="text-base">I am a...</Label>
+              <div className="space-y-3">
+                <div 
+                  className={`flex items-start space-x-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    userType === "solo_dev" ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-gray-300"
+                  }`}
+                  onClick={() => setUserType("solo_dev")}
+                >
+                  <input
+                    type="radio"
+                    id="solo_dev"
+                    name="userType"
+                    value="solo_dev"
+                    checked={userType === "solo_dev"}
+                    onChange={() => setUserType("solo_dev")}
+                    className="mt-1"
+                    disabled={loading}
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="solo_dev" className="cursor-pointer font-semibold">
+                      Solo Developer
+                    </Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Building your own projects and want to track your API costs
+                    </p>
+                  </div>
+                </div>
+
+                <div 
+                  className={`flex items-start space-x-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    userType === "saas_founder" ? "border-blue-600 bg-blue-50" : "border-gray-200 hover:border-gray-300"
+                  }`}
+                  onClick={() => setUserType("saas_founder")}
+                >
+                  <input
+                    type="radio"
+                    id="saas_founder"
+                    name="userType"
+                    value="saas_founder"
+                    checked={userType === "saas_founder"}
+                    onChange={() => setUserType("saas_founder")}
+                    className="mt-1"
+                    disabled={loading}
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="saas_founder" className="cursor-pointer font-semibold">
+                      SaaS Founder
+                    </Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Building a product and want to track costs per customer
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">

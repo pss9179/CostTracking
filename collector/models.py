@@ -15,6 +15,7 @@ class User(SQLModel, table=True):
     email: str = Field(unique=True, index=True, description="User email")
     password_hash: str = Field(description="Bcrypt password hash")
     name: Optional[str] = Field(default=None, description="User display name")
+    user_type: str = Field(default="solo_dev", description="User type: solo_dev or saas_founder")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Account creation time")
     subscription_tier: str = Field(default="free", description="Subscription tier: free, pro, enterprise")
     
@@ -29,6 +30,7 @@ class UserSignup(SQLModel):
     email: str
     password: str
     name: Optional[str] = None
+    user_type: str = "solo_dev"  # solo_dev or saas_founder
 
 
 class UserLogin(SQLModel):
@@ -42,6 +44,7 @@ class UserResponse(SQLModel):
     id: UUID
     email: str
     name: Optional[str]
+    user_type: str
     created_at: datetime
     subscription_tier: str
 

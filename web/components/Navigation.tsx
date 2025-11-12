@@ -19,8 +19,10 @@ export function Navigation() {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<any>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const { user: loadedUser } = loadAuth();
     setUser(loadedUser);
   }, []);
@@ -31,6 +33,24 @@ export function Navigation() {
   };
 
   const isActive = (path: string) => pathname === path;
+  
+  const isSaaSFounder = user?.user_type === "saas_founder";
+
+  // Prevent hydration mismatch by only rendering on client
+  if (!mounted) {
+    return (
+      <nav className="border-b bg-white">
+        <div className="container mx-auto px-4">
+          <div className="flex h-16 items-center justify-between">
+            <Link href="/" className="flex items-center space-x-2">
+              <Activity className="h-6 w-6 text-blue-600" />
+              <span className="text-xl font-bold">LLMObserve</span>
+            </Link>
+          </div>
+        </div>
+      </nav>
+    );
+  }
 
   return (
     <nav className="border-b bg-white">
@@ -54,15 +74,18 @@ export function Navigation() {
               </Button>
             </Link>
 
-            <Link href="/customers">
-              <Button
-                variant={isActive("/customers") ? "default" : "ghost"}
-                className="flex items-center space-x-2"
-              >
-                <Users className="h-4 w-4" />
-                <span>Customers</span>
-              </Button>
-            </Link>
+            {/* Only show Customers for SaaS founders */}
+            {isSaaSFounder && (
+              <Link href="/customers">
+                <Button
+                  variant={isActive("/customers") ? "default" : "ghost"}
+                  className="flex items-center space-x-2"
+                >
+                  <Users className="h-4 w-4" />
+                  <span>Customers</span>
+                </Button>
+              </Link>
+            )}
 
             <Link href="/agents">
               <Button

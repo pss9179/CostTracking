@@ -104,6 +104,7 @@ def signup(
         email=user_data.email,
         password_hash=hash_password(user_data.password),
         name=user_data.name,
+        user_type=user_data.user_type,
         subscription_tier="free"
     )
     session.add(user)
