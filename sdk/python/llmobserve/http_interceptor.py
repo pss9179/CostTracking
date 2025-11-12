@@ -283,3 +283,22 @@ def patch_all_http_clients():
     
     return len(patched) > 0
 
+
+def patch_all_protocols() -> dict:
+    """
+    Patch HTTP, gRPC, and WebSocket protocols for universal coverage.
+    
+    Returns:
+        dict: Status of each protocol patching attempt.
+    """
+    from llmobserve.grpc_interceptor import patch_grpc
+    from llmobserve.websocket_interceptor import patch_all_websockets
+    
+    results = {
+        "http": patch_all_http_clients(),
+        "grpc": patch_grpc(),
+        "websocket": patch_all_websockets()
+    }
+    
+    return results
+

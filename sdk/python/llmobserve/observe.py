@@ -138,22 +138,31 @@ def observe(
         logger.debug("[llmobserve] Observability disabled, skipping instrumentation")
         return
     
-    # PRIMARY: Patch HTTP clients to inject context headers on ALL requests
-    # This ensures context propagates across async, Celery, threads, etc.
-    from llmobserve.http_interceptor import patch_all_http_clients
-    http_patched = patch_all_http_clients()
+    # PRIMARY: Patch HTTP, gRPC, and WebSocket protocols for universal coverage
+    # This ensures context propagates across all network calls
+    from llmobserve.http_interceptor import patch_all_protocols
+    protocol_results = patch_all_protocols()
     
-    if http_patched:
+    # Report patching results
+    patched_protocols = [proto for proto, success in protocol_results.items() if success]
+    failed_protocols = [proto for proto, success in protocol_results.items() if not success]
+    
+    if patched_protocols:
+        logger.info(f"[llmobserve] ✓ Protocols patched: {', '.join(patched_protocols).upper()}")
         if proxy_url:
-            logger.info(f"[llmobserve] ✓ Context headers enabled → routing through proxy: {proxy_url}")
-            logger.info(f"[llmobserve]   All HTTP calls will be tracked (universal coverage)")
+            logger.info(f"[llmobserve]   → Routing through proxy: {proxy_url}")
+            logger.info(f"[llmobserve]   → Universal coverage for all patched protocols")
         else:
-            logger.info("[llmobserve] ✓ Context headers enabled (proxy can be added later)")
+            logger.info("[llmobserve]   → Context headers enabled (proxy can be added later)")
             if not use_instrumentors:
                 logger.warning("[llmobserve]   ⚠️  No proxy configured AND instrumentors disabled - API calls won't be tracked!")
                 logger.warning("[llmobserve]   💡 Either set proxy_url or use_instrumentors=True")
-    else:
-        logger.warning("[llmobserve] ✗ HTTP interception not available (install httpx, requests, or aiohttp)")
+    
+    if failed_protocols:
+        logger.debug(f"[llmobserve]   Not available: {', '.join(failed_protocols).upper()} (libraries not installed)")
+    
+    if not patched_protocols:
+        logger.warning("[llmobserve] ✗ No protocols could be patched (install httpx/requests/aiohttp/grpcio/websockets)")
     
     # OPTIONAL: Also use per-SDK instrumentors for optimization (avoids proxy latency)
     if use_instrumentors:
