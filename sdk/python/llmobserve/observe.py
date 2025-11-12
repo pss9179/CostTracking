@@ -16,6 +16,7 @@ def observe(
     proxy_url: Optional[str] = None,
     api_key: Optional[str] = None,
     flush_interval_ms: int = 500,
+    tenant_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     auto_start_proxy: bool = False,
     use_instrumentors: bool = False
@@ -25,7 +26,7 @@ def observe(
     
     Architecture:
     1. HTTP clients (httpx/requests/aiohttp) ALWAYS inject context headers
-    2. Headers carry run_id, customer_id, section_path for distributed tracing
+    2. Headers carry run_id, tenant_id, customer_id, section_path for distributed tracing
     3. Proxy reads headers and emits events (universal coverage)
     4. Instrumentors provide direct tracking as optimization (optional)
     
@@ -45,7 +46,11 @@ def observe(
                 If None, reads from LLMOBSERVE_API_KEY env var.
         flush_interval_ms: How often to flush events to collector (default: 500ms).
                           Can be overridden with LLMOBSERVE_FLUSH_INTERVAL_MS env var.
-        customer_id: Optional customer identifier for tracking your end-users.
+        tenant_id: Tenant identifier for multi-tenancy (defaults to "default_tenant").
+                  Can be set via LLMOBSERVE_TENANT_ID env var.
+                  Use "default_tenant" for solo dev or shared-key SaaS.
+                  Use unique tenant_id per logged-in customer for multi-tenant SaaS.
+        customer_id: Optional end-customer identifier (tracks tenant's customers).
                     Can be set via LLMOBSERVE_CUSTOMER_ID env var.
         auto_start_proxy: If True, automatically start local proxy server.
                          WARNING: Requires proxy dependencies installed.
@@ -55,22 +60,25 @@ def observe(
     
     Example:
         >>> import llmobserve
-        >>> # Pure header-based (recommended, no monkey-patching)
+        >>> 
+        >>> # Solo developer (default tenant)
         >>> llmobserve.observe(
-        ...     collector_url="http://localhost:8000",
-        ...     proxy_url="http://localhost:9000"  # Required for tracking
+        ...     collector_url="http://localhost:8000"
         ... )
         >>> 
-        >>> # With instrumentors (lower latency, but uses monkey-patching)
+        >>> # SaaS with shared keys (track your customers)
         >>> llmobserve.observe(
         ...     collector_url="http://localhost:8000",
-        ...     proxy_url="http://localhost:9000",
-        ...     use_instrumentors=True  # Optional optimization
+        ...     tenant_id="your_company"  # Or use default
         ... )
-        >>> 
-        >>> # Track costs per your end-customer
         >>> from llmobserve import set_customer_id
-        >>> set_customer_id("customer_xyz")
+        >>> set_customer_id("customer_xyz")  # Track your end-users
+        >>> 
+        >>> # Multi-tenant SaaS (each customer sees only their data)
+        >>> llmobserve.observe(
+        ...     collector_url="http://localhost:8000",
+        ...     tenant_id=logged_in_user.tenant_id  # From auth
+        ... )
     """
     # Global initialization guard
     if hasattr(observe, "_initialized"):
@@ -127,6 +135,7 @@ def observe(
         proxy_url=proxy_url,
         api_key=api_key,
         flush_interval_ms=flush_interval_ms,
+        tenant_id=tenant_id,
         customer_id=customer_id
     )
     

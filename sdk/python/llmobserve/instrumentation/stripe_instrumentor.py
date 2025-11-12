@@ -43,6 +43,8 @@ def track_stripe_transaction(
         "input_tokens": 0,
         "output_tokens": 0,
         "status": status,
+        "tenant_id": config.get_tenant_id(),
+
         "customer_id": context.get_customer_id(),
         "event_metadata": {"error": error, "transaction_amount": amount} if error or amount else None,
     }

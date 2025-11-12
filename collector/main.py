@@ -10,10 +10,10 @@ from routers import (
     insights,
     pricing,
     stats,
-    auth,
     dashboard,
     api_keys,
     users,
+    auth_simple,
 )
 
 # Create FastAPI app
@@ -48,14 +48,13 @@ def health_check():
 
 
 # Include routers
-app.include_router(users.router)  # Clerk webhooks & user sync
+app.include_router(auth_simple.router)  # Simple email/password auth
+app.include_router(users.router)  # User management
 app.include_router(api_keys.router)  # API key management
-app.include_router(auth.router)  # Legacy auth (will be deprecated)
 app.include_router(dashboard.router)
 app.include_router(events.router)
 app.include_router(runs.router)
 app.include_router(insights.router)
 app.include_router(pricing.router)
 app.include_router(stats.router)
-# tenants.router removed - using user-based auth now
 

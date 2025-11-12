@@ -23,9 +23,10 @@ def ingest_events(
     Batch ingest trace events.
     
     Computes cost if not provided and usage data is available.
-    Automatically injects user_id from authenticated API key.
+    Supports multi-tenancy via tenant_id (defaults to "default_tenant").
+    Optionally injects user_id from authenticated API key.
     
-    Requires: Authorization: Bearer <api_key> header
+    Requires: Authorization: Bearer <api_key> header (optional for MVP)
     """
     created_count = 0
     skipped_count = 0
@@ -52,7 +53,15 @@ def ingest_events(
         
         # Create TraceEvent from TraceEventCreate
         event_dict = event_data.model_dump()
-        # Note: user_id not in schema (MVP mode without multi-user support)
+        
+        # Handle tenant_id: use from event or default
+        if not event_dict.get("tenant_id"):
+            event_dict["tenant_id"] = "default_tenant"
+        
+        # Optionally inject user_id from auth (if provided)
+        if user_id:
+            event_dict["user_id"] = user_id
+        
         event = TraceEvent(**event_dict)
         session.add(event)
         created_count += 1

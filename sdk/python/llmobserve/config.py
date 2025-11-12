@@ -11,6 +11,7 @@ _config = {
     "proxy_url": None,
     "api_key": None,
     "flush_interval_ms": 500,
+    "tenant_id": None,  # Defaults to "default_tenant" if not set
     "customer_id": None,
 }
 
@@ -20,6 +21,7 @@ def configure(
     api_key: str,
     proxy_url: Optional[str] = None,
     flush_interval_ms: int = 500,
+    tenant_id: Optional[str] = None,
     customer_id: Optional[str] = None
 ) -> None:
     """
@@ -30,12 +32,22 @@ def configure(
         api_key: API key for authentication (required)
         proxy_url: URL of the proxy server (optional, for hybrid architecture)
         flush_interval_ms: How often to flush events to collector
+        tenant_id: Tenant identifier (defaults to "default_tenant" if not provided)
         customer_id: Optional customer identifier for tracking your end-users
     """
     _config["collector_url"] = collector_url
     _config["proxy_url"] = proxy_url
     _config["api_key"] = api_key
     _config["flush_interval_ms"] = flush_interval_ms
+    
+    # Set tenant_id: explicit arg > env var > "default_tenant"
+    if tenant_id:
+        _config["tenant_id"] = tenant_id
+    elif os.environ.get("LLMOBSERVE_TENANT_ID"):
+        _config["tenant_id"] = os.environ.get("LLMOBSERVE_TENANT_ID")
+    else:
+        _config["tenant_id"] = "default_tenant"
+    
     _config["customer_id"] = customer_id
     
     # Check if disabled via env var
@@ -71,6 +83,11 @@ def get_proxy_url() -> Optional[str]:
 def set_proxy_url(proxy_url: str) -> None:
     """Set the proxy URL (used by auto-start)."""
     _config["proxy_url"] = proxy_url
+
+
+def get_tenant_id() -> str:
+    """Get the tenant ID (always returns a value)."""
+    return _config.get("tenant_id", "default_tenant")
 
 
 def get_customer_id() -> Optional[str]:

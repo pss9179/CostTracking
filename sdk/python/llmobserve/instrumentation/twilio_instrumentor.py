@@ -40,6 +40,8 @@ def track_twilio_call(
         "input_tokens": 0,
         "output_tokens": 0,
         "status": status,
+        "tenant_id": config.get_tenant_id(),
+
         "customer_id": context.get_customer_id(),
         "event_metadata": {"error": error} if error else None,
     }

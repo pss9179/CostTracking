@@ -52,6 +52,8 @@ def track_cohere_call(
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "status": status,
+        "tenant_id": config.get_tenant_id(),
+
         "customer_id": context.get_customer_id(),
         "event_metadata": {"error": error} if error else None,
     }

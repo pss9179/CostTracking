@@ -70,6 +70,8 @@ def _track_pinecone_call(
         "provider": "pinecone",
         "endpoint": operation,
         "model": None,
+        "tenant_id": config.get_tenant_id(),
+
         "customer_id": config.get_customer_id(),
         "input_tokens": 0,
         "output_tokens": 0,

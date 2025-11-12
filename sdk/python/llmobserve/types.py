@@ -17,7 +17,8 @@ class TraceEvent(TypedDict, total=False):
     provider: str
     endpoint: str
     model: Optional[str]
-    customer_id: Optional[str]  # User's end-customer identifier (optional)
+    tenant_id: Optional[str]  # Tenant identifier (defaults to "default_tenant")
+    customer_id: Optional[str]  # Tenant's end-customer identifier (optional)
     input_tokens: int
     output_tokens: int
     cached_tokens: int  # For OpenAI prompt caching

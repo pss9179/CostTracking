@@ -8,28 +8,42 @@ from sqlmodel import SQLModel, Field, Index, Column, JSON
 
 
 class User(SQLModel, table=True):
-    """User accounts (linked to Clerk authentication)."""
+    """User accounts with email/password authentication."""
     __tablename__ = "users"
     
     id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
-    clerk_user_id: str = Field(unique=True, index=True, description="Clerk's user ID")
     email: str = Field(unique=True, index=True, description="User email")
+    password_hash: str = Field(description="Bcrypt password hash")
     name: Optional[str] = Field(default=None, description="User display name")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Account creation time")
     subscription_tier: str = Field(default="free", description="Subscription tier: free, pro, enterprise")
     
     class Config:
         indexes = [
-            Index("idx_users_clerk_id", "clerk_user_id"),
             Index("idx_users_email", "email"),
         ]
 
 
-class UserCreate(SQLModel):
-    """Schema for creating users."""
-    clerk_user_id: str
+class UserSignup(SQLModel):
+    """Schema for user signup."""
     email: str
+    password: str
     name: Optional[str] = None
+
+
+class UserLogin(SQLModel):
+    """Schema for user login."""
+    email: str
+    password: str
+
+
+class UserResponse(SQLModel):
+    """Public user data (no password)."""
+    id: UUID
+    email: str
+    name: Optional[str]
+    created_at: datetime
+    subscription_tier: str
 
 
 class APIKey(SQLModel, table=True):
@@ -96,8 +110,11 @@ class TraceEvent(SQLModel, table=True):
     provider: str = Field(description="e.g., openai, anthropic, pinecone")
     endpoint: str = Field(description="e.g., chat, embeddings, query, upsert")
     model: Optional[str] = Field(default=None, description="e.g., gpt-4o, text-embedding-3-small")
-    user_id: Optional[UUID] = Field(default=None, foreign_key="users.id", index=True, description="User identifier (replaces tenant_id)")
-    customer_id: Optional[str] = Field(default=None, index=True, description="Customer/end-user identifier (user's customers)")
+    
+    # Multi-tenancy and customer tracking
+    tenant_id: str = Field(default="default_tenant", index=True, description="Tenant identifier (defaults to 'default_tenant' for solo devs)")
+    user_id: Optional[UUID] = Field(default=None, foreign_key="users.id", index=True, description="Optional user reference (for auth)")
+    customer_id: Optional[str] = Field(default=None, index=True, description="End-customer identifier (tenant's customers)")
     
     # Metrics
     input_tokens: int = Field(default=0, description="Input/prompt tokens")
@@ -125,8 +142,11 @@ class TraceEvent(SQLModel, table=True):
             Index("idx_section_path", "section_path"),
             Index("idx_provider_model", "provider", "model"),
             Index("idx_created_at", "created_at"),
+            Index("idx_tenant_id", "tenant_id"),
             Index("idx_user_id", "user_id"),
             Index("idx_customer_id", "customer_id"),
+            Index("idx_tenant_created", "tenant_id", "created_at"),
+            Index("idx_tenant_customer", "tenant_id", "customer_id"),
             Index("idx_user_created", "user_id", "created_at"),
         ]
 
@@ -143,7 +163,8 @@ class TraceEventCreate(SQLModel):
     provider: str
     endpoint: str
     model: Optional[str] = None
-    customer_id: Optional[str] = None  # customer_id still supported (user's end-customers)
+    tenant_id: Optional[str] = None  # Optional: defaults to "default_tenant" if not provided
+    customer_id: Optional[str] = None  # Optional: for tracking tenant's end-customers
     input_tokens: int = 0
     output_tokens: int = 0
     cached_tokens: int = 0
@@ -153,5 +174,5 @@ class TraceEventCreate(SQLModel):
     is_streaming: bool = False
     stream_cancelled: bool = False
     event_metadata: Optional[dict] = None
-    # Note: user_id will be extracted from API key, not sent by client
+    # Note: tenant_id and user_id can be extracted from API key/auth, or sent explicitly
 

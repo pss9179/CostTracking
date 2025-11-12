@@ -47,6 +47,8 @@ def track_elevenlabs_call(
         "input_tokens": character_count,  # Store character count in input_tokens
         "output_tokens": 0,
         "status": status,
+        "tenant_id": config.get_tenant_id(),
+
         "customer_id": context.get_customer_id(),
         "event_metadata": {"error": error, "character_count": character_count} if error or character_count else None,
     }

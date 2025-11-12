@@ -181,6 +181,7 @@ def _track_openai_call(
         "provider": "openai",
         "endpoint": method_name,
         "model": model,
+        "tenant_id": config.get_tenant_id(),
         "customer_id": context.get_customer_id(),
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
