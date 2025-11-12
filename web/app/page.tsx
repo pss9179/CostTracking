@@ -165,7 +165,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (!isLoaded || loading) {
+  if (loading) {
     return (
       <div className="p-8 space-y-8">
         <h1 className="text-3xl font-bold">LLM Cost Dashboard</h1>
