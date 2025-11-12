@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchRunDetail, type RunDetail } from "@/lib/api";
-import { VisualTreeTrace } from "@/components/VisualTreeTrace";
+import { GraphTreeVisualization } from "@/components/GraphTreeVisualization";
 import { WaterfallChart } from "@/components/charts/WaterfallChart";
 
 export default function RunDetailPage() {
@@ -179,7 +179,7 @@ export default function RunDetailPage() {
               <CardTitle>Hierarchical Trace View</CardTitle>
             </CardHeader>
             <CardContent>
-              <VisualTreeTrace events={detail.events} />
+              <GraphTreeVisualization events={detail.events} />
             </CardContent>
           </Card>
         </TabsContent>
