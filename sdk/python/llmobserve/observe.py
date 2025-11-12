@@ -125,17 +125,38 @@ def observe(
         logger.debug("[llmobserve] Observability disabled, skipping instrumentation")
         return
     
-    # Patch HTTP clients (replaces per-SDK instrumentors)
-    from llmobserve.http_interceptor import patch_all_http_clients
-    patched = patch_all_http_clients()
+    # Use HYBRID approach: per-SDK instrumentors (reliable) + HTTP interception (universal fallback)
     
-    if patched:
-        if proxy_url:
-            logger.info(f"[llmobserve] HTTP clients patched, routing through proxy: {proxy_url}")
-        else:
-            logger.info("[llmobserve] HTTP clients patched (direct mode - no proxy)")
+    # 1. Apply per-SDK instrumentors for major providers (OpenAI, Pinecone, etc.)
+    from llmobserve.instrumentation import auto_instrument
+    libs_to_instrument = os.getenv("LLMOBSERVE_LIBS")
+    if libs_to_instrument:
+        libs = [lib.strip() for lib in libs_to_instrument.split(",")]
     else:
-        logger.warning("[llmobserve] No HTTP clients patched. Install httpx, requests, or aiohttp.")
+        libs = None  # Instrument all available
+    
+    instrumentation_results = auto_instrument(libs=libs)
+    
+    successful = [lib for lib, success in instrumentation_results.items() if success]
+    failed = [lib for lib, success in instrumentation_results.items() if not success]
+    
+    if successful:
+        logger.info(f"[llmobserve] ✓ Instrumented: {', '.join(successful)}")
+    
+    if failed:
+        logger.debug(f"[llmobserve] ✗ Not available: {', '.join(failed)}")
+    
+    # 2. Also patch HTTP clients for universal fallback (catches providers without instrumentors)
+    from llmobserve.http_interceptor import patch_all_http_clients
+    http_patched = patch_all_http_clients()
+    
+    if http_patched:
+        if proxy_url:
+            logger.info(f"[llmobserve] ✓ HTTP proxy enabled: {proxy_url} (fallback for uninstrumented providers)")
+        else:
+            logger.debug("[llmobserve] HTTP clients patched (direct mode)")
+    else:
+        logger.debug("[llmobserve] HTTP interception not available")
     
     # Start flush timer
     try:
