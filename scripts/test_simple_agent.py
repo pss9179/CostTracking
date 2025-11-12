@@ -64,16 +64,21 @@ def test_simple_research_agent():
             with section("tool:vector_search"):
                 print("  🔍 Tool: Vector Search (Pinecone)")
                 try:
+                    from pinecone import ServerlessSpec
+                    
                     # Get or create index
                     index_name = "test-index"
-                    if index_name not in [idx.name for idx in pinecone_client.list_indexes()]:
+                    existing_indexes = [idx.name for idx in pinecone_client.list_indexes()]
+                    
+                    if index_name not in existing_indexes:
                         print(f"    Creating index: {index_name}")
                         pinecone_client.create_index(
                             name=index_name,
                             dimension=1536,
-                            metric="cosine"
+                            metric="cosine",
+                            spec=ServerlessSpec(cloud="aws", region="us-east-1")
                         )
-                        time.sleep(1)  # Wait for index to be ready
+                        time.sleep(5)  # Wait for index to be ready
                     
                     index = pinecone_client.Index(index_name)
                     
