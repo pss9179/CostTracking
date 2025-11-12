@@ -325,20 +325,25 @@ export default function DashboardPage() {
                     
                     const runCosts = new Map<string, number>();
                     agentEvents.forEach((e) => {
-                      const current = runCosts.get(e.run_id) || 0;
-                      runCosts.set(e.run_id, current + (e.cost_usd || 0));
+                      if (e.run_id) {
+                        const current = runCosts.get(e.run_id) || 0;
+                        runCosts.set(e.run_id, current + (e.cost_usd || 0));
+                      }
                     });
                     
                     const mostExpensiveRun = Array.from(runCosts.entries())
                       .sort((a, b) => b[1] - a[1])[0];
                     
+                    const runId = mostExpensiveRun?.[0];
+                    
                     return (
                       <TableRow 
                         key={agent}
-                        className="cursor-pointer hover:bg-muted/50"
+                        className={runId ? "cursor-pointer hover:bg-muted/50" : ""}
                         onClick={() => {
-                          if (mostExpensiveRun) {
-                            router.push(`/runs/${mostExpensiveRun[0]}`);
+                          if (runId) {
+                            console.log(`[Dashboard] Navigating to run: ${runId}`);
+                            router.push(`/runs/${runId}`);
                           }
                         }}
                       >
