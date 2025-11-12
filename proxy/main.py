@@ -12,8 +12,8 @@ import uuid
 import logging
 from typing import Optional
 
-from proxy.providers import detect_provider, extract_endpoint, parse_usage
-from proxy.pricing import calculate_cost
+from providers import detect_provider, extract_endpoint, parse_usage
+from pricing import calculate_cost
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
