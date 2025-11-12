@@ -15,6 +15,14 @@ import time
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../sdk/python"))
 
+# Load .env file
+from dotenv import load_dotenv
+env_path = os.path.join(os.path.dirname(__file__), "../.env")
+load_dotenv(env_path)
+print(f"✅ Loaded .env from: {env_path}")
+print(f"   PINECONE_API_KEY: {'✅ Set' if os.getenv('PINECONE_API_KEY') else '❌ Not found'}")
+print(f"   OPENAI_API_KEY: {'✅ Set' if os.getenv('OPENAI_API_KEY') else '❌ Not found'}")
+
 import llmobserve
 from llmobserve import section, set_customer_id
 from openai import OpenAI
@@ -30,17 +38,14 @@ llmobserve.observe(
 # Initialize clients
 openai_client = OpenAI()
 
-# Pinecone is optional for this test
-pinecone_api_key = os.getenv("PINECONE_API_KEY")
-pinecone_client = None
-if pinecone_api_key:
-    try:
-        pinecone_client = Pinecone(api_key=pinecone_api_key)
-        print("✅ Pinecone client initialized")
-    except Exception as e:
-        print(f"⚠️  Pinecone initialization failed: {e}")
-else:
-    print("⚠️  PINECONE_API_KEY not set, skipping Pinecone tests")
+# Initialize Pinecone (now loads from .env)
+try:
+    pinecone_client = Pinecone()
+    print("✅ Pinecone client initialized")
+except Exception as e:
+    print(f"⚠️  Pinecone initialization failed: {e}")
+    print("    Pinecone tests will be skipped")
+    pinecone_client = None
 
 def test_simple_research_agent():
     """Test a simple research agent with OpenAI and Pinecone."""

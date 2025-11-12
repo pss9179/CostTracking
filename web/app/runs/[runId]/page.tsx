@@ -28,6 +28,12 @@ export default function RunDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!runId) {
+      setError("No run ID provided");
+      setLoading(false);
+      return;
+    }
+
     async function loadDetail() {
       try {
         const data = await fetchRunDetail(runId);

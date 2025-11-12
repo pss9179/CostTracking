@@ -119,8 +119,8 @@ export default function DashboardPage() {
       })
     : runs;
 
-  // Filter provider stats by customer
-  const filteredProviderStats = selectedCustomer
+  // Filter provider stats by customer and exclude "internal" provider
+  const filteredProviderStats = (selectedCustomer
     ? providerStats.filter(stat => {
         // Recalculate from filtered events
         const customerEvents = filteredEvents.filter(e => e.provider === stat.provider);
@@ -136,7 +136,8 @@ export default function DashboardPage() {
           percentage: stats.total_cost_24h > 0 ? (totalCost / stats.total_cost_24h) * 100 : 0,
         };
       })
-    : providerStats;
+    : providerStats
+  ).filter(stat => stat.provider !== "internal"); // Exclude internal span events
 
   if (error) {
     return (
