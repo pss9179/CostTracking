@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { CustomerFilter } from "@/components/CustomerFilter";
 import { fetchRunDetail, fetchRuns, type Run } from "@/lib/api";
 import {
   aggregateByProvider,
@@ -130,6 +131,7 @@ export default function CostsPage() {
   const [error, setError] = useState<string | null>(null);
   const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set());
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -210,13 +212,25 @@ export default function CostsPage() {
     );
   }
 
-  // Aggregate data
-  const byProvider = aggregateByProvider(allEvents);
-  const byAgent = aggregateByAgent(allEvents);
-  const providerGroups = groupModelsByProvider(allEvents);
-  const byDay = aggregateByDay(allEvents);
+  // Filter events by customer if selected
+  const filteredEvents = selectedCustomer
+    ? allEvents.filter(e => e.customer_id === selectedCustomer)
+    : allEvents;
+  
+  // Debug: Log filtering results
+  if (selectedCustomer) {
+    console.log(`[Costs] Filtering by customer: ${selectedCustomer}`);
+    console.log(`[Costs] Total events: ${allEvents.length}, Filtered: ${filteredEvents.length}`);
+    console.log(`[Costs] Customer IDs in events:`, [...new Set(allEvents.map(e => e.customer_id).filter(Boolean))]);
+  }
 
-  const totalCost = allEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
+  // Aggregate data (using filtered events)
+  const byProvider = aggregateByProvider(filteredEvents);
+  const byAgent = aggregateByAgent(filteredEvents);
+  const providerGroups = groupModelsByProvider(filteredEvents);
+  const byDay = aggregateByDay(filteredEvents);
+
+  const totalCost = filteredEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
 
   const handleExportCSV = (data: any[], filename: string) => {
     exportToCSV(data, filename);
@@ -235,6 +249,11 @@ export default function CostsPage() {
       )
     : providerGroups.map((pg) => ({ name: pg.provider, cost: pg.totalCost }));
 
+  // Show customer filter indicator
+  if (selectedCustomer) {
+    // Add indicator to page
+  }
+
   return (
     <div className="p-8 space-y-8">
       <PageHeader
@@ -245,7 +264,20 @@ export default function CostsPage() {
           { label: "Costs" },
         ]}
         actions={
-          <>
+          <div className="flex items-center gap-4">
+            <CustomerFilter
+              selectedCustomer={selectedCustomer}
+              onCustomerChange={setSelectedCustomer}
+            />
+            {selectedCustomer && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedCustomer(null)}
+              >
+                Clear Filter
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -262,7 +294,7 @@ export default function CostsPage() {
               <Download className="mr-2 h-4 w-4" />
               Export JSON
             </Button>
-          </>
+          </div>
         }
       />
 
@@ -398,10 +430,9 @@ export default function CostsPage() {
                 </TableHeader>
                 <TableBody>
                   {providerGroups.map((group) => (
-                    <>
+                    <React.Fragment key={group.provider}>
                       {/* Provider Row */}
                       <TableRow
-                        key={group.provider}
                         className="cursor-pointer hover:bg-muted/50 font-semibold"
                         onClick={() => toggleProvider(group.provider)}
                       >
@@ -452,7 +483,7 @@ export default function CostsPage() {
                             </TableCell>
                           </TableRow>
                         ))}
-                    </>
+                    </React.Fragment>
                   ))}
                 </TableBody>
               </Table>

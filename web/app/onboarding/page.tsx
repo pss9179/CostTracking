@@ -1,250 +1,318 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRouter } from "next/navigation";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Copy, ArrowRight } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Copy, Check, ArrowRight, Key, Terminal, Code } from "lucide-react";
+
+interface APIKeyInfo {
+  id: string;
+  name: string;
+  key?: string;  // Full key (only on first creation)
+  key_prefix: string;
+  created_at: string;
+}
 
 export default function OnboardingPage() {
+  const { user, isLoaded } = useUser();
   const router = useRouter();
-  const { user } = useUser();
-  const [step, setStep] = useState(1);
-  const [apiKey, setApiKey] = useState("llmo_sk_1234567890abcdef"); // TODO: Generate real key
+  const [apiKey, setApiKey] = useState<APIKeyInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    alert('Copied to clipboard!');
+  useEffect(() => {
+    if (!isLoaded) return;
+    
+    if (!user) {
+      router.push("/sign-in");
+      return;
+    }
+
+    // Sync user and get/create API key
+    async function syncUserAndGetKey() {
+      try {
+        const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
+        
+        // Sync user from Clerk
+        const syncResponse = await fetch(`${collectorUrl}/users/sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: user.id,
+            email_addresses: user.emailAddresses.map(e => ({ email_address: e.emailAddress })),
+            first_name: user.firstName,
+            last_name: user.lastName,
+          }),
+        });
+
+        if (!syncResponse.ok) {
+          throw new Error("Failed to sync user");
+        }
+
+        const syncData = await syncResponse.json();
+        
+        // If user already existed and we got their API key
+        if (syncData.api_key) {
+          setApiKey({
+            id: "default",
+            name: "Default API Key",
+            key: syncData.api_key,
+            key_prefix: syncData.api_key_prefix,
+            created_at: new Date().toISOString(),
+          });
+        } else {
+          // User already exists, they need to go to settings to view keys
+          router.push("/settings");
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load API key");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    syncUserAndGetKey();
+  }, [user, isLoaded, router]);
+
+  const copyToClipboard = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const installCommand = `pip install llmobserve`;
+  if (!isLoaded || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-8">
+        <Card className="w-full max-w-2xl">
+          <CardHeader>
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-96 mt-2" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-32 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error || !apiKey) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-8">
+        <Card className="w-full max-w-2xl">
+          <CardHeader>
+            <CardTitle>Setup Error</CardTitle>
+            <CardDescription>{error || "No API key available"}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => router.push("/settings")}>
+              Go to Settings
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const installCode = `pip install llmobserve`;
   
-  const configCode = `import llmobserve
-
-# Initialize with your API key
-llmobserve.init(api_key="${apiKey}")
-
-# That's it! All your OpenAI & Pinecone calls are now tracked automatically`;
-
-  const testCode = `import openai
+  const usageCode = `from llmobserve import observe
 from openai import OpenAI
 
-client = OpenAI()
+# Initialize with your API key
+observe(
+    collector_url="${process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000"}",
+    api_key="${apiKey.key || "YOUR_API_KEY"}"
+)
 
-# This call will be automatically tracked!
+# Use OpenAI as normal - all calls are tracked automatically!
+client = OpenAI()
 response = client.chat.completions.create(
     model="gpt-4o-mini",
     messages=[{"role": "user", "content": "Hello!"}]
 )
 
-print("✅ Cost tracking active! Check your dashboard.")`;
-
-  const finishOnboarding = () => {
-    router.push('/');
-  };
+print(response.choices[0].message.content)`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 p-8">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white p-8">
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header */}
-        <div className="text-center space-y-2">
+        <div className="text-center space-y-4">
           <h1 className="text-4xl font-bold">Welcome to LLM Observe! 🎉</h1>
-          <p className="text-muted-foreground text-lg">
-            Let's get you set up in 3 simple steps
+          <p className="text-lg text-muted-foreground">
+            Let's get you set up in 3 easy steps
           </p>
         </div>
 
         {/* Progress Steps */}
         <div className="flex items-center justify-center gap-4">
-          {[1, 2, 3].map((num) => (
-            <div key={num} className="flex items-center gap-2">
-              <div
-                className={`flex items-center justify-center h-10 w-10 rounded-full border-2 font-semibold ${
-                  step >= num
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "border-muted-foreground text-muted-foreground"
-                }`}
-              >
-                {step > num ? <Check className="h-5 w-5" /> : num}
+          {[1, 2, 3].map((step) => (
+            <div key={step} className="flex items-center">
+              <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
+                currentStep >= step ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"
+              }`}>
+                {step}
               </div>
-              {num < 3 && (
-                <div
-                  className={`h-1 w-16 ${
-                    step > num ? "bg-primary" : "bg-muted"
-                  }`}
-                />
+              {step < 3 && (
+                <div className={`w-16 h-1 ${
+                  currentStep > step ? "bg-blue-600" : "bg-gray-200"
+                }`} />
               )}
             </div>
           ))}
         </div>
 
-        {/* Step 1: Get API Key */}
-        {step === 1 && (
+        {/* Step 1: API Key */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Key className="w-5 h-5" />
+              <CardTitle>Step 1: Your API Key</CardTitle>
+            </div>
+            <CardDescription>
+              Save this key securely - you won't be able to see it again!
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-gray-100 p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <code className="text-sm font-mono">{apiKey.key || apiKey.key_prefix}</code>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => copyToClipboard(apiKey.key || "")}
+                >
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+            
+            <Alert>
+              <p className="text-sm">
+                💡 <strong>Important:</strong> Store this key in your environment variables. 
+                You can generate new keys anytime from Settings.
+              </p>
+            </Alert>
+
+            <Button onClick={() => setCurrentStep(2)} className="w-full">
+              Next: Install SDK <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Step 2: Install SDK */}
+        {currentStep >= 2 && (
           <Card>
             <CardHeader>
-              <CardTitle>Step 1: Your API Key</CardTitle>
+              <div className="flex items-center gap-2">
+                <Terminal className="w-5 h-5" />
+                <CardTitle>Step 2: Install the SDK</CardTitle>
+              </div>
+              <CardDescription>
+                Install the Python SDK in your project
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-muted-foreground">
-                We've created an API key for you. Keep this safe - you'll need it to configure the SDK.
-              </p>
-              
-              <div className="p-4 bg-muted rounded-lg space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">Your API Key</Label>
-                  <Badge>Keep this secret!</Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 p-3 bg-background rounded border text-sm font-mono break-all">
-                    {apiKey}
-                  </code>
+              <div className="bg-gray-900 text-gray-100 p-4 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-400">Terminal</span>
                   <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => copyToClipboard(apiKey)}
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => copyToClipboard(installCode)}
+                    className="text-gray-400 hover:text-white"
                   >
-                    <Copy className="h-4 w-4" />
+                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  💡 You can generate more API keys later in Settings
-                </p>
+                <code className="text-sm font-mono">{installCode}</code>
               </div>
 
-              <Button onClick={() => setStep(2)} className="w-full" size="lg">
-                Next: Install SDK
-                <ArrowRight className="ml-2 h-4 w-4" />
+              <Button onClick={() => setCurrentStep(3)} className="w-full">
+                Next: Add to Your Code <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </CardContent>
           </Card>
         )}
 
-        {/* Step 2: Install SDK */}
-        {step === 2 && (
+        {/* Step 3: Usage Example */}
+        {currentStep >= 3 && (
           <Card>
             <CardHeader>
-              <CardTitle>Step 2: Install the SDK</CardTitle>
+              <div className="flex items-center gap-2">
+                <Code className="w-5 h-5" />
+                <CardTitle>Step 3: Start Tracking</CardTitle>
+              </div>
+              <CardDescription>
+                Add 2 lines of code to start tracking costs
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-muted-foreground">
-                Install our Python SDK to start tracking your LLM costs automatically.
-              </p>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Install via pip:</Label>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 p-3 bg-muted rounded border text-sm font-mono">
-                    {installCommand}
-                  </code>
+              <div className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-400">Python</span>
                   <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => copyToClipboard(installCommand)}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Configure in your code:</Label>
-                <div className="relative">
-                  <pre className="p-4 bg-muted rounded border text-xs font-mono overflow-x-auto">
-                    {configCode}
-                  </pre>
-                  <Button
-                    variant="ghost"
                     size="sm"
-                    className="absolute top-2 right-2"
-                    onClick={() => copyToClipboard(configCode)}
+                    variant="ghost"
+                    onClick={() => copyToClipboard(usageCode)}
+                    className="text-gray-400 hover:text-white"
                   >
-                    <Copy className="h-4 w-4" />
+                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   </Button>
                 </div>
+                <pre className="text-sm font-mono whitespace-pre-wrap">
+                  {usageCode}
+                </pre>
               </div>
-
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setStep(1)}>
-                  Back
-                </Button>
-                <Button onClick={() => setStep(3)} className="flex-1" size="lg">
-                  Next: Test It Out
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Step 3: Test */}
-        {step === 3 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Step 3: Test Your Setup</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-muted-foreground">
-                Run this simple test to make sure everything is working:
-              </p>
 
               <div className="space-y-2">
-                <div className="relative">
-                  <pre className="p-4 bg-muted rounded border text-xs font-mono overflow-x-auto">
-                    {testCode}
-                  </pre>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="absolute top-2 right-2"
-                    onClick={() => copyToClipboard(testCode)}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
+                <h4 className="font-semibold">What's tracked automatically:</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <Badge variant="secondary">✅ OpenAI API calls</Badge>
+                  <Badge variant="secondary">✅ Token usage</Badge>
+                  <Badge variant="secondary">✅ Costs (per call)</Badge>
+                  <Badge variant="secondary">✅ Latency</Badge>
+                  <Badge variant="secondary">✅ Errors</Badge>
+                  <Badge variant="secondary">✅ Model info</Badge>
                 </div>
               </div>
 
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-900">
-                  <strong>✨ What happens next:</strong><br />
-                  1. The SDK automatically patches OpenAI & Pinecone<br />
-                  2. Every API call sends cost data to your dashboard<br />
-                  3. You can track costs in real-time!
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setStep(2)}>
-                  Back
-                </Button>
-                <Button onClick={finishOnboarding} className="flex-1" size="lg">
-                  Go to Dashboard
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
+              <Button 
+                onClick={() => router.push("/")} 
+                className="w-full"
+                size="lg"
+              >
+                Go to Dashboard 🚀
+              </Button>
             </CardContent>
           </Card>
         )}
 
         {/* Help Section */}
-        <Card className="bg-muted/50">
+        <Card className="border-blue-200 bg-blue-50">
           <CardContent className="pt-6">
-            <p className="text-sm text-center text-muted-foreground">
-              Need help? Check out our{" "}
-              <a href="/docs" className="text-primary hover:underline">
-                documentation
-              </a>{" "}
-              or reach out to support
-            </p>
+            <div className="flex items-start gap-4">
+              <div className="flex-1">
+                <h3 className="font-semibold mb-2">Need Help?</h3>
+                <p className="text-sm text-muted-foreground">
+                  Check out our documentation or contact support if you run into any issues.
+                </p>
+              </div>
+              <Button variant="outline" size="sm">
+                View Docs
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
     </div>
   );
 }
-
-function Label({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <label className={`block text-sm font-medium ${className}`}>{children}</label>;
-}
-

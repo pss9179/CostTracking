@@ -21,10 +21,10 @@ interface CustomerStats {
 }
 
 interface CustomerCostBreakdownProps {
-  tenantId: string;
+  userId?: string;
 }
 
-export function CustomerCostBreakdown({ tenantId }: CustomerCostBreakdownProps) {
+export function CustomerCostBreakdown({ userId }: CustomerCostBreakdownProps) {
   const [customers, setCustomers] = useState<CustomerStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +32,7 @@ export function CustomerCostBreakdown({ tenantId }: CustomerCostBreakdownProps) 
   useEffect(() => {
     async function loadCustomers() {
       try {
-        const response = await fetch(`/api/tenants/${tenantId}/customers`);
+        const response = await fetch('/api/customers');
         if (!response.ok) throw new Error("Failed to fetch customer data");
         const data = await response.json();
         setCustomers(data);
@@ -44,7 +44,7 @@ export function CustomerCostBreakdown({ tenantId }: CustomerCostBreakdownProps) 
     }
 
     loadCustomers();
-  }, [tenantId]);
+  }, [userId]);
 
   if (loading) {
     return (
@@ -65,7 +65,7 @@ export function CustomerCostBreakdown({ tenantId }: CustomerCostBreakdownProps) 
   if (customers.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-4">
-        No customer data available for this tenant.
+        No customer data available yet. Add customer_id to your trace events to see per-customer costs.
       </p>
     );
   }

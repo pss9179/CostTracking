@@ -3,7 +3,7 @@ SQLModel schema for trace events, users, and API keys.
 """
 from datetime import datetime
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Index, Column, JSON
 
 
@@ -11,7 +11,7 @@ class User(SQLModel, table=True):
     """User accounts (linked to Clerk authentication)."""
     __tablename__ = "users"
     
-    id: Optional[UUID] = Field(default=None, primary_key=True)
+    id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
     clerk_user_id: str = Field(unique=True, index=True, description="Clerk's user ID")
     email: str = Field(unique=True, index=True, description="User email")
     name: Optional[str] = Field(default=None, description="User display name")
@@ -36,7 +36,7 @@ class APIKey(SQLModel, table=True):
     """API keys for SDK authentication."""
     __tablename__ = "api_keys"
     
-    id: Optional[UUID] = Field(default=None, primary_key=True)
+    id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
     user_id: UUID = Field(foreign_key="users.id", index=True, description="Owner user ID")
     key_hash: str = Field(unique=True, index=True, description="bcrypt hash of the full API key")
     key_prefix: str = Field(description="Displayable prefix (e.g., llmo_sk_abc...)")

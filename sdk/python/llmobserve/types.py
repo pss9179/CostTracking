@@ -17,8 +17,7 @@ class TraceEvent(TypedDict, total=False):
     provider: str
     endpoint: str
     model: Optional[str]
-    tenant_id: Optional[str]
-    customer_id: Optional[str]
+    customer_id: Optional[str]  # User's end-customer identifier (optional)
     input_tokens: int
     output_tokens: int
     cached_tokens: int  # For OpenAI prompt caching
@@ -28,4 +27,5 @@ class TraceEvent(TypedDict, total=False):
     is_streaming: bool  # Whether this was a streaming response
     stream_cancelled: bool  # Whether stream was cancelled early
     event_metadata: Optional[dict]
+    # Note: user_id is injected by the backend from API key, not sent by SDK
 

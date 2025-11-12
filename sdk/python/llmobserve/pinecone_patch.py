@@ -7,15 +7,19 @@ Patches:
   • Index.delete() - Write units
   • Index.update() - Write units
   • Index.fetch() - Read units
-  • Index.list() - Read units
+ • Index.list() - Read units
   • Index.describe_index_stats() - Read units
   • inference.embed() - Embedding API
   • inference.rerank() - Reranking API
 """
 import time
 import uuid
+import logging
 from typing import Any, Optional
 from llmobserve import config, context, buffer, pricing
+from llmobserve.robustness import check_pinecone_version
+
+logger = logging.getLogger("llmobserve")
 
 
 def _track_pinecone_call(
@@ -66,7 +70,6 @@ def _track_pinecone_call(
         "provider": "pinecone",
         "endpoint": operation,
         "model": None,
-        "tenant_id": config.get_tenant_id(),
         "customer_id": config.get_customer_id(),
         "input_tokens": 0,
         "output_tokens": 0,
@@ -97,10 +100,15 @@ def patch_pinecone() -> None:
             # Fallback for older SDK versions
             from pinecone import Index
         except ImportError:
-            print("[llmobserve] Pinecone SDK not installed, skipping patches")
+            logger.debug("[llmobserve] Pinecone SDK not installed, skipping patches")
             return
     
-    print("[llmobserve] Patching Pinecone client...")
+    # Version compatibility check
+    version_status = check_pinecone_version()
+    if version_status:
+        logger.debug(f"[llmobserve] Pinecone SDK version detected")
+    
+    logger.info("[llmobserve] Patching Pinecone client...")
     
     # ============================================================================
     # DATABASE OPERATIONS (Index methods)
@@ -124,7 +132,7 @@ def patch_pinecone() -> None:
                 _track_pinecone_call("query", start_time, error)
         
         Index.query = patched_query
-        print("[llmobserve]   ✓ Index.query")
+        logger.info("[llmobserve] ✓ Patched Index.query")
     
     # Patch upsert (write units)
     if hasattr(Index, "upsert"):
@@ -144,7 +152,7 @@ def patch_pinecone() -> None:
                 _track_pinecone_call("upsert", start_time, error)
         
         Index.upsert = patched_upsert
-        print("[llmobserve]   ✓ Index.upsert")
+        logger.info("[llmobserve] ✓ Patched Index.upsert")
     
     # Patch delete (write units)
     if hasattr(Index, "delete"):
@@ -164,7 +172,7 @@ def patch_pinecone() -> None:
                 _track_pinecone_call("delete", start_time, error)
         
         Index.delete = patched_delete
-        print("[llmobserve]   ✓ Index.delete")
+        logger.info("[llmobserve] ✓ Patched Index.delete")
     
     # Patch update (write units)
     if hasattr(Index, "update"):
@@ -184,7 +192,7 @@ def patch_pinecone() -> None:
                 _track_pinecone_call("update", start_time, error)
         
         Index.update = patched_update
-        print("[llmobserve]   ✓ Index.update")
+        logger.info("[llmobserve] ✓ Patched Index.update")
     
     # Patch fetch (read units)
     if hasattr(Index, "fetch"):
@@ -204,7 +212,7 @@ def patch_pinecone() -> None:
                 _track_pinecone_call("fetch", start_time, error)
         
         Index.fetch = patched_fetch
-        print("[llmobserve]   ✓ Index.fetch")
+        logger.info("[llmobserve] ✓ Patched Index.fetch")
     
     # Patch list (read units)
     if hasattr(Index, "list"):
@@ -224,7 +232,7 @@ def patch_pinecone() -> None:
                 _track_pinecone_call("list", start_time, error)
         
         Index.list = patched_list
-        print("[llmobserve]   ✓ Index.list")
+        logger.info("[llmobserve] ✓ Patched Index.list")
     
     # Patch describe_index_stats (read units)
     if hasattr(Index, "describe_index_stats"):
@@ -244,7 +252,7 @@ def patch_pinecone() -> None:
                 _track_pinecone_call("describe_index_stats", start_time, error)
         
         Index.describe_index_stats = patched_describe
-        print("[llmobserve]   ✓ Index.describe_index_stats")
+        logger.info("[llmobserve] ✓ Patched Index.describe_index_stats")
     
     # ============================================================================
     # INFERENCE API
@@ -272,7 +280,7 @@ def patch_pinecone() -> None:
                     _track_pinecone_call("embed", start_time, error, {"model": model})
             
             inference.embed = patched_embed
-            print("[llmobserve]   ✓ inference.embed")
+            logger.info("[llmobserve] ✓ Patched inference.embed")
     except (ImportError, AttributeError):
         pass
     
@@ -298,7 +306,7 @@ def patch_pinecone() -> None:
                     _track_pinecone_call("rerank", start_time, error, {"model": model})
             
             inference.rerank = patched_rerank
-            print("[llmobserve]   ✓ inference.rerank")
+            logger.info("[llmobserve] ✓ Patched inference.rerank")
     except (ImportError, AttributeError):
         pass
 

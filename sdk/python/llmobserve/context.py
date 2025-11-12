@@ -3,13 +3,13 @@ ContextVar-based context management for sections, spans, and run IDs.
 Async-safe with support for hierarchical tracing.
 """
 import contextvars
+import time
 import uuid
 from contextlib import contextmanager
 from typing import Optional, List, Dict, Any
 
 # ContextVar storage for async safety
 _run_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("run_id", default=None)
-_tenant_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("tenant_id", default=None)
 _customer_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("customer_id", default=None)
 _section_stack_var: contextvars.ContextVar[List[Dict[str, Any]]] = contextvars.ContextVar("section_stack", default=None)
 
@@ -45,21 +45,6 @@ def set_run_id(run_id: Optional[str] = None) -> None:
         run_id: Custom run ID, or None to auto-generate a new one
     """
     _run_id_var.set(run_id if run_id else str(uuid.uuid4()))
-
-
-def get_tenant_id() -> Optional[str]:
-    """Get the current tenant ID."""
-    return _tenant_id_var.get()
-
-
-def set_tenant_id(tenant_id: Optional[str] = None) -> None:
-    """
-    Set the tenant ID for all subsequent events.
-    
-    Args:
-        tenant_id: Tenant identifier (e.g., "acme", "beta-corp")
-    """
-    _tenant_id_var.set(tenant_id)
 
 
 def get_customer_id() -> Optional[str]:
@@ -142,6 +127,8 @@ def section(name: str):
     Args:
         name: Section label (e.g., "agent:researcher", "tool:web_search", "step:analyze")
     """
+    from llmobserve import buffer
+    
     stack = _get_section_stack()
     
     # Generate span_id for this section
@@ -158,10 +145,93 @@ def section(name: str):
     }
     stack.append(section_entry)
     
+    # Record start time
+    start_time = time.time()
+    
+    # Track exception state
+    error_message = None
+    status = "ok"
+    
     try:
         yield
+    except Exception as e:
+        # Capture exception but re-raise to not break user code
+        error_message = str(e)
+        status = "error"
+        raise  # Re-raise exception to preserve user's error handling
     finally:
-        # Pop section from stack (only if it's still the top)
-        if stack and stack[-1]["label"] == name:
-            stack.pop()
+        # Calculate duration with clock skew guard
+        end_time = time.time()
+        latency_ms = max(0.0, (end_time - start_time) * 1000)  # Prevent negative latencies
+        
+        # Emit span event to collector
+        try:
+            from llmobserve.config import is_enabled
+            if is_enabled():
+                event = {
+                    "id": str(uuid.uuid4()),  # Unique event ID
+                    "run_id": get_run_id(),
+                    "span_id": span_id,
+                    "parent_span_id": parent_span_id,
+                    "section": name,
+                    "section_path": get_section_path(),
+                    "span_type": "section",  # Mark as section span (not API call)
+                    "provider": "internal",  # Sections are internal, not external API calls
+                    "endpoint": "span",
+                    "model": None,
+                    "cost_usd": 0.0,  # Sections themselves don't cost, only API calls inside
+                    "latency_ms": latency_ms,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "status": status,
+                    "customer_id": get_customer_id(),
+                    "event_metadata": {"error": error_message} if error_message else None,
+                }
+                buffer.add_event(event)
+        except Exception:
+            pass  # Fail silently to not break user code
+        
+        # Pop section from stack in separate try/finally for safety
+        try:
+            if stack and len(stack) > 0 and stack[-1].get("span_id") == span_id:
+                stack.pop()
+        except (IndexError, KeyError):
+            # Stack corruption - log but don't crash
+            pass
+
+
+def export() -> Dict[str, Any]:
+    """
+    Export current context for serialization (e.g., for Celery/background workers).
+    
+    Returns:
+        Dictionary with run_id, customer_id, and section_stack
+    """
+    return {
+        "run_id": _run_id_var.get(),
+        "customer_id": _customer_id_var.get(),
+        "section_stack": _section_stack_var.get() or [],
+    }
+
+
+def import_context(data: Dict[str, Any]) -> None:
+    """
+    Import context from dictionary (e.g., from Celery/background workers).
+    
+    Args:
+        data: Dictionary with run_id, customer_id, and section_stack
+    
+    Example:
+        >>> context_data = context.export()
+        >>> # In worker:
+        >>> context.import_context(context_data)
+    """
+    if "run_id" in data and data["run_id"]:
+        _run_id_var.set(data["run_id"])
+    
+    if "customer_id" in data:
+        _customer_id_var.set(data.get("customer_id"))
+    
+    if "section_stack" in data:
+        _section_stack_var.set(data["section_stack"] or [])
 

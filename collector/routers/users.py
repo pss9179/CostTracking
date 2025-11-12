@@ -4,10 +4,9 @@ User management endpoints (for Clerk webhooks).
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlmodel import Session, select
-from ..db import get_session
-from ..models import User, UserCreate
-from ..auth import generate_api_key, hash_api_key, get_key_prefix
-from ..models import APIKey
+from db import get_session
+from models import User, UserCreate, APIKey
+from auth import generate_api_key, hash_api_key, get_key_prefix
 
 router = APIRouter(prefix="/users", tags=["Users"])
 

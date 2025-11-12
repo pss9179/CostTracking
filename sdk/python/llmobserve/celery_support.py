@@ -20,7 +20,6 @@ def get_current_context() -> dict:
     
     return {
         "run_id": context.get_run_id(),
-        "tenant_id": context.get_tenant_id(),
         "customer_id": context.get_customer_id(),
         "section_stack": [
             {"label": s["label"], "span_id": s["span_id"], "parent_span_id": s["parent_span_id"]}
@@ -42,8 +41,6 @@ def restore_context(ctx: dict) -> None:
     # Restore IDs
     if ctx.get("run_id"):
         context.set_run_id(ctx["run_id"])
-    if ctx.get("tenant_id"):
-        context.set_tenant_id(ctx["tenant_id"])
     if ctx.get("customer_id"):
         context.set_customer_id(ctx["customer_id"])
     

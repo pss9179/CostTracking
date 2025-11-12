@@ -11,8 +11,17 @@ Handles:
 import functools
 import time
 import uuid
+import logging
 from typing import Any, Callable, Optional
 from llmobserve import buffer, context, pricing, config
+from llmobserve.robustness import (
+    check_openai_version,
+    detect_patching_conflicts,
+    safe_patch,
+    get_patch_state,
+)
+
+logger = logging.getLogger("llmobserve")
 
 # Try to import tiktoken for token estimation
 try:
@@ -20,7 +29,7 @@ try:
     TIKTOKEN_AVAILABLE = True
 except ImportError:
     TIKTOKEN_AVAILABLE = False
-    print("[llmobserve] tiktoken not installed - cancelled stream costs will be $0 (install with: pip install tiktoken)")
+    # tiktoken not available - will log warning when needed
 
 
 def _get_tokenizer(model: str):
@@ -35,7 +44,7 @@ def _get_tokenizer(model: str):
         return tiktoken.get_encoding("cl100k_base")
 
 
-def _estimate_tokens(text: str, model: str) -> int:
+def _estimate_tokens(text: str, model: Optional[str]) -> int:
     """Estimate token count for text using tiktoken."""
     if not TIKTOKEN_AVAILABLE or not text:
         return 0
@@ -45,12 +54,12 @@ def _estimate_tokens(text: str, model: str) -> int:
         if encoding:
             return len(encoding.encode(text))
     except Exception as e:
-        print(f"[llmobserve] Failed to estimate tokens: {e}")
+        logger.debug(f"[llmobserve] Failed to estimate tokens: {e}")
     
     return 0
 
 
-def _estimate_input_tokens_from_messages(messages, model: str) -> int:
+def _estimate_input_tokens_from_messages(messages, model: Optional[str]) -> int:
     """
     Estimate input tokens from chat messages.
     
@@ -85,7 +94,7 @@ def _estimate_input_tokens_from_messages(messages, model: str) -> int:
         
         return total_tokens
     except Exception as e:
-        print(f"[llmobserve] Failed to estimate input tokens: {e}")
+        logger.debug(f"[llmobserve] Failed to estimate input tokens: {e}")
         return 0
 
 
@@ -119,7 +128,7 @@ def _extract_usage(response: Any, method_name: str) -> tuple[int, int, int]:
 
 def _track_openai_call(
     method_name: str,
-    model: str,
+    model: Optional[str],
     start_time: float,
     response: Any,
     error: Optional[Exception] = None,
@@ -172,8 +181,7 @@ def _track_openai_call(
         "provider": "openai",
         "endpoint": method_name,
         "model": model,
-        "tenant_id": config.get_tenant_id(),
-        "customer_id": config.get_customer_id(),
+        "customer_id": context.get_customer_id(),
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "cached_tokens": cached_tokens,
@@ -191,7 +199,7 @@ def _track_openai_call(
     buffer.add_event(event)
 
 
-def _wrap_streaming_response(stream, method_name: str, model: str, start_time: float, messages=None):
+def _wrap_streaming_response(stream, method_name: str, model: Optional[str], start_time: float, messages=None):
     """
     Wrap a streaming response to track usage and handle cancellation.
     
@@ -503,12 +511,29 @@ def patch_openai():
         import openai
         from openai import resources
     except ImportError:
-        print("[llmobserve] OpenAI not installed, skipping OpenAI patching")
+        logger.debug("[llmobserve] OpenAI not installed, skipping OpenAI patching")
         return
     
     # Check if already patched
     if hasattr(resources.chat.Completions, "_llmobserve_patched"):
+        logger.debug("[llmobserve] OpenAI already patched, skipping")
         return
+    
+    # Version compatibility check
+    version_status = check_openai_version()
+    if version_status == "warning":
+        logger.warning(
+            f"[llmobserve] OpenAI SDK version {getattr(openai, '__version__', 'unknown')} "
+            "may have compatibility issues. Please report any problems."
+        )
+    
+    # Detect conflicts with other libraries
+    conflicts = detect_patching_conflicts()
+    if conflicts:
+        logger.warning(
+            f"[llmobserve] Detected potential conflicts with other libraries: {conflicts}. "
+            "This may cause tracking issues. Consider using only one observability library."
+        )
     
     # List of resources to patch: (resource_class, method_name, endpoint_name)
     endpoints_to_patch = [
@@ -554,22 +579,49 @@ def patch_openai():
         pass
     
     patched_count = 0
-    for resource_class, method_name, endpoint_name in endpoints_to_patch:
-        try:
-            if hasattr(resource_class, method_name):
-                original_method = getattr(resource_class, method_name)
-                wrapped_method = _patch_method(
-                    resource_class, 
-                    endpoint_name.split("."), 
-                    method_name, 
-                    original_method
-                )
-                setattr(resource_class, method_name, wrapped_method)
-                patched_count += 1
-                print(f"[llmobserve] ✓ Patched {endpoint_name}.{method_name}")
-        except Exception as e:
-            print(f"[llmobserve] ✗ Failed to patch {endpoint_name}.{method_name}: {e}")
+    failed_count = 0
     
-    # Mark as patched
-    resources.chat.Completions._llmobserve_patched = True
-    print(f"[llmobserve] OpenAI SDK patched successfully ({patched_count} endpoints)")
+    for resource_class, method_name, endpoint_name in endpoints_to_patch:
+        if not hasattr(resource_class, method_name):
+            logger.debug(f"[llmobserve] Skipping {endpoint_name}.{method_name} (not found)")
+            continue
+        
+        original_method = getattr(resource_class, method_name)
+        
+        # Create patch function that wraps the original method
+        def patch_wrapper(original):
+            return _patch_method(
+                resource_class,
+                endpoint_name.split("."),
+                method_name,
+                original
+            )
+        
+        success, error = safe_patch(
+            resource_class,
+            method_name,
+            endpoint_name,
+            patch_wrapper,
+            original_method
+        )
+        
+        if success:
+            patched_count += 1
+        else:
+            failed_count += 1
+            if error:
+                logger.error(f"[llmobserve] Failed to patch {endpoint_name}.{method_name}: {error}")
+    
+    # Mark as patched (only if at least one endpoint was patched)
+    if patched_count > 0:
+        # Use setattr to avoid type checker issues
+        setattr(resources.chat.Completions, "_llmobserve_patched", True)
+        logger.info(
+            f"[llmobserve] OpenAI SDK patched successfully "
+            f"({patched_count} endpoints patched, {failed_count} failed)"
+        )
+    else:
+        logger.warning(
+            f"[llmobserve] Failed to patch any OpenAI endpoints. "
+            "OpenAI tracking will not work. Check logs for details."
+        )

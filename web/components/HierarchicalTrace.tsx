@@ -80,9 +80,13 @@ function buildTree(events: TraceEvent[]): TreeNode[] {
 function TreeNodeComponent({
   node,
   depth = 0,
+  isLast = false,
+  parentPrefix = "",
 }: {
   node: TreeNode;
   depth?: number;
+  isLast?: boolean;
+  parentPrefix?: string;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const hasChildren = node.children.length > 0;
@@ -92,85 +96,108 @@ function TreeNodeComponent({
     return date.toLocaleTimeString();
   };
 
+  // Tree line characters
+  const lineChar = isLast ? "└─" : "├─";
+  const continueChar = isLast ? "  " : "│ ";
+  const currentPrefix = parentPrefix + lineChar;
+  const childPrefix = parentPrefix + continueChar;
+
   return (
-    <div className="border-l-2 border-gray-200 pl-4 py-2">
+    <div className="font-mono text-sm">
       <div
-        className="flex items-center gap-3 hover:bg-gray-50 p-2 rounded cursor-pointer"
+        className="flex items-start gap-2 hover:bg-gray-50 p-2 rounded cursor-pointer"
         onClick={() => hasChildren && setIsExpanded(!isExpanded)}
       >
+        {/* Tree Lines */}
+        <span className="text-gray-400 select-none whitespace-pre">
+          {currentPrefix}
+        </span>
+
         {/* Expand/Collapse Icon */}
-        <div className="w-5 h-5 flex-shrink-0">
+        <div className="w-4 h-4 flex-shrink-0 mt-0.5">
           {hasChildren && (
             isExpanded ? (
-              <ChevronDown className="w-5 h-5 text-gray-600" />
+              <ChevronDown className="w-4 h-4 text-gray-600" />
             ) : (
-              <ChevronRight className="w-5 h-5 text-gray-600" />
+              <ChevronRight className="w-4 h-4 text-gray-600" />
             )
           )}
         </div>
 
-        {/* Section Path Badge */}
-        <div className="flex-shrink-0">
-          <Badge variant="secondary" className="text-xs font-mono">
-            {node.event.section_path || node.event.section}
-          </Badge>
-        </div>
+        <div className="flex-1 flex items-center gap-3 min-w-0">
+          {/* Section Path Badge */}
+          <div className="flex-shrink-0">
+            <Badge variant="secondary" className="text-xs font-mono">
+              {node.event.section_path || node.event.section}
+            </Badge>
+          </div>
 
-        {/* Provider & Endpoint */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Badge variant="outline" className="text-xs">
-            {node.event.provider}
-          </Badge>
-          <span className="text-xs text-gray-600">{node.event.endpoint}</span>
-        </div>
+          {/* Provider & Endpoint (skip internal) */}
+          {node.event.provider !== "internal" && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Badge variant="outline" className="text-xs">
+                {node.event.provider}
+              </Badge>
+              <span className="text-xs text-gray-600">{node.event.endpoint}</span>
+            </div>
+          )}
 
-        {/* Model */}
-        {node.event.model && (
-          <span className="text-xs text-gray-500 flex-shrink-0">
-            {node.event.model}
-          </span>
-        )}
-
-        {/* Metrics */}
-        <div className="ml-auto flex items-center gap-4 text-xs">
-          {/* Time */}
-          <span className="text-gray-500">{formatDate(node.event.created_at)}</span>
-
-          {/* Latency */}
-          <span className="text-gray-600">
-            {node.event.latency_ms.toFixed(0)}ms
-          </span>
-
-          {/* Tokens */}
-          {(node.event.input_tokens > 0 || node.event.output_tokens > 0) && (
-            <span className="text-gray-600">
-              {node.event.input_tokens} / {node.event.output_tokens} tok
+          {/* Model */}
+          {node.event.model && (
+            <span className="text-xs text-gray-500 flex-shrink-0">
+              {node.event.model}
             </span>
           )}
 
-          {/* Cost */}
-          <span className="font-semibold text-gray-900 min-w-[80px] text-right">
-            ${node.event.cost_usd.toFixed(6)}
-          </span>
+          {/* Span Info (hover to see IDs) */}
+          <div className="text-xs text-gray-400 flex-shrink-0 group relative">
+            <span className="cursor-help">span</span>
+            <div className="hidden group-hover:block absolute left-0 top-6 z-10 bg-gray-900 text-white text-xs p-2 rounded shadow-lg w-max max-w-md">
+              <div><strong>Span ID:</strong> {node.event.span_id}</div>
+              <div><strong>Parent:</strong> {node.event.parent_span_id || "none (root)"}</div>
+            </div>
+          </div>
 
-          {/* Status */}
-          <Badge
-            variant={node.event.status === "ok" ? "default" : "destructive"}
-            className="text-xs"
-          >
-            {node.event.status}
-          </Badge>
+          {/* Metrics */}
+          <div className="ml-auto flex items-center gap-4 text-xs flex-shrink-0">
+            {/* Latency */}
+            <span className="text-gray-600">
+              {node.event.latency_ms.toFixed(0)}ms
+            </span>
+
+            {/* Tokens */}
+            {(node.event.input_tokens > 0 || node.event.output_tokens > 0) && (
+              <span className="text-gray-600">
+                {node.event.input_tokens}/{node.event.output_tokens} tok
+              </span>
+            )}
+
+            {/* Cost */}
+            <span className="font-semibold text-gray-900 min-w-[80px] text-right">
+              ${node.event.cost_usd.toFixed(6)}
+            </span>
+
+            {/* Status */}
+            <Badge
+              variant={node.event.status === "ok" ? "default" : "destructive"}
+              className="text-xs"
+            >
+              {node.event.status}
+            </Badge>
+          </div>
         </div>
       </div>
 
       {/* Children */}
       {hasChildren && isExpanded && (
-        <div className="mt-1">
+        <div>
           {node.children.map((child, idx) => (
             <TreeNodeComponent
               key={`${child.event.span_id}-${depth}-${idx}`}
               node={child}
               depth={depth + 1}
+              isLast={idx === node.children.length - 1}
+              parentPrefix={childPrefix}
             />
           ))}
         </div>
@@ -231,12 +258,18 @@ export function HierarchicalTrace({ events }: HierarchicalTraceProps) {
       <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
         <p className="text-sm text-blue-900">
           <strong>Hierarchical Trace View:</strong> Expand/collapse sections to
-          explore nested agent, tool, and step calls.
+          explore nested agent, tool, and step calls. Hover over "span" to see parent relationships.
         </p>
       </div>
-      {tree.map((node, idx) => (
-        <TreeNodeComponent key={`${node.event.span_id}-${idx}`} node={node} />
-      ))}
+      <div className="bg-gray-50 p-4 rounded border">
+        {tree.map((node, idx) => (
+          <TreeNodeComponent 
+            key={`${node.event.span_id}-${idx}`} 
+            node={node} 
+            isLast={idx === tree.length - 1}
+          />
+        ))}
+      </div>
     </div>
   );
 }

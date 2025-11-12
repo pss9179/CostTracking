@@ -1,17 +1,36 @@
 """
 Transport layer for sending events to collector.
+
+Includes exponential-backoff retry and signal handling.
 """
 import json
+import time
+import signal
+import logging
 from typing import List
 from llmobserve.types import TraceEvent
 from llmobserve import config
 
+logger = logging.getLogger("llmobserve")
+
+# Track if shutdown signal received
+_shutdown_requested = False
+
+
+def _handle_signal(signum, frame):
+    """Handle SIGTERM/SIGINT to flush events before shutdown."""
+    global _shutdown_requested
+    _shutdown_requested = True
+    logger.info("[llmobserve] Shutdown signal received - flushing events")
+    flush_events()
+
 
 def flush_events() -> None:
     """
-    Flush buffered events to the collector.
+    Flush buffered events to the collector with exponential-backoff retry.
     
     Sends a batch POST request to /events endpoint.
+    Retries up to 3 times with exponential backoff (1s, 2s, 4s).
     """
     if not config.is_enabled():
         return
@@ -28,46 +47,77 @@ def flush_events() -> None:
     if not collector_url:
         return
     
-    try:
-        # Try to import requests
+    # Exponential backoff retry (max 3 attempts)
+    max_retries = 3
+    base_delay = 1.0  # 1 second
+    
+    for attempt in range(max_retries):
         try:
-            import requests
-        except ImportError:
-            # Fallback to urllib if requests not available
-            import urllib.request
-            import urllib.error
+            # Try to import requests
+            try:
+                import requests
+            except ImportError:
+                # Fallback to urllib if requests not available
+                import urllib.request
+                import urllib.error
+                
+                url = f"{collector_url}/events"
+                data = json.dumps(events).encode("utf-8")
+                req = urllib.request.Request(
+                    url,
+                    data=data,
+                    headers={"Content-Type": "application/json"}
+                )
+                
+                if config.get_api_key():
+                    req.add_header("Authorization", f"Bearer {config.get_api_key()}")
+                
+                try:
+                    urllib.request.urlopen(req, timeout=5)
+                    return  # Success
+                except urllib.error.URLError as e:
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        logger.debug(f"[llmobserve] Flush failed, retrying in {delay}s: {e}")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        logger.debug(f"[llmobserve] Flush failed after {max_retries} attempts: {e}")
+                        return
+                return
             
+            # Use requests if available
             url = f"{collector_url}/events"
-            data = json.dumps(events).encode("utf-8")
-            req = urllib.request.Request(
-                url,
-                data=data,
-                headers={"Content-Type": "application/json"}
-            )
+            headers = {"Content-Type": "application/json"}
             
             if config.get_api_key():
-                req.add_header("Authorization", f"Bearer {config.get_api_key()}")
+                headers["Authorization"] = f"Bearer {config.get_api_key()}"
             
-            try:
-                urllib.request.urlopen(req, timeout=5)
-            except urllib.error.URLError:
-                pass  # Silently fail
-            return
-        
-        # Use requests if available
-        url = f"{collector_url}/events"
-        headers = {"Content-Type": "application/json"}
-        
-        if config.get_api_key():
-            headers["Authorization"] = f"Bearer {config.get_api_key()}"
-        
-        requests.post(
-            url,
-            json=events,
-            headers=headers,
-            timeout=5
-        )
-    except Exception:
-        # Silently fail - don't break user's application
-        pass
+            response = requests.post(
+                url,
+                json=events,
+                headers=headers,
+                timeout=5
+            )
+            response.raise_for_status()  # Raise on HTTP error
+            return  # Success
+            
+        except Exception as e:
+            if attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt)
+                logger.debug(f"[llmobserve] Flush failed, retrying in {delay}s: {e}")
+                time.sleep(delay)
+            else:
+                logger.debug(f"[llmobserve] Flush failed after {max_retries} attempts: {e}")
+                # Fail-open: don't break user's application
+                return
+
+
+# Register signal handlers for graceful shutdown
+try:
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
+except (ValueError, OSError):
+    # Signals not available (e.g., Windows)
+    pass
 

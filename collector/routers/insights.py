@@ -3,15 +3,17 @@ Insights router - auto-generated insights and anomaly detection.
 """
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
+from uuid import UUID
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select, func, and_
 from models import TraceEvent
 from db import get_session
+from auth import get_current_user_id
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
 
-def _section_spike_insights(session: Session) -> List[Dict[str, Any]]:
+def _section_spike_insights(session: Session, user_id: UUID) -> List[Dict[str, Any]]:
     """
     Detect section cost spikes (today > 2× vs 7-day average).
     """
@@ -20,8 +22,8 @@ def _section_spike_insights(session: Session) -> List[Dict[str, Any]]:
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     seven_days_ago = today_start - timedelta(days=7)
     
-    # Get all sections
-    sections_statement = select(TraceEvent.section).distinct()
+    # Get all sections for this user
+    sections_statement = select(TraceEvent.section).where(TraceEvent.user_id == user_id).distinct()
     sections = session.exec(sections_statement).all()
     
     for section in sections:
@@ -29,6 +31,7 @@ def _section_spike_insights(session: Session) -> List[Dict[str, Any]]:
         today_statement = (
             select(func.sum(TraceEvent.cost_usd))
             .where(and_(
+                TraceEvent.user_id == user_id,
                 TraceEvent.section == section,
                 TraceEvent.created_at >= today_start
             ))
@@ -39,6 +42,7 @@ def _section_spike_insights(session: Session) -> List[Dict[str, Any]]:
         today_runs_statement = (
             select(func.count(func.distinct(TraceEvent.run_id)))
             .where(and_(
+                TraceEvent.user_id == user_id,
                 TraceEvent.section == section,
                 TraceEvent.created_at >= today_start
             ))
@@ -50,6 +54,7 @@ def _section_spike_insights(session: Session) -> List[Dict[str, Any]]:
         past_statement = (
             select(func.sum(TraceEvent.cost_usd))
             .where(and_(
+                TraceEvent.user_id == user_id,
                 TraceEvent.section == section,
                 TraceEvent.created_at >= seven_days_ago,
                 TraceEvent.created_at < today_start
@@ -60,6 +65,7 @@ def _section_spike_insights(session: Session) -> List[Dict[str, Any]]:
         past_runs_statement = (
             select(func.count(func.distinct(TraceEvent.run_id)))
             .where(and_(
+                TraceEvent.user_id == user_id,
                 TraceEvent.section == section,
                 TraceEvent.created_at >= seven_days_ago,
                 TraceEvent.created_at < today_start
@@ -81,7 +87,7 @@ def _section_spike_insights(session: Session) -> List[Dict[str, Any]]:
     return insights
 
 
-def _model_inefficiency_insights(session: Session) -> List[Dict[str, Any]]:
+def _model_inefficiency_insights(session: Session, user_id: UUID) -> List[Dict[str, Any]]:
     """
     Detect model inefficiency (expensive model used where cheaper alternative exists).
     """
@@ -90,9 +96,10 @@ def _model_inefficiency_insights(session: Session) -> List[Dict[str, Any]]:
     # Get sections with multiple models in last 24h
     yesterday = datetime.utcnow() - timedelta(hours=24)
     
-    sections_statement = select(TraceEvent.section).where(
+    sections_statement = select(TraceEvent.section).where(and_(
+        TraceEvent.user_id == user_id,
         TraceEvent.created_at >= yesterday
-    ).distinct()
+    )).distinct()
     sections = session.exec(sections_statement).all()
     
     for section in sections:
@@ -104,6 +111,7 @@ def _model_inefficiency_insights(session: Session) -> List[Dict[str, Any]]:
                 func.sum(TraceEvent.input_tokens + TraceEvent.output_tokens).label("total_tokens")
             )
             .where(and_(
+                TraceEvent.user_id == user_id,
                 TraceEvent.section == section,
                 TraceEvent.created_at >= yesterday,
                 TraceEvent.model.isnot(None),
@@ -140,7 +148,7 @@ def _model_inefficiency_insights(session: Session) -> List[Dict[str, Any]]:
     return insights
 
 
-def _token_bloat_insights(session: Session) -> List[Dict[str, Any]]:
+def _token_bloat_insights(session: Session, user_id: UUID) -> List[Dict[str, Any]]:
     """
     Detect token bloat (input tokens > 1.5× vs 7-day average).
     """
@@ -149,8 +157,8 @@ def _token_bloat_insights(session: Session) -> List[Dict[str, Any]]:
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     seven_days_ago = today_start - timedelta(days=7)
     
-    # Get sections
-    sections_statement = select(TraceEvent.section).distinct()
+    # Get sections for this user
+    sections_statement = select(TraceEvent.section).where(TraceEvent.user_id == user_id).distinct()
     sections = session.exec(sections_statement).all()
     
     for section in sections:
@@ -158,6 +166,7 @@ def _token_bloat_insights(session: Session) -> List[Dict[str, Any]]:
         today_statement = (
             select(func.avg(TraceEvent.input_tokens))
             .where(and_(
+                TraceEvent.user_id == user_id,
                 TraceEvent.section == section,
                 TraceEvent.created_at >= today_start,
                 TraceEvent.input_tokens > 0
@@ -169,6 +178,7 @@ def _token_bloat_insights(session: Session) -> List[Dict[str, Any]]:
         past_statement = (
             select(func.avg(TraceEvent.input_tokens))
             .where(and_(
+                TraceEvent.user_id == user_id,
                 TraceEvent.section == section,
                 TraceEvent.created_at >= seven_days_ago,
                 TraceEvent.created_at < today_start,
@@ -190,20 +200,23 @@ def _token_bloat_insights(session: Session) -> List[Dict[str, Any]]:
     return insights
 
 
-def _retry_loop_insights(session: Session) -> List[Dict[str, Any]]:
+def _retry_loop_insights(session: Session, user_id: UUID) -> List[Dict[str, Any]]:
     """
     Detect retry/loop patterns (same endpoint called > 3× per run, p95).
     """
     insights = []
     yesterday = datetime.utcnow() - timedelta(hours=24)
     
-    # Get provider/endpoint combinations
+    # Get provider/endpoint combinations for this user
     combos_statement = (
         select(
             TraceEvent.provider,
             TraceEvent.endpoint
         )
-        .where(TraceEvent.created_at >= yesterday)
+        .where(and_(
+            TraceEvent.user_id == user_id,
+            TraceEvent.created_at >= yesterday
+        ))
         .distinct()
     )
     combos = session.exec(combos_statement).all()
@@ -216,6 +229,7 @@ def _retry_loop_insights(session: Session) -> List[Dict[str, Any]]:
                 func.count(TraceEvent.id).label("call_count")
             )
             .where(and_(
+                TraceEvent.user_id == user_id,
                 TraceEvent.provider == provider,
                 TraceEvent.endpoint == endpoint,
                 TraceEvent.created_at >= yesterday
@@ -246,20 +260,24 @@ def _retry_loop_insights(session: Session) -> List[Dict[str, Any]]:
 
 @router.get("/daily")
 def get_daily_insights(
+    user_id: UUID = Depends(get_current_user_id),
     session: Session = Depends(get_session)
 ) -> List[Dict[str, Any]]:
     """
     Get auto-generated insights for the last 24 hours.
     
+    Automatically filtered by authenticated user.
     Returns insights about cost spikes, inefficiencies, token bloat, and retry patterns.
+    
+    Requires: Authorization: Bearer <api_key> header
     """
     insights = []
     
-    # Run all insight detectors
-    insights.extend(_section_spike_insights(session))
-    insights.extend(_model_inefficiency_insights(session))
-    insights.extend(_token_bloat_insights(session))
-    insights.extend(_retry_loop_insights(session))
+    # Run all insight detectors with user_id filter
+    insights.extend(_section_spike_insights(session, user_id))
+    insights.extend(_model_inefficiency_insights(session, user_id))
+    insights.extend(_token_bloat_insights(session, user_id))
+    insights.extend(_retry_loop_insights(session, user_id))
     
     return insights
 

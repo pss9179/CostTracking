@@ -1,25 +1,43 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "llmobserve"
-version = "0.1.0"
-description = "Auto-instrumentation SDK for LLM and API cost tracking"
-requires-python = ">=3.10"
-dependencies = []
-
-[project.optional-dependencies]
-openai = ["openai>=1.0.0", "tiktoken>=0.5.0"]
-pinecone = ["pinecone-client>=3.0.0"]
-all = ["openai>=1.0.0", "tiktoken>=0.5.0", "pinecone-client>=3.0.0"]
-dev = [
-    "pytest>=7.4.0",
-    "openai>=1.0.0",
+version = "0.3.0"
+description = "Automatic cost tracking and observability for LLM applications"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Pranav Srigiriraju", email = "support@llmobserve.com"}
+]
+keywords = ["llm", "observability", "cost-tracking", "openai", "monitoring"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
     "tiktoken>=0.5.0",
-    "pinecone-client>=3.0.0",
 ]
 
-[tool.setuptools]
-packages = ["llmobserve"]
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+]
 
+[project.urls]
+Homepage = "https://llmobserve.com"
+Documentation = "https://docs.llmobserve.com"
+Repository = "https://github.com/yourusername/llmobserve"

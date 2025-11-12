@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "sdk" / "python"))
 
 import llmobserve
-from llmobserve import observe, section, set_tenant_id, set_customer_id, set_run_id
+from llmobserve import observe, section, set_customer_id, set_run_id
 from llmobserve.retry_tracking import retry_block
 
 # Check for API keys
@@ -121,14 +121,13 @@ def research_agent(query: str, use_llm: bool = True):
         return response
 
 
-def simulate_request(tenant: str, customer: str, query: str, request_num: int):
+def simulate_request(customer: str, query: str, request_num: int):
     """
     Simulates a single HTTP request with proper context isolation.
-    In production, middleware would handle the reset + tenant extraction.
+    In production, middleware would handle the reset + customer extraction.
     """
     print(f"\n{'=' * 80}")
     print(f"📨 REQUEST #{request_num}")
-    print(f"   Tenant: {tenant}")
     print(f"   Customer: {customer}")
     print(f"   Query: {query}")
     print(f"{'=' * 80}")
@@ -138,15 +137,13 @@ def simulate_request(tenant: str, customer: str, query: str, request_num: int):
     
     # 1. Reset context (prevent bleed from previous request)
     set_run_id()  # Fresh run_id
-    set_tenant_id(None)  # Clear old tenant
     set_customer_id(None)  # Clear old customer
     # section_stack is automatically cleared when contextvars reset
     
     # 2. Extract from request (headers, JWT, etc.)
-    set_tenant_id(tenant)
     set_customer_id(customer)
     
-    print(f"✅ Context initialized: tenant={tenant}, customer={customer}")
+    print(f"✅ Context initialized: customer={customer}")
     print()
     
     # === APPLICATION CODE ===
@@ -163,7 +160,7 @@ def simulate_request(tenant: str, customer: str, query: str, request_num: int):
 
 def main():
     """
-    Simulates multiple concurrent-style requests from different tenants/customers.
+    Simulates multiple concurrent-style requests from different customers.
     Demonstrates that context doesn't bleed between requests.
     
     Creates diverse customer patterns:
@@ -173,10 +170,8 @@ def main():
     - diana: Power user (complex multi-step workflows)
     """
     
-    # ACME-CORP TENANT
     # Scenario 1: Alice - Marketing analyst (heavy user)
     simulate_request(
-        tenant="acme-corp",
         customer="alice",
         query="What are the latest AI trends?",
         request_num=1
@@ -186,7 +181,6 @@ def main():
     
     # Scenario 2: Alice - Follow-up query
     simulate_request(
-        tenant="acme-corp",
         customer="alice",
         query="Compare GPT-4 vs Claude pricing",
         request_num=2
@@ -196,7 +190,6 @@ def main():
     
     # Scenario 3: Charlie - Product manager (light user)
     simulate_request(
-        tenant="acme-corp",
         customer="charlie",
         query="Research competitor pricing",
         request_num=3
@@ -206,7 +199,6 @@ def main():
     
     # Scenario 4: Diana - Data scientist (power user)
     simulate_request(
-        tenant="acme-corp",
         customer="diana",
         query="Analyze sentiment across 1000 customer reviews",
         request_num=4
@@ -214,10 +206,8 @@ def main():
     
     time.sleep(0.3)
     
-    # BIGCO-INC TENANT
     # Scenario 5: Bob - CEO (high-value queries)
     simulate_request(
-        tenant="bigco-inc",
         customer="bob",
         query="Analyze market competition",
         request_num=5
@@ -227,7 +217,6 @@ def main():
     
     # Scenario 6: Bob - Follow-up
     simulate_request(
-        tenant="bigco-inc",
         customer="bob",
         query="What is our revenue forecast?",
         request_num=6
@@ -237,7 +226,6 @@ def main():
     
     # Scenario 7: Sarah - Engineer (technical queries)
     simulate_request(
-        tenant="bigco-inc",
         customer="sarah",
         query="Debug this Python error: IndexError",
         request_num=7
@@ -255,21 +243,15 @@ def main():
     print("1. Check collector received events:")
     print(f"   curl {COLLECTOR_URL}/runs/latest")
     print()
-    print("2. Check tenant isolation:")
-    print(f"   curl {COLLECTOR_URL}/runs/latest?tenant_id=acme-corp")
-    print(f"   curl {COLLECTOR_URL}/runs/latest?tenant_id=bigco-inc")
+    print("2. Check customer breakdown:")
+    print(f"   curl {COLLECTOR_URL}/runs/latest")
     print()
-    print("3. Check customer breakdown:")
-    print(f"   curl {COLLECTOR_URL}/tenants/acme-corp/customers")
-    print(f"   curl {COLLECTOR_URL}/tenants/bigco-inc/customers")
-    print()
-    print("4. Open dashboard:")
+    print("3. Open dashboard:")
     print("   http://localhost:3000")
     print()
     print("Expected behavior:")
     print("  ✅ Each request has unique run_id")
-    print("  ✅ Requests #1 and #3 show tenant=acme-corp")
-    print("  ✅ Requests #2 and #4 show tenant=bigco-inc")
+    print("  ✅ Customer IDs tracked (alice, bob, charlie, diana, sarah)")
     print("  ✅ No context bleed between requests")
     print("  ✅ Nested sections visible in hierarchical trace")
     print()

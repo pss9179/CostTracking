@@ -1,137 +1,129 @@
 """
-Authentication and tenant management endpoints.
+Authentication and API key management endpoints.
 """
-from typing import List, Dict, Any
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from db import get_session
-from models import Tenant, TenantCreate
-from auth import generate_api_key, get_current_tenant
+from models import User, APIKey, APIKeyCreate, APIKeyResponse, APIKeyListItem
+from auth import generate_api_key, hash_api_key, get_key_prefix, get_current_user, get_current_user_id
+from uuid import UUID
 
-router = APIRouter(prefix="/auth", tags=["authentication"])
+router = APIRouter(prefix="/api-keys", tags=["api-keys"])
 
 
-@router.post("/tenants", response_model=Dict[str, str])
-def create_tenant(
+@router.post("", response_model=APIKeyResponse)
+async def create_api_key(
     *,
     session: Session = Depends(get_session),
-    tenant_data: TenantCreate
-) -> Dict[str, str]:
+    key_data: APIKeyCreate,
+    user_id: UUID = Depends(get_current_user_id)
+) -> APIKeyResponse:
     """
-    Create a new tenant with API key.
+    Create a new API key for the current user.
     
-    Returns the tenant_id and api_key.
+    Requires authentication (existing API key or session).
+    Returns the full API key - save it securely, it won't be shown again.
     """
-    # Check if tenant_id already exists
-    existing = session.exec(
-        select(Tenant).where(Tenant.tenant_id == tenant_data.tenant_id)
-    ).first()
-    
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Tenant '{tenant_data.tenant_id}' already exists"
-        )
-    
     # Generate API key
-    api_key = generate_api_key()
+    api_key_plain = generate_api_key()
+    key_hash = hash_api_key(api_key_plain)
     
-    # Create tenant
-    tenant = Tenant(
-        tenant_id=tenant_data.tenant_id,
-        name=tenant_data.name,
-        api_key=api_key
+    # Create API key record
+    api_key = APIKey(
+        user_id=user_id,
+        key_hash=key_hash,
+        name=key_data.name,
+        key_prefix=get_key_prefix(api_key_plain)
     )
     
-    session.add(tenant)
+    session.add(api_key)
     session.commit()
-    session.refresh(tenant)
+    session.refresh(api_key)
     
-    return {
-        "tenant_id": tenant.tenant_id,
-        "name": tenant.name,
-        "api_key": api_key,
-        "message": "Tenant created successfully. Store the API key securely - it won't be shown again."
-    }
+    return APIKeyResponse(
+        id=api_key.id,
+        name=api_key.name,
+        key_prefix=api_key.key_prefix,
+        api_key=api_key_plain,  # Only time the full key is returned
+        created_at=api_key.created_at
+    )
 
 
-@router.get("/tenants", response_model=List[Dict[str, Any]])
-def list_tenants(
+@router.get("", response_model=List[APIKeyListItem])
+async def list_api_keys(
     *,
-    session: Session = Depends(get_session)
-) -> List[Dict[str, Any]]:
+    session: Session = Depends(get_session),
+    user_id: UUID = Depends(get_current_user_id)
+) -> List[APIKeyListItem]:
     """
-    List all tenants (admin only - no authentication required for MVP).
+    List all API keys for the current user.
     
-    In production, this should require admin authentication.
+    Does not return the actual key values, only metadata.
     """
-    statement = select(Tenant).order_by(Tenant.created_at.desc())
-    tenants = session.exec(statement).all()
+    statement = select(APIKey).where(
+        APIKey.user_id == user_id,
+        APIKey.revoked_at.is_(None)
+    ).order_by(APIKey.created_at.desc())
+    
+    api_keys = session.exec(statement).all()
     
     return [
-        {
-            "tenant_id": t.tenant_id,
-            "name": t.name,
-            "created_at": t.created_at.isoformat(),
-            "api_key_preview": f"{t.api_key[:15]}..." if len(t.api_key) > 15 else "***"
-        }
-        for t in tenants
+        APIKeyListItem(
+            id=key.id,
+            name=key.name,
+            key_prefix=key.key_prefix,
+            created_at=key.created_at,
+            last_used_at=key.last_used_at
+        )
+        for key in api_keys
     ]
 
 
-@router.get("/me")
-async def get_current_tenant_info(
-    tenant_id: str = Depends(get_current_tenant),
-    session: Session = Depends(get_session)
-) -> Dict[str, Any]:
-    """
-    Get current authenticated tenant's information.
-    
-    Requires X-API-Key header.
-    """
-    if not tenant_id:
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required"
-        )
-    
-    tenant = session.exec(
-        select(Tenant).where(Tenant.tenant_id == tenant_id)
-    ).first()
-    
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-    
-    return {
-        "tenant_id": tenant.tenant_id,
-        "name": tenant.name,
-        "created_at": tenant.created_at.isoformat()
-    }
-
-
-@router.delete("/tenants/{tenant_id}")
-def delete_tenant(
+@router.delete("/{key_id}")
+async def revoke_api_key(
     *,
-    tenant_id: str,
-    session: Session = Depends(get_session)
-) -> Dict[str, str]:
+    key_id: UUID,
+    session: Session = Depends(get_session),
+    user_id: UUID = Depends(get_current_user_id)
+) -> dict:
     """
-    Delete a tenant (admin only - no authentication for MVP).
+    Revoke an API key.
     
-    In production, this should require admin authentication.
-    Note: This does NOT delete the tenant's trace events.
+    The key will no longer be usable for authentication.
     """
-    tenant = session.exec(
-        select(Tenant).where(Tenant.tenant_id == tenant_id)
-    ).first()
+    from datetime import datetime
     
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant not found")
+    api_key = session.get(APIKey, key_id)
     
-    session.delete(tenant)
+    if not api_key:
+        raise HTTPException(status_code=404, detail="API key not found")
+    
+    if api_key.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to revoke this API key")
+    
+    if api_key.revoked_at:
+        raise HTTPException(status_code=400, detail="API key already revoked")
+    
+    api_key.revoked_at = datetime.utcnow()
+    session.add(api_key)
     session.commit()
     
-    return {
-        "message": f"Tenant '{tenant_id}' deleted successfully"
-    }
+    return {"message": "API key revoked successfully"}
 
+
+@router.get("/me")
+async def get_current_user_info(
+    user: User = Depends(get_current_user)
+) -> dict:
+    """
+    Get current authenticated user's information.
+    
+    Requires Authorization: Bearer <api_key> header.
+    """
+    return {
+        "id": str(user.id),
+        "clerk_user_id": user.clerk_user_id,
+        "email": user.email,
+        "created_at": user.created_at.isoformat()
+    }

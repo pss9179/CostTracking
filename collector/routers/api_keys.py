@@ -6,15 +6,15 @@ from typing import List
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from ..db import get_session
-from ..models import (
+from db import get_session
+from models import (
     APIKey,
     APIKeyCreate,
     APIKeyResponse,
     APIKeyListItem,
     User,
 )
-from ..auth import (
+from auth import (
     generate_api_key,
     hash_api_key,
     get_key_prefix,

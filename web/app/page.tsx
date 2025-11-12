@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,31 +15,43 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { fetchRuns, fetchProviderStats, type Run, type ProviderStats } from "@/lib/api";
-import { TenantSelector } from "@/components/TenantSelector";
+import { fetchRuns, fetchProviderStats, fetchRunDetail, type Run, type ProviderStats } from "@/lib/api";
 import { formatCost, calculatePercentage } from "@/lib/stats";
 import { DollarSign, TrendingUp, Activity, Layers } from "lucide-react";
 import { KPICard } from "@/components/layout/KPICard";
-import { CustomerCostBreakdown } from "@/components/CustomerCostBreakdown";
+import { CustomerCostChart } from "@/components/CustomerCostChart";
+import { CustomerFilter } from "@/components/CustomerFilter";
 
 export default function DashboardPage() {
-  const searchParams = useSearchParams();
-  const tenantId = searchParams.get("tenant_id") || undefined;
+  const { user, isLoaded } = useUser();
+  const router = useRouter();
   
   const [runs, setRuns] = useState<Run[]>([]);
+  const [allEvents, setAllEvents] = useState<any[]>([]);
   const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isLoaded || !user) return;
+
     async function loadData() {
       try {
         const [runsData, providersData] = await Promise.all([
-          fetchRuns(1000, tenantId),
-          fetchProviderStats(24, tenantId)
+          fetchRuns(1000),
+          fetchProviderStats(24)
         ]);
         setRuns(runsData);
         setProviderStats(providersData);
+
+        // Fetch events for customer filtering
+        const eventPromises = runsData.slice(0, 50).map((run) => 
+          fetchRunDetail(run.run_id).then((detail) => detail.events).catch(() => [])
+        );
+        const eventsArrays = await Promise.all(eventPromises);
+        const flatEvents = eventsArrays.flat();
+        setAllEvents(flatEvents);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load data");
       } finally {
@@ -51,39 +64,96 @@ export default function DashboardPage() {
     // Refresh every 30 seconds
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
-  }, [tenantId]);
+  }, [isLoaded, user, selectedCustomer]);
 
-  // Calculate stats from runs
+  // Filter events by customer if selected
+  const filteredEvents = selectedCustomer
+    ? allEvents.filter(e => e.customer_id === selectedCustomer)
+    : allEvents;
+  
+  // Debug: Log filtering results
+  if (selectedCustomer) {
+    console.log(`[Dashboard] Filtering by customer: ${selectedCustomer}`);
+    console.log(`[Dashboard] Total events: ${allEvents.length}, Filtered: ${filteredEvents.length}`);
+    console.log(`[Dashboard] Customer IDs in events:`, [...new Set(allEvents.map(e => e.customer_id).filter(Boolean))]);
+  }
+
+  // Calculate stats from filtered events
   const stats = (() => {
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     
-    const recentRuns = runs.filter(run => {
-      const runDate = new Date(run.started_at);
-      return runDate >= yesterday;
+    // Filter events by time window
+    const recentEvents = filteredEvents.filter(e => {
+      const eventDate = new Date(e.created_at);
+      return eventDate >= yesterday;
     });
     
-    const weekRuns = runs.filter(run => {
-      const runDate = new Date(run.started_at);
-      return runDate >= weekAgo && runDate < yesterday;
+    const weekEvents = filteredEvents.filter(e => {
+      const eventDate = new Date(e.created_at);
+      return eventDate >= weekAgo && eventDate < yesterday;
     });
 
-    const total_cost = recentRuns.reduce((sum, run) => sum + run.total_cost, 0);
-    const total_calls = recentRuns.reduce((sum, run) => sum + run.call_count, 0);
-    const week_cost = weekRuns.reduce((sum, run) => sum + run.total_cost, 0) / 7;
+    const total_cost = recentEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
+    const total_calls = recentEvents.length;
+    const week_cost = weekEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0) / 7;
+
+    // Get unique run IDs
+    const uniqueRuns = new Set(recentEvents.map(e => e.run_id));
 
     return {
       total_cost_24h: total_cost,
       total_calls_24h: total_calls,
       avg_cost_per_call: total_calls > 0 ? total_cost / total_calls : 0,
-      total_runs: recentRuns.length,
+      total_runs: uniqueRuns.size,
       cost_change: week_cost > 0 ? ((total_cost - week_cost) / week_cost) * 100 : 0,
     };
   })();
 
+  // Filter runs by customer (for display)
+  const filteredRuns = selectedCustomer
+    ? runs.filter(run => {
+        // Check if any event in this run matches the customer
+        return allEvents.some(e => e.run_id === run.run_id && e.customer_id === selectedCustomer);
+      })
+    : runs;
 
-  if (loading) {
+  // Filter provider stats by customer
+  const filteredProviderStats = selectedCustomer
+    ? providerStats.filter(stat => {
+        // Recalculate from filtered events
+        const customerEvents = filteredEvents.filter(e => e.provider === stat.provider);
+        return customerEvents.length > 0;
+      }).map(stat => {
+        // Recalculate from filtered events
+        const customerEvents = filteredEvents.filter(e => e.provider === stat.provider);
+        const totalCost = customerEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
+        return {
+          ...stat,
+          total_cost: totalCost,
+          call_count: customerEvents.length,
+          percentage: stats.total_cost_24h > 0 ? (totalCost / stats.total_cost_24h) * 100 : 0,
+        };
+      })
+    : providerStats;
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-red-600">{error}</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Make sure the collector API is running on http://localhost:8000
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!isLoaded || loading) {
     return (
       <div className="p-8 space-y-8">
         <h1 className="text-3xl font-bold">LLM Cost Dashboard</h1>
@@ -103,27 +173,20 @@ export default function DashboardPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-8">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-red-600">{error}</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Make sure the collector API is running on http://localhost:8000
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="p-8 space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">LLM Cost Dashboard</h1>
         <div className="flex items-center gap-4">
-          <TenantSelector />
+          <div className="text-sm text-muted-foreground">
+            {user?.emailAddresses[0].emailAddress}
+          </div>
+          <Link
+            href="/settings"
+            className="text-sm text-blue-600 hover:underline"
+          >
+            Settings →
+          </Link>
           <Link
             href="/runs"
             className="text-sm text-blue-600 hover:underline"
@@ -167,9 +230,9 @@ export default function DashboardPage() {
             <CardTitle>Costs by API Provider (24h)</CardTitle>
           </CardHeader>
           <CardContent>
-            {providerStats.length > 0 ? (
+            {filteredProviderStats.length > 0 ? (
               <div className="space-y-3">
-                {providerStats.map((provider) => {
+                {filteredProviderStats.map((provider) => {
                   const percentage = stats.total_cost_24h > 0
                     ? calculatePercentage(provider.total_cost, stats.total_cost_24h)
                     : 0;
@@ -201,7 +264,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-8">
-                No API data available
+                {selectedCustomer ? `No data for customer: ${selectedCustomer}` : "No API data available"}
               </p>
             )}
           </CardContent>
@@ -224,18 +287,18 @@ export default function DashboardPage() {
               </TableHeader>
               <TableBody>
                 {(() => {
-                  // Aggregate runs by top_section
+                  // Aggregate filtered events by section (only agent: sections)
                   const agentStats = new Map<string, { cost: number; calls: number }>();
                   
-                  runs.forEach(run => {
-                    if (!run.top_section || run.top_section.includes("retry:") || run.top_section.includes("test:")) {
-                      return;
-                    }
+                  filteredEvents.forEach(event => {
+                    const section = event.section_path || event.section;
+                    if (!section || !section.startsWith("agent:")) return;
                     
-                    const existing = agentStats.get(run.top_section) || { cost: 0, calls: 0 };
-                    existing.cost += run.total_cost;
-                    existing.calls += run.call_count;
-                    agentStats.set(run.top_section, existing);
+                    const agentName = section.split("/")[0];
+                    const existing = agentStats.get(agentName) || { cost: 0, calls: 0 };
+                    existing.cost += event.cost_usd || 0;
+                    existing.calls += 1;
+                    agentStats.set(agentName, existing);
                   });
                   
                   const sortedAgents = Array.from(agentStats.entries())
@@ -252,20 +315,45 @@ export default function DashboardPage() {
                     );
                   }
                   
-                  return sortedAgents.map(([agent, stats]) => (
-                    <TableRow key={agent}>
-                      <TableCell>
-                        <Badge variant="secondary">{agent}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatCost(stats.cost)}
-                      </TableCell>
-                      <TableCell className="text-right">{stats.calls}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {formatCost(stats.cost / stats.calls)}
-                      </TableCell>
-                    </TableRow>
-                  ));
+                  return sortedAgents.map(([agent, stats]) => {
+                    // Find the most expensive run for this agent
+                    const agentEvents = filteredEvents.filter((e) => {
+                      const section = e.section_path || e.section;
+                      return section && section.startsWith(agent);
+                    });
+                    
+                    const runCosts = new Map<string, number>();
+                    agentEvents.forEach((e) => {
+                      const current = runCosts.get(e.run_id) || 0;
+                      runCosts.set(e.run_id, current + (e.cost_usd || 0));
+                    });
+                    
+                    const mostExpensiveRun = Array.from(runCosts.entries())
+                      .sort((a, b) => b[1] - a[1])[0];
+                    
+                    return (
+                      <TableRow 
+                        key={agent}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => {
+                          if (mostExpensiveRun) {
+                            router.push(`/runs/${mostExpensiveRun[0]}`);
+                          }
+                        }}
+                      >
+                        <TableCell>
+                          <Badge variant="secondary">{agent}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {formatCost(stats.cost)}
+                        </TableCell>
+                        <TableCell className="text-right">{stats.calls}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {formatCost(stats.cost / stats.calls)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  });
                 })()}
               </TableBody>
             </Table>
@@ -273,17 +361,36 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Customer Cost Attribution */}
-      {tenantId && (
+      {/* Customer Cost Chart */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <CustomerCostChart />
+        
+        {/* Customer Filter */}
         <Card>
           <CardHeader>
-            <CardTitle>Cost by Customer (24h)</CardTitle>
+            <CardTitle>Filter by Customer</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              View costs segmented by your end-users
+            </p>
           </CardHeader>
           <CardContent>
-            <CustomerCostBreakdown tenantId={tenantId} />
+            <CustomerFilter
+              selectedCustomer={selectedCustomer}
+              onCustomerChange={setSelectedCustomer}
+            />
+            {selectedCustomer && (
+              <div className="mt-4 p-3 bg-blue-50 rounded">
+                <p className="text-sm text-blue-900">
+                  Filtering by: <strong>{selectedCustomer}</strong>
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  All charts and tables below are filtered to this customer
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
-      )}
+      </div>
 
       {/* Recent Runs Preview */}
       <Card>
@@ -300,7 +407,7 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {runs.slice(0, 5).map((run) => (
+            {filteredRuns.slice(0, 5).map((run) => (
               <Link
                 key={run.run_id}
                 href={`/runs/${run.run_id}`}
@@ -329,9 +436,11 @@ export default function DashboardPage() {
               </Link>
             ))}
             
-            {runs.length === 0 && (
+            {filteredRuns.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                No runs found. Run the test script to generate sample data.
+                {selectedCustomer 
+                  ? `No runs found for customer: ${selectedCustomer}. Make sure events have customer_id set.`
+                  : "No runs found. Run the test script to generate sample data."}
               </p>
             )}
         </div>

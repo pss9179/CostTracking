@@ -1,15 +1,22 @@
 """
-In-memory event buffer with auto-flush.
+In-memory event buffer with auto-flush and bounded queue.
+
+Uses a bounded queue (maxsize=10000) with drop-oldest policy when full.
 """
 import atexit
 import threading
+import queue
+import logging
 from typing import List, Optional
 from llmobserve.types import TraceEvent
 from llmobserve import config
 
-# Global event buffer
-_buffer: List[TraceEvent] = []
-_buffer_lock = threading.Lock()
+logger = logging.getLogger("llmobserve")
+
+# Bounded queue for events (maxsize=10000, drop oldest when full)
+_event_queue: queue.Queue = queue.Queue(maxsize=10000)
+_dropped_count = 0
+_dropped_lock = threading.Lock()
 _flush_timer: Optional[threading.Timer] = None
 
 
@@ -17,14 +24,36 @@ def add_event(event: TraceEvent) -> None:
     """
     Add an event to the buffer.
     
+    Uses bounded queue with drop-oldest policy when full.
+    Logs warning when events are dropped.
+    
     Args:
         event: Trace event to buffer
     """
     if not config.is_enabled():
         return
     
-    with _buffer_lock:
-        _buffer.append(event)
+    try:
+        # Try to add to queue (non-blocking)
+        _event_queue.put_nowait(event)
+    except queue.Full:
+        # Queue is full - drop oldest event
+        try:
+            _event_queue.get_nowait()  # Remove oldest
+            _event_queue.put_nowait(event)  # Add new one
+            
+            # Track dropped count
+            global _dropped_count
+            with _dropped_lock:
+                _dropped_count += 1
+                if _dropped_count % 100 == 0:  # Log every 100 drops
+                    logger.warning(
+                        f"[llmobserve] Event buffer full - dropped {_dropped_count} events. "
+                        "Consider increasing flush frequency or buffer size."
+                    )
+        except queue.Full:
+            # Still full after removing one - log error
+            logger.error("[llmobserve] Event buffer full - failed to add event")
 
 
 def get_and_clear_buffer() -> List[TraceEvent]:
@@ -34,10 +63,24 @@ def get_and_clear_buffer() -> List[TraceEvent]:
     Returns:
         List of buffered events
     """
-    with _buffer_lock:
-        events = _buffer.copy()
-        _buffer.clear()
-        return events
+    events = []
+    
+    # Drain queue (non-blocking)
+    while True:
+        try:
+            event = _event_queue.get_nowait()
+            events.append(event)
+        except queue.Empty:
+            break
+    
+    # Log dropped count if any
+    global _dropped_count
+    with _dropped_lock:
+        if _dropped_count > 0:
+            logger.warning(f"[llmobserve] Dropped {_dropped_count} events due to buffer overflow")
+            _dropped_count = 0
+    
+    return events
 
 
 def start_flush_timer() -> None:

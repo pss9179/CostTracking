@@ -8,8 +8,8 @@ from typing import Optional
 from uuid import UUID
 from fastapi import Header, HTTPException, Depends
 from sqlmodel import Session, select
-from .db import get_session
-from .models import APIKey, User
+from db import get_session
+from models import APIKey, User
 
 
 def generate_api_key() -> str:
@@ -113,7 +113,20 @@ async def get_current_user(
 
 
 async def get_current_user_id(
-    user: User = Depends(get_current_user)
-) -> UUID:
-    """Convenience dependency to just get user ID."""
-    return user.id
+    authorization: Optional[str] = Header(None),
+    session: Session = Depends(get_session)
+) -> Optional[UUID]:
+    """
+    Convenience dependency to get user ID from API key.
+    Returns None if no authorization provided (MVP mode).
+    """
+    # MVP mode: Allow unauthenticated access
+    if not authorization:
+        return None
+    
+    try:
+        user = await get_current_user(authorization, session)
+        return user.id
+    except HTTPException:
+        # Invalid key - return None instead of raising (fail-open for MVP)
+        return None

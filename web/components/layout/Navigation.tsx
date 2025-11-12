@@ -11,6 +11,7 @@ import {
   Bell,
   DollarSign,
   Settings,
+  Bot,
 } from "lucide-react";
 
 const navItems = [
@@ -23,6 +24,11 @@ const navItems = [
     label: "Runs",
     href: "/runs",
     icon: List,
+  },
+  {
+    label: "Agents",
+    href: "/agents",
+    icon: Bot,
   },
   {
     label: "Costs",

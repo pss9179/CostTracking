@@ -249,5 +249,59 @@
   },
   "pinecone:cohere-rerank-v3.5": {
     "per_1k_requests": 2.0
+  },
+  "anthropic:claude-3-opus": {
+    "input": 0.000015,
+    "output": 0.000075
+  },
+  "anthropic:claude-3-sonnet": {
+    "input": 0.000003,
+    "output": 0.000015
+  },
+  "anthropic:claude-3.5-sonnet": {
+    "input": 0.000003,
+    "output": 0.000015
+  },
+  "anthropic:claude-3-haiku": {
+    "input": 0.00000025,
+    "output": 0.00000125
+  },
+  "google:gemini-1.5-pro": {
+    "input": 0.0000035,
+    "output": 0.0000105
+  },
+  "google:gemini-1.5-flash": {
+    "input": 0.000000075,
+    "output": 0.0000003
+  },
+  "google:gemini-1.0-pro": {
+    "input": 0.0000005,
+    "output": 0.0000015
+  },
+  "cohere:command": {
+    "input": 0.000001,
+    "output": 0.000002
+  },
+  "cohere:command-light": {
+    "input": 0.0000003,
+    "output": 0.0000006
+  },
+  "cohere:embed-english-v3.0": {
+    "input": 0.0000001,
+    "output": 0
+  },
+  "voyage:voyage-2": {
+    "input": 0.00000012,
+    "output": 0
+  },
+  "voyage:voyage-lite-02": {
+    "input": 0.00000006,
+    "output": 0
+  },
+  "elevenlabs:eleven_multilingual_v2": {
+    "per_1k_chars": 0.18
+  },
+  "elevenlabs:eleven_turbo_v2": {
+    "per_1k_chars": 0.18
   }
 }

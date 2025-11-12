@@ -22,7 +22,6 @@ class ObservabilityMiddleware:
     Features:
     - Resets context before each request (prevents cross-contamination)
     - Auto-generates run_id per request
-    - Extracts tenant_id from headers (X-Tenant-ID)
     - Extracts customer_id from headers (X-Customer-ID)
     """
     
@@ -30,12 +29,10 @@ class ObservabilityMiddleware:
         self,
         app,
         auto_run_id: bool = True,
-        tenant_header: str = "X-Tenant-ID",
         customer_header: str = "X-Customer-ID"
     ):
         self.app = app
         self.auto_run_id = auto_run_id
-        self.tenant_header = tenant_header
         self.customer_header = customer_header
     
     async def __call__(self, scope, receive, send):
@@ -45,19 +42,14 @@ class ObservabilityMiddleware:
         
         # Reset context before request
         context.set_run_id(str(uuid.uuid4()) if self.auto_run_id else None)
-        context.set_tenant_id(None)
         context.set_customer_id(None)
         
         # Clear section stack
         stack = context._get_section_stack()
         stack.clear()
         
-        # Extract tenant/customer from headers
+        # Extract customer from headers
         headers = dict(scope.get("headers", []))
-        
-        tenant_id = headers.get(self.tenant_header.lower().encode(), b"").decode()
-        if tenant_id:
-            context.set_tenant_id(tenant_id)
         
         customer_id = headers.get(self.customer_header.lower().encode(), b"").decode()
         if customer_id:
@@ -81,14 +73,14 @@ def flask_before_request():
         # Optional: Extract from headers in your routes
         @app.route("/api/process")
         def process():
-            tenant_id = request.headers.get("X-Tenant-ID")
-            if tenant_id:
-                set_tenant_id(tenant_id)
+            customer_id = request.headers.get("X-Customer-ID")
+            if customer_id:
+                from llmobserve import set_customer_id
+                set_customer_id(customer_id)
             # ... your code
     """
     # Reset context
     context.set_run_id(str(uuid.uuid4()))
-    context.set_tenant_id(None)
     context.set_customer_id(None)
     
     # Clear section stack
@@ -110,7 +102,6 @@ def django_middleware(get_response):
     def middleware(request):
         # Reset context
         context.set_run_id(str(uuid.uuid4()))
-        context.set_tenant_id(None)
         context.set_customer_id(None)
         
         # Clear section stack
@@ -118,10 +109,6 @@ def django_middleware(get_response):
         stack.clear()
         
         # Extract from headers
-        tenant_id = request.headers.get("X-Tenant-ID")
-        if tenant_id:
-            context.set_tenant_id(tenant_id)
-        
         customer_id = request.headers.get("X-Customer-ID")
         if customer_id:
             context.set_customer_id(customer_id)
