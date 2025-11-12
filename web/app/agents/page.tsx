@@ -319,7 +319,7 @@ export default function AgentsPage() {
         <CardHeader>
           <CardTitle>Agent Breakdown</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Click on an agent to view its most expensive run
+            Click any agent row to view its most expensive run with full trace graph and cost breakdown
           </p>
         </CardHeader>
         <CardContent>
@@ -340,29 +340,38 @@ export default function AgentsPage() {
               {filteredAgents.map((agent) => (
                 <TableRow 
                   key={agent.agentName}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => {
+                  className={agent.mostExpensiveRunId ? "cursor-pointer hover:bg-blue-50 transition-colors" : ""}
+                  onClick={(e) => {
+                    // Don't trigger if clicking the action button
+                    if ((e.target as HTMLElement).closest('button')) return;
+                    
                     if (agent.mostExpensiveRunId) {
+                      console.log(`[Agents] Navigating to most expensive run: ${agent.mostExpensiveRunId}`);
                       router.push(`/runs/${agent.mostExpensiveRunId}`);
+                    } else {
+                      console.warn(`[Agents] No run ID for agent: ${agent.agentName}`);
                     }
                   }}
                 >
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Bot className="h-4 w-4 text-muted-foreground" />
+                      <Bot className="h-4 w-4 text-blue-500" />
                       <Badge variant="secondary" className="font-mono text-xs">
                         {agent.agentName.replace("agent:", "")}
                       </Badge>
+                      {agent.mostExpensiveRunId && (
+                        <span className="text-xs text-blue-600">← Click to view</span>
+                      )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-semibold">
+                  <TableCell className="text-right font-semibold text-green-700">
                     {formatCost(agent.totalCost)}
                   </TableCell>
-                  <TableCell className="text-right">{agent.totalRuns}</TableCell>
+                  <TableCell className="text-right font-medium">{agent.totalRuns}</TableCell>
                   <TableCell className="text-right">
                     {formatCost(agent.avgCostPerRun)}
                   </TableCell>
-                  <TableCell className="text-right text-red-600 font-medium">
+                  <TableCell className="text-right text-red-600 font-semibold">
                     {formatCost(agent.mostExpensiveRunCost)}
                   </TableCell>
                   <TableCell className="text-right">
@@ -372,24 +381,31 @@ export default function AgentsPage() {
                     <div className="flex gap-1 flex-wrap">
                       {agent.tools.slice(0, 3).map(tool => (
                         <Badge key={tool} variant="outline" className="text-xs">
-                          {tool}
+                          {tool.replace("tool:", "")}
                         </Badge>
                       ))}
                       {agent.tools.length > 3 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{agent.tools.length - 3}
+                        <Badge variant="outline" className="text-xs text-blue-600">
+                          +{agent.tools.length - 3} more
                         </Badge>
                       )}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => router.push(`/runs/${agent.mostExpensiveRunId}`)}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
+                    {agent.mostExpensiveRunId && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          console.log(`[Agents] Button click for run: ${agent.mostExpensiveRunId}`);
+                          router.push(`/runs/${agent.mostExpensiveRunId}`);
+                        }}
+                        className="hover:bg-blue-100"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

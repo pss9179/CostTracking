@@ -98,11 +98,11 @@ function calculateLayout(nodes: TreeNode[], startX: number = 400, startY: number
 }
 
 function getNodeColor(event: TraceEvent) {
-  if (event.section.startsWith("agent:")) return { bg: "#3b82f6", border: "#2563eb", text: "#fff" }; // blue
-  if (event.section.startsWith("tool:")) return { bg: "#10b981", border: "#059669", text: "#fff" }; // green
-  if (event.section.startsWith("step:")) return { bg: "#8b5cf6", border: "#7c3aed", text: "#fff" }; // purple
-  if (event.provider === "internal") return { bg: "#9ca3af", border: "#6b7280", text: "#fff" }; // gray
-  return { bg: "#f59e0b", border: "#d97706", text: "#fff" }; // orange
+  if (event.section.startsWith("agent:")) return { bg: "#3b82f6", border: "#1d4ed8", text: "#fff", shadow: "#93c5fd" }; // blue
+  if (event.section.startsWith("tool:")) return { bg: "#10b981", border: "#047857", text: "#fff", shadow: "#6ee7b7" }; // green
+  if (event.section.startsWith("step:")) return { bg: "#8b5cf6", border: "#6d28d9", text: "#fff", shadow: "#c4b5fd" }; // purple
+  if (event.provider === "internal") return { bg: "#64748b", border: "#475569", text: "#fff", shadow: "#cbd5e1" }; // gray
+  return { bg: "#f59e0b", border: "#b45309", text: "#fff", shadow: "#fcd34d" }; // orange
 }
 
 function GraphNode({ node, onClick }: { node: TreeNode; onClick: () => void }) {
@@ -118,53 +118,66 @@ function GraphNode({ node, onClick }: { node: TreeNode; onClick: () => void }) {
       transform={`translate(${node.x}, ${node.y})`}
       onClick={onClick}
       style={{ cursor: "pointer" }}
-      className="hover:opacity-80 transition-opacity"
+      className="node-hover"
     >
-      {/* Node Circle */}
+      {/* Outer glow on hover */}
       <circle
-        r={isSpan ? 35 : 45}
+        r={isSpan ? 40 : 52}
+        fill={colors.shadow}
+        opacity="0"
+        className="node-glow"
+      />
+      
+      {/* Node Circle with better shadow */}
+      <circle
+        r={isSpan ? 35 : 48}
         fill={colors.bg}
         stroke={colors.border}
-        strokeWidth={3}
+        strokeWidth={4}
         filter="url(#shadow)"
       />
       
-      {/* Label */}
+      {/* Label with better readability */}
       <text
-        y={isSpan ? -5 : -10}
+        y={isSpan ? 0 : -5}
         textAnchor="middle"
         fill={colors.text}
-        fontSize="12"
-        fontWeight="600"
+        fontSize="14"
+        fontWeight="700"
+        fontFamily="system-ui, -apple-system, sans-serif"
         style={{ pointerEvents: "none" }}
       >
-        {label.length > 12 ? label.substring(0, 11) + "..." : label}
+        {label.length > 10 ? label.substring(0, 9) + "..." : label}
       </text>
       
-      {/* Cost */}
+      {/* Cost with better styling */}
       {!isSpan && (
         <text
-          y={8}
+          y={15}
           textAnchor="middle"
           fill={colors.text}
-          fontSize="10"
-          fontWeight="500"
+          fontSize="12"
+          fontWeight="600"
+          fontFamily="ui-monospace, monospace"
           style={{ pointerEvents: "none" }}
         >
           {costDisplay}
         </text>
       )}
       
-      {/* Children count */}
-      {node.children.length > 0 && (
+      {/* Provider badge for non-spans */}
+      {!isSpan && node.event.provider && (
         <text
-          y={isSpan ? 15 : 25}
+          y={30}
           textAnchor="middle"
           fill={colors.text}
           fontSize="9"
+          fontWeight="500"
+          opacity="0.9"
+          fontFamily="system-ui, -apple-system, sans-serif"
           style={{ pointerEvents: "none" }}
         >
-          {node.children.length} child{node.children.length !== 1 ? "ren" : ""}
+          {node.event.provider}
         </text>
       )}
     </g>
@@ -177,14 +190,15 @@ function GraphEdge({ from, to, label }: { from: TreeNode; to: TreeNode; label?: 
 
   return (
     <g>
-      {/* Edge line */}
+      {/* Edge line with gradient */}
       <line
         x1={from.x}
-        y1={from.y + 45}
+        y1={from.y + 48}
         x2={to.x}
-        y2={to.y - 45}
-        stroke="#94a3b8"
-        strokeWidth={2}
+        y2={to.y - 48}
+        stroke="#64748b"
+        strokeWidth={3}
+        strokeOpacity="0.6"
         markerEnd="url(#arrowhead)"
       />
       
@@ -194,9 +208,10 @@ function GraphEdge({ from, to, label }: { from: TreeNode; to: TreeNode; label?: 
           x={midX}
           y={midY}
           textAnchor="middle"
-          fill="#64748b"
-          fontSize="10"
-          fontStyle="italic"
+          fill="#475569"
+          fontSize="11"
+          fontWeight="500"
+          fontFamily="system-ui, -apple-system, sans-serif"
           style={{ pointerEvents: "none" }}
         >
           {label}
@@ -304,13 +319,25 @@ export function GraphTreeVisualization({ events }: GraphTreeVisualizationProps) 
       </div>
 
       {/* Graph Visualization */}
-      <div className="border rounded-lg bg-white overflow-auto" style={{ maxHeight: "600px" }}>
+      <div className="border rounded-lg bg-gradient-to-br from-gray-50 to-white overflow-auto" style={{ maxHeight: "700px" }}>
+        <style>{`
+          .node-hover:hover .node-glow {
+            opacity: 0.3;
+            transition: opacity 0.2s ease;
+          }
+          .node-hover {
+            transition: transform 0.2s ease;
+          }
+          .node-hover:hover {
+            transform: scale(1.05);
+          }
+        `}</style>
         <svg
           ref={svgRef}
           width={width}
           height={height}
           viewBox={`${minX} ${minY} ${width} ${height}`}
-          style={{ minWidth: "100%", minHeight: "400px" }}
+          style={{ minWidth: "100%", minHeight: "500px" }}
         >
           {/* Definitions */}
           <defs>
@@ -330,14 +357,14 @@ export function GraphTreeVisualization({ events }: GraphTreeVisualizationProps) 
             {/* Arrowhead marker */}
             <marker
               id="arrowhead"
-              markerWidth="10"
-              markerHeight="10"
-              refX="9"
-              refY="3"
+              markerWidth="12"
+              markerHeight="12"
+              refX="11"
+              refY="6"
               orient="auto"
               markerUnits="strokeWidth"
             >
-              <path d="M0,0 L0,6 L9,3 z" fill="#94a3b8" />
+              <path d="M0,0 L0,12 L12,6 z" fill="#64748b" opacity="0.6" />
             </marker>
           </defs>
 
