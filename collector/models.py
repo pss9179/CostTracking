@@ -8,12 +8,13 @@ from sqlmodel import SQLModel, Field, Index, Column, JSON
 
 
 class User(SQLModel, table=True):
-    """User accounts with email/password authentication."""
+    """User accounts - supports both Clerk and email/password authentication."""
     __tablename__ = "users"
     
     id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
+    clerk_user_id: Optional[str] = Field(default=None, unique=True, index=True, description="Clerk user ID (for Clerk auth)")
     email: str = Field(unique=True, index=True, description="User email")
-    password_hash: str = Field(description="Bcrypt password hash")
+    password_hash: Optional[str] = Field(default=None, description="Bcrypt password hash (for email/password auth)")
     name: Optional[str] = Field(default=None, description="User display name")
     user_type: str = Field(default="solo_dev", description="User type: solo_dev or saas_founder")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Account creation time")
@@ -22,6 +23,7 @@ class User(SQLModel, table=True):
     class Config:
         indexes = [
             Index("idx_users_email", "email"),
+            Index("idx_users_clerk_id", "clerk_user_id"),
         ]
 
 
@@ -90,6 +92,121 @@ class APIKeyListItem(SQLModel):
     key_prefix: str
     created_at: datetime
     last_used_at: Optional[datetime]
+
+
+class SpendingCap(SQLModel, table=True):
+    """Spending caps for cost control."""
+    __tablename__ = "spending_caps"
+    
+    id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="users.id", index=True, description="Owner user ID")
+    
+    # Cap scope
+    cap_type: str = Field(description="Type: 'global', 'provider', 'model', 'agent', 'customer'")
+    target_name: Optional[str] = Field(default=None, description="Target name (e.g., 'openai', 'gpt-4', 'research_agent', 'customer_123')")
+    
+    # Cap limits
+    limit_amount: float = Field(description="Dollar amount cap (e.g., 100.00 for $100)")
+    period: str = Field(description="Period: 'daily', 'weekly', 'monthly'")
+    
+    # Alert settings
+    alert_threshold: float = Field(default=0.8, description="Alert when % of cap is reached (0.8 = 80%)")
+    alert_email: str = Field(description="Email to send alerts to")
+    
+    # Status
+    enabled: bool = Field(default=True, description="Whether this cap is active")
+    last_alerted_at: Optional[datetime] = Field(default=None, description="Last time alert was sent")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        indexes = [
+            Index("idx_caps_user_id", "user_id"),
+            Index("idx_caps_enabled", "enabled"),
+        ]
+
+
+class Alert(SQLModel, table=True):
+    """Alert history for triggered spending caps."""
+    __tablename__ = "alerts"
+    
+    id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="users.id", index=True)
+    cap_id: UUID = Field(foreign_key="spending_caps.id", index=True)
+    
+    # Alert details
+    alert_type: str = Field(description="Type: 'threshold_reached', 'cap_exceeded'")
+    current_spend: float = Field(description="Current spend amount")
+    cap_limit: float = Field(description="Cap limit amount")
+    percentage: float = Field(description="Percentage of cap used")
+    
+    # Context
+    target_type: str = Field(description="What triggered: 'provider', 'model', 'agent', etc.")
+    target_name: str = Field(description="Name of target")
+    period_start: datetime = Field(description="Start of current period")
+    period_end: datetime = Field(description="End of current period")
+    
+    # Notification
+    email_sent: bool = Field(default=False)
+    email_sent_at: Optional[datetime] = Field(default=None)
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        indexes = [
+            Index("idx_alerts_user_id", "user_id"),
+            Index("idx_alerts_cap_id", "cap_id"),
+            Index("idx_alerts_created_at", "created_at"),
+        ]
+
+
+class CapCreate(SQLModel):
+    """Schema for creating a spending cap."""
+    cap_type: str
+    target_name: Optional[str] = None
+    limit_amount: float
+    period: str
+    alert_threshold: float = 0.8
+    alert_email: str
+
+
+class CapUpdate(SQLModel):
+    """Schema for updating a spending cap."""
+    limit_amount: Optional[float] = None
+    alert_threshold: Optional[float] = None
+    alert_email: Optional[str] = None
+    enabled: Optional[bool] = None
+
+
+class CapResponse(SQLModel):
+    """Response for spending cap."""
+    id: UUID
+    cap_type: str
+    target_name: Optional[str]
+    limit_amount: float
+    period: str
+    alert_threshold: float
+    alert_email: str
+    enabled: bool
+    current_spend: Optional[float] = None
+    percentage_used: Optional[float] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AlertResponse(SQLModel):
+    """Response for alert."""
+    id: UUID
+    alert_type: str
+    current_spend: float
+    cap_limit: float
+    percentage: float
+    target_type: str
+    target_name: str
+    period_start: datetime
+    period_end: datetime
+    email_sent: bool
+    created_at: datetime
 
 
 class TraceEvent(SQLModel, table=True):

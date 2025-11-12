@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useUser } from "@clerk/nextjs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,11 +22,15 @@ import { KPICard } from "@/components/layout/KPICard";
 import { CustomerCostChart } from "@/components/CustomerCostChart";
 import { CustomerFilter } from "@/components/CustomerFilter";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
-import { loadAuth } from "@/lib/auth";
+import { ProviderCostChart } from "@/components/dashboard/ProviderCostChart";
+import { Sparkline } from "@/components/Sparkline";
+import { useDateRange } from "@/contexts/DateRangeContext";
+import { getDateRangeMs } from "@/components/DateRangeFilter";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const { isLoaded, user } = useUser();
+  const { dateRange } = useDateRange();
   
   const [runs, setRuns] = useState<Run[]>([]);
   const [allEvents, setAllEvents] = useState<any[]>([]);
@@ -35,17 +40,7 @@ export default function DashboardPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load user from localStorage
-    const { user: loadedUser } = loadAuth();
-    if (!loadedUser) {
-      router.push("/login");
-      return;
-    }
-    setUser(loadedUser);
-  }, [router]);
-
-  useEffect(() => {
-    if (!user) return;
+    if (!isLoaded || !user) return;
 
     async function loadData() {
       try {
@@ -75,7 +70,7 @@ export default function DashboardPage() {
     // Refresh every 30 seconds
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
-  }, [user, selectedCustomer]);
+  }, [isLoaded, user, selectedCustomer]);
 
   // Filter events by customer if selected
   const filteredEvents = selectedCustomer
@@ -150,6 +145,47 @@ export default function DashboardPage() {
     : providerStats
   ).filter(stat => stat.provider !== "internal"); // Exclude internal span events
 
+  // Prepare daily chart data for stacked area chart
+  const dailyChartData = (() => {
+    const dateRangeMs = getDateRangeMs(dateRange);
+    const startDate = new Date(Date.now() - dateRangeMs);
+    const dayMap = new Map<string, Record<string, number>>();
+    
+    filteredEvents.forEach(event => {
+      const eventDate = new Date(event.created_at);
+      if (eventDate < startDate || !event.provider || event.provider === "internal") return;
+      
+      const dateKey = eventDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      const dayData = dayMap.get(dateKey) || { date: dateKey };
+      dayData[event.provider] = (dayData[event.provider] || 0) + (event.cost_usd || 0);
+      dayMap.set(dateKey, dayData);
+    });
+    
+    return Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+  })();
+
+  const chartProviders = Array.from(new Set(filteredProviderStats.map(s => s.provider)));
+
+  // Calculate 7-day sparklines for each provider
+  const providerSparklines = new Map<string, number[]>();
+  filteredProviderStats.forEach(stat => {
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (6 - i));
+      return date.toISOString().split('T')[0];
+    });
+    
+    const sparklineData = last7Days.map(date => {
+      const dayEvents = filteredEvents.filter(e => {
+        const eventDate = new Date(e.created_at).toISOString().split('T')[0];
+        return eventDate === date && e.provider === stat.provider;
+      });
+      return dayEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
+    });
+    
+    providerSparklines.set(stat.provider, sparklineData);
+  });
+
   if (error) {
     return (
       <div className="p-8">
@@ -189,11 +225,8 @@ export default function DashboardPage() {
     <ProtectedLayout>
       <div className="p-8 space-y-8">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">LLM Cost Dashboard</h1>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
           <div className="flex items-center gap-4">
-            <div className="text-sm text-muted-foreground">
-              {user?.email}
-            </div>
           <Link
             href="/settings"
             className="text-sm text-blue-600 hover:underline"
@@ -236,52 +269,79 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* API Cost Breakdown */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Costs by API Provider (24h)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {filteredProviderStats.length > 0 ? (
-              <div className="space-y-3">
-                {filteredProviderStats.map((provider) => {
-                  const percentage = stats.total_cost_24h > 0
-                    ? calculatePercentage(provider.total_cost, stats.total_cost_24h)
-                    : 0;
-                  return (
-                    <div key={provider.provider} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">{provider.provider}</Badge>
-                        <span className="text-sm text-muted-foreground">
-                          {provider.call_count} calls
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-32 bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-blue-600 h-2 rounded-full"
-                            style={{ width: `${Math.min(percentage, 100)}%` }}
-                          />
-                        </div>
-                        <span className="font-semibold text-sm w-20 text-right">
+      {/* Stacked Area Chart */}
+      <ProviderCostChart 
+        data={dailyChartData}
+        providers={chartProviders}
+      />
+
+      {/* Provider Breakdown Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Provider Breakdown</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Provider</TableHead>
+                  <TableHead className="text-right">Calls</TableHead>
+                  <TableHead className="text-right">Cost</TableHead>
+                  <TableHead className="text-right">Avg Latency</TableHead>
+                  <TableHead className="text-right">Errors</TableHead>
+                  <TableHead className="text-right">% of Spend</TableHead>
+                  <TableHead className="text-right">Trend (7d)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredProviderStats.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                      {selectedCustomer ? `No data for customer: ${selectedCustomer}` : "No provider data available"}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredProviderStats.map((provider) => {
+                    const percentage = stats.total_cost_24h > 0
+                      ? calculatePercentage(provider.total_cost, stats.total_cost_24h)
+                      : 0;
+                    const sparklineData = providerSparklines.get(provider.provider) || [];
+                    
+                    return (
+                      <TableRow key={provider.provider}>
+                        <TableCell>
+                          <Badge variant="outline">{provider.provider}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">{provider.call_count.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-semibold">
                           {formatCost(provider.total_cost)}
-                        </span>
-                        <span className="text-xs text-muted-foreground w-12 text-right">
-                          {percentage.toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                {selectedCustomer ? `No data for customer: ${selectedCustomer}` : "No API data available"}
-              </p>
-            )}
-          </CardContent>
-        </Card>
+                        </TableCell>
+                        <TableCell className="text-right">{provider.avg_latency?.toFixed(0) || 0}ms</TableCell>
+                        <TableCell className="text-right">{provider.error_count || 0}</TableCell>
+                        <TableCell className="text-right">{percentage.toFixed(1)}%</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end">
+                            <Sparkline 
+                              data={sparklineData}
+                              color="#3b82f6"
+                              width={80}
+                              height={24}
+                            />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* API Cost Breakdown - Keep for agent table */}
+      <div className="grid gap-4 md:grid-cols-1">
 
         {/* Top Agents/Workflows */}
         <Card>
@@ -379,38 +439,36 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Customer Cost Chart - Only for SaaS Founders */}
-      {user?.user_type === "saas_founder" && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <CustomerCostChart />
-          
-          {/* Customer Filter */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Filter by Customer</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                View costs segmented by your end-users
-              </p>
-            </CardHeader>
-            <CardContent>
-              <CustomerFilter
-                selectedCustomer={selectedCustomer}
-                onCustomerChange={setSelectedCustomer}
-              />
-              {selectedCustomer && (
-                <div className="mt-4 p-3 bg-blue-50 rounded">
-                  <p className="text-sm text-blue-900">
-                    Filtering by: <strong>{selectedCustomer}</strong>
-                  </p>
-                  <p className="text-xs text-blue-700 mt-1">
-                    All charts and tables below are filtered to this customer
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Customer Cost Chart */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <CustomerCostChart />
+        
+        {/* Customer Filter */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Filter by Customer</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              View costs segmented by your end-users
+            </p>
+          </CardHeader>
+          <CardContent>
+            <CustomerFilter
+              selectedCustomer={selectedCustomer}
+              onCustomerChange={setSelectedCustomer}
+            />
+            {selectedCustomer && (
+              <div className="mt-4 p-3 bg-blue-50 rounded">
+                <p className="text-sm text-blue-900">
+                  Filtering by: <strong>{selectedCustomer}</strong>
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  All charts and tables below are filtered to this customer
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Recent Runs Preview */}
       <Card>

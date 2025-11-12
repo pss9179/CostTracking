@@ -10,6 +10,9 @@ from . import (
     api_keys,
     users,
     auth_simple,
+    clerk_webhook,
+    clerk_api_keys,
+    caps,
 )
 
 __all__ = [
@@ -22,4 +25,7 @@ __all__ = [
     "api_keys",
     "users",
     "auth_simple",
+    "clerk_webhook",
+    "clerk_api_keys",
+    "caps",
 ]

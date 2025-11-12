@@ -1,43 +1,21 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Activity, Users, Settings, LogOut, User, BarChart3 } from "lucide-react";
-import { loadAuth, clearAuth } from "@/lib/auth";
-import { useEffect, useState } from "react";
+import { UserButton, useUser } from "@clerk/nextjs";
+import { Activity, BarChart3, Zap, Server, Bot, Settings } from "lucide-react";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
+import { useDateRange } from "@/contexts/DateRangeContext";
 
 export function Navigation() {
-  const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<any>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    const { user: loadedUser } = loadAuth();
-    setUser(loadedUser);
-  }, []);
-
-  const handleLogout = () => {
-    clearAuth();
-    router.push("/login");
-  };
+  const { isLoaded, user } = useUser();
+  const { dateRange, setDateRange } = useDateRange();
 
   const isActive = (path: string) => pathname === path;
-  
-  const isSaaSFounder = user?.user_type === "saas_founder";
 
-  // Prevent hydration mismatch by only rendering on client
-  if (!mounted) {
+  if (!isLoaded) {
     return (
       <nav className="border-b bg-white">
         <div className="container mx-auto px-4">
@@ -53,7 +31,7 @@ export function Navigation() {
   }
 
   return (
-    <nav className="border-b bg-white">
+    <nav className="border-b bg-white shadow-sm">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
@@ -62,11 +40,17 @@ export function Navigation() {
             <span className="text-xl font-bold">LLMObserve</span>
           </Link>
 
-          {/* Navigation Links */}
+          {/* Date Range Filter - Center */}
+          <div className="flex-1 flex justify-center">
+            <DateRangeFilter value={dateRange} onChange={setDateRange} />
+          </div>
+
+          {/* Navigation Links - New UI Spec */}
           <div className="flex items-center space-x-1">
             <Link href="/">
               <Button
                 variant={isActive("/") ? "default" : "ghost"}
+                size="sm"
                 className="flex items-center space-x-2"
               >
                 <BarChart3 className="h-4 w-4" />
@@ -74,58 +58,63 @@ export function Navigation() {
               </Button>
             </Link>
 
-            {/* Only show Customers for SaaS founders */}
-            {isSaaSFounder && (
-              <Link href="/customers">
-                <Button
-                  variant={isActive("/customers") ? "default" : "ghost"}
-                  className="flex items-center space-x-2"
-                >
-                  <Users className="h-4 w-4" />
-                  <span>Customers</span>
-                </Button>
-              </Link>
-            )}
+            <Link href="/llms">
+              <Button
+                variant={isActive("/llms") ? "default" : "ghost"}
+                size="sm"
+                className="flex items-center space-x-2"
+              >
+                <Zap className="h-4 w-4" />
+                <span>LLMs</span>
+              </Button>
+            </Link>
+
+            <Link href="/infrastructure">
+              <Button
+                variant={isActive("/infrastructure") ? "default" : "ghost"}
+                size="sm"
+                className="flex items-center space-x-2"
+              >
+                <Server className="h-4 w-4" />
+                <span>Infrastructure</span>
+              </Button>
+            </Link>
 
             <Link href="/agents">
               <Button
                 variant={isActive("/agents") ? "default" : "ghost"}
+                size="sm"
                 className="flex items-center space-x-2"
               >
-                <Activity className="h-4 w-4" />
+                <Bot className="h-4 w-4" />
                 <span>Agents</span>
+              </Button>
+            </Link>
+
+            <Link href="/settings">
+              <Button
+                variant={isActive("/settings") ? "default" : "ghost"}
+                size="sm"
+                className="flex items-center space-x-2"
+              >
+                <Settings className="h-4 w-4" />
+                <span>Settings</span>
               </Button>
             </Link>
           </div>
 
-          {/* User Menu */}
+          {/* Clerk User Button */}
           {user && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-2">
-                  <User className="h-4 w-4" />
-                  <span>{user.email}</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium">{user.name || user.email}</p>
-                    <p className="text-xs text-muted-foreground">{user.email}</p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push("/settings")}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Logout</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center space-x-3">
+              <UserButton
+                afterSignOutUrl="/sign-in"
+                appearance={{
+                  elements: {
+                    avatarBox: "h-9 w-9",
+                  },
+                }}
+              />
+            </div>
           )}
         </div>
       </div>

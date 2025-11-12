@@ -141,7 +141,7 @@ Test 2: Proxy an OpenAI call through proxy
   Status: 401  # ✅ Proxy successfully forwarded to OpenAI!
   Response: "Incorrect API key provided..."  # Expected
 ```
-
+T
 ### Integration Test ⚠️
 ```bash
 $ LLMOBSERVE_PROXY_URL=http://localhost:9000 python scripts/test_hybrid_architecture.py

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
-import { loadAuth, getAuthHeaders } from "@/lib/auth";
-import { Copy, Check, Trash2, Plus, Key } from "lucide-react";
+import { Copy, Check, Trash2, Plus, Key, Settings as SettingsIcon, Bell, DollarSign, AlertTriangle } from "lucide-react";
+import type { Cap, CapCreate, Alert as AlertType } from "@/lib/api";
 
 interface APIKey {
   id: string;
@@ -29,38 +30,57 @@ interface APIKey {
 }
 
 export default function SettingsPage() {
-  const router = useRouter();
+  const { isLoaded, isSignedIn, user: clerkUser } = useUser();
   const [user, setUser] = useState<any>(null);
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
+  const [caps, setCaps] = useState<Cap[]>([]);
+  const [alerts, setAlerts] = useState<AlertType[]>([]);
   const [loading, setLoading] = useState(true);
   const [newKeyName, setNewKeyName] = useState("");
   const [creatingKey, setCreatingKey] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  
+  // Caps form state
+  const [showCapForm, setShowCapForm] = useState(false);
+  const [capType, setCapType] = useState<string>("global");
+  const [targetName, setTargetName] = useState("");
+  const [limitAmount, setLimitAmount] = useState<string>("100");
+  const [period, setPeriod] = useState<string>("monthly");
+  const [alertThreshold, setAlertThreshold] = useState<string>("80");
+  const [alertEmail, setAlertEmail] = useState("");
+  const [creatingCap, setCreatingCap] = useState(false);
 
   useEffect(() => {
-    const { user: loadedUser } = loadAuth();
-    if (!loadedUser) {
-      router.push("/login");
-      return;
-    }
-    setUser(loadedUser);
-  }, [router]);
-
-  useEffect(() => {
-    if (!user) return;
+    if (!isLoaded || !isSignedIn) return;
     loadAPIKeys();
-  }, [user]);
+    loadCaps();
+    loadAlerts();
+  }, [isLoaded, isSignedIn]);
 
   const loadAPIKeys = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/auth/me`, {
-        headers: getAuthHeaders(),
+      // Get Clerk session token
+      const session = await (clerkUser as any)?.getToken?.();
+      if (!session) {
+        console.error("No Clerk session token");
+        return;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/clerk/api-keys/me`, {
+        headers: {
+          "Authorization": `Bearer ${session}`,
+          "Content-Type": "application/json",
+        },
       });
+      
       if (response.ok) {
         const data = await response.json();
+        setUser(data.user);
         setApiKeys(data.api_keys);
+      } else {
+        console.error("Failed to load API keys:", await response.text());
       }
     } catch (err) {
       console.error("Failed to load API keys:", err);
@@ -74,11 +94,17 @@ export default function SettingsPage() {
 
     try {
       setCreatingKey(true);
+      const session = await (clerkUser as any)?.getToken?.();
+      if (!session) return;
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/auth/api-keys?name=${encodeURIComponent(newKeyName)}`,
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/clerk/api-keys?name=${encodeURIComponent(newKeyName)}`,
         {
           method: "POST",
-          headers: getAuthHeaders(),
+          headers: {
+            "Authorization": `Bearer ${session}`,
+            "Content-Type": "application/json",
+          },
         }
       );
 
@@ -101,11 +127,17 @@ export default function SettingsPage() {
     }
 
     try {
+      const session = await (clerkUser as any)?.getToken?.();
+      if (!session) return;
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/auth/api-keys/${keyId}`,
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/clerk/api-keys/${keyId}`,
         {
           method: "DELETE",
-          headers: getAuthHeaders(),
+          headers: {
+            "Authorization": `Bearer ${session}`,
+            "Content-Type": "application/json",
+          },
         }
       );
 
@@ -114,6 +146,97 @@ export default function SettingsPage() {
       }
     } catch (err) {
       console.error("Failed to revoke API key:", err);
+    }
+  };
+
+  const loadCaps = async () => {
+    try {
+      const session = await (clerkUser as any)?.getToken?.();
+      if (!session) return;
+
+      const { fetchCaps } = await import("@/lib/api");
+      const data = await fetchCaps(session);
+      setCaps(data);
+    } catch (err) {
+      console.error("Failed to load caps:", err);
+    }
+  };
+
+  const loadAlerts = async () => {
+    try {
+      const session = await (clerkUser as any)?.getToken?.();
+      if (!session) return;
+
+      const { fetchAlerts } = await import("@/lib/api");
+      const data = await fetchAlerts(session, 20);
+      setAlerts(data);
+    } catch (err) {
+      console.error("Failed to load alerts:", err);
+    }
+  };
+
+  const handleCreateCap = async () => {
+    try {
+      setCreatingCap(true);
+      const session = await (clerkUser as any)?.getToken?.();
+      if (!session) return;
+
+      const { createCap } = await import("@/lib/api");
+      const capData: CapCreate = {
+        cap_type: capType,
+        target_name: capType === "global" ? undefined : targetName,
+        limit_amount: parseFloat(limitAmount),
+        period,
+        alert_threshold: parseFloat(alertThreshold) / 100,
+        alert_email: alertEmail || user?.email,
+      };
+
+      await createCap(session, capData);
+      await loadCaps();
+      
+      // Reset form
+      setShowCapForm(false);
+      setCapType("global");
+      setTargetName("");
+      setLimitAmount("100");
+      setPeriod("monthly");
+      setAlertThreshold("80");
+      setAlertEmail("");
+    } catch (err) {
+      console.error("Failed to create cap:", err);
+      alert(`Failed to create cap: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setCreatingCap(false);
+    }
+  };
+
+  const handleToggleCap = async (capId: string, enabled: boolean) => {
+    try {
+      const session = await (clerkUser as any)?.getToken?.();
+      if (!session) return;
+
+      const { updateCap } = await import("@/lib/api");
+      await updateCap(session, capId, { enabled });
+      await loadCaps();
+    } catch (err) {
+      console.error("Failed to toggle cap:", err);
+    }
+  };
+
+  const handleDeleteCap = async (capId: string) => {
+    if (!confirm("Are you sure you want to delete this spending cap?")) {
+      return;
+    }
+
+    try {
+      const session = await (clerkUser as any)?.getToken?.();
+      if (!session) return;
+
+      const { deleteCap } = await import("@/lib/api");
+      await deleteCap(session, capId);
+      await loadCaps();
+    } catch (err) {
+      console.error("Failed to delete cap:", err);
     }
   };
 
@@ -277,6 +400,333 @@ export default function SettingsPage() {
                 </TableBody>
               </Table>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Spending Caps & Alerts */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Spending Caps & Alerts
+            </CardTitle>
+            <CardDescription>
+              Set spending limits and receive email alerts when you approach your caps
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Create New Cap Button */}
+            {!showCapForm && (
+              <Button
+                onClick={() => {
+                  setShowCapForm(true);
+                  setAlertEmail(user?.email || "");
+                }}
+                className="w-full flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Create Spending Cap
+              </Button>
+            )}
+
+            {/* Cap Creation Form */}
+            {showCapForm && (
+              <div className="p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg border-2 border-blue-200 space-y-4">
+                <h3 className="font-semibold text-lg flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-blue-600" />
+                  Create New Spending Cap
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Cap Type</Label>
+                    <Select value={capType} onValueChange={setCapType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="global">Global (All Services)</SelectItem>
+                        <SelectItem value="provider">By Provider (e.g., OpenAI)</SelectItem>
+                        <SelectItem value="model">By Model (e.g., gpt-4)</SelectItem>
+                        <SelectItem value="agent">By Agent/Workflow</SelectItem>
+                        <SelectItem value="customer">By Customer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {capType !== "global" && (
+                    <div>
+                      <Label>Target Name</Label>
+                      <Input
+                        placeholder={`e.g., ${
+                          capType === "provider" ? "openai" :
+                          capType === "model" ? "gpt-4" :
+                          capType === "agent" ? "research_assistant" :
+                          "customer_123"
+                        }`}
+                        value={targetName}
+                        onChange={(e) => setTargetName(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <Label>Limit Amount ($)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={limitAmount}
+                      onChange={(e) => setLimitAmount(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Period</Label>
+                    <Select value={period} onValueChange={setPeriod}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>Alert Threshold (%)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={alertThreshold}
+                      onChange={(e) => setAlertThreshold(e.target.value)}
+                      placeholder="80"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Send alert when {alertThreshold}% of cap is reached
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label>Alert Email</Label>
+                    <Input
+                      type="email"
+                      value={alertEmail}
+                      onChange={(e) => setAlertEmail(e.target.value)}
+                      placeholder={user?.email}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleCreateCap}
+                    disabled={creatingCap || !limitAmount || (capType !== "global" && !targetName)}
+                    className="flex-1"
+                  >
+                    {creatingCap ? "Creating..." : "Create Cap"}
+                  </Button>
+                  <Button
+                    onClick={() => setShowCapForm(false)}
+                    variant="outline"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Active Caps List */}
+            {caps.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm text-muted-foreground">Active Caps</h4>
+                {caps.map((cap) => (
+                  <div
+                    key={cap.id}
+                    className={`p-4 rounded-lg border ${
+                      cap.percentage_used >= 100 ? "bg-red-50 border-red-200" :
+                      cap.percentage_used >= cap.alert_threshold * 100 ? "bg-yellow-50 border-yellow-200" :
+                      "bg-white border-gray-200"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant={cap.cap_type === "global" ? "default" : "secondary"}>
+                            {cap.cap_type}
+                          </Badge>
+                          {cap.target_name && (
+                            <span className="text-sm font-medium">{cap.target_name}</span>
+                          )}
+                          <Badge variant={cap.enabled ? "default" : "outline"}>
+                            {cap.enabled ? "Active" : "Disabled"}
+                          </Badge>
+                        </div>
+                        
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground">Spend:</span>
+                            <span className="font-semibold">
+                              ${cap.current_spend?.toFixed(2) || "0.00"} / ${cap.limit_amount.toFixed(2)}
+                            </span>
+                            <span className="text-sm text-muted-foreground">
+                              ({cap.percentage_used?.toFixed(1) || 0}%)
+                            </span>
+                          </div>
+                          
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full ${
+                                cap.percentage_used >= 100 ? "bg-red-500" :
+                                cap.percentage_used >= cap.alert_threshold * 100 ? "bg-yellow-500" :
+                                "bg-green-500"
+                              }`}
+                              style={{ width: `${Math.min(cap.percentage_used || 0, 100)}%` }}
+                            />
+                          </div>
+                          
+                          <div className="text-xs text-muted-foreground">
+                            {cap.period.charAt(0).toUpperCase() + cap.period.slice(1)} cap • 
+                            Alert at {(cap.alert_threshold * 100).toFixed(0)}% • 
+                            Email: {cap.alert_email}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2 ml-4">
+                        <Button
+                          onClick={() => handleToggleCap(cap.id, !cap.enabled)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          {cap.enabled ? "Disable" : "Enable"}
+                        </Button>
+                        <Button
+                          onClick={() => handleDeleteCap(cap.id)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Recent Alerts */}
+            {alerts.length > 0 && (
+              <div className="space-y-3 border-t pt-6">
+                <h4 className="font-medium text-sm text-muted-foreground flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Recent Alerts
+                </h4>
+                {alerts.slice(0, 5).map((alert) => (
+                  <div
+                    key={alert.id}
+                    className={`p-3 rounded border-l-4 ${
+                      alert.alert_type === "cap_exceeded" 
+                        ? "bg-red-50 border-red-500" 
+                        : "bg-yellow-50 border-yellow-500"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">
+                          {alert.alert_type === "cap_exceeded" ? "🚨 Cap Exceeded" : "⚠️ Threshold Reached"}
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-1">
+                          {alert.target_type}: {alert.target_name}
+                        </div>
+                        <div className="text-sm mt-1">
+                          <strong>${alert.current_spend.toFixed(2)}</strong> / ${alert.cap_limit.toFixed(2)} 
+                          <span className="text-muted-foreground"> ({alert.percentage.toFixed(1)}%)</span>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(alert.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {caps.length === 0 && !showCapForm && (
+              <Alert>
+                <AlertDescription>
+                  <strong>💡 Tip:</strong> Set up spending caps to avoid surprise bills. 
+                  You'll receive email alerts when you reach your thresholds.
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Provider API Keys */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5" />
+              Provider API Keys
+            </CardTitle>
+            <CardDescription>
+              Manage your third-party API keys (OpenAI, Anthropic, Pinecone, etc.)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert className="mb-4">
+              <AlertDescription>
+                <strong>🔒 Coming Soon:</strong> Securely store and manage your API keys for OpenAI, Anthropic, Pinecone, and other providers. 
+                For now, use environment variables in your code.
+              </AlertDescription>
+            </Alert>
+            
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center justify-between p-3 bg-muted rounded">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded bg-black flex items-center justify-center text-white font-bold">
+                    AI
+                  </div>
+                  <div>
+                    <div className="font-medium">OpenAI</div>
+                    <div className="text-xs text-muted-foreground">GPT-4, GPT-3.5, Embeddings</div>
+                  </div>
+                </div>
+                <Badge variant="outline">Not configured</Badge>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-muted rounded">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center text-white font-bold">
+                    A
+                  </div>
+                  <div>
+                    <div className="font-medium">Anthropic</div>
+                    <div className="text-xs text-muted-foreground">Claude models</div>
+                  </div>
+                </div>
+                <Badge variant="outline">Not configured</Badge>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-muted rounded">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded bg-blue-600 flex items-center justify-center text-white font-bold">
+                    P
+                  </div>
+                  <div>
+                    <div className="font-medium">Pinecone</div>
+                    <div className="text-xs text-muted-foreground">Vector database</div>
+                  </div>
+                </div>
+                <Badge variant="outline">Not configured</Badge>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
