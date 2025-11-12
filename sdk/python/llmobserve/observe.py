@@ -18,7 +18,7 @@ def observe(
     flush_interval_ms: int = 500,
     customer_id: Optional[str] = None,
     auto_start_proxy: bool = False,
-    use_instrumentors: bool = True
+    use_instrumentors: bool = False
 ) -> None:
     """
     Initialize LLM observability with header-based context propagation.
@@ -51,21 +51,21 @@ def observe(
                          WARNING: Requires proxy dependencies installed.
         use_instrumentors: If True, also use per-SDK instrumentors for optimization.
                           If False, rely purely on header injection + proxy.
-                          Default: True (hybrid mode for best performance).
+                          Default: False (pure header mode, no monkey-patching).
     
     Example:
         >>> import llmobserve
-        >>> # Header-based (works everywhere, requires proxy)
+        >>> # Pure header-based (recommended, no monkey-patching)
         >>> llmobserve.observe(
         ...     collector_url="http://localhost:8000",
-        ...     proxy_url="http://localhost:9000"
+        ...     proxy_url="http://localhost:9000"  # Required for tracking
         ... )
         >>> 
-        >>> # Hybrid (headers + instrumentors for best performance)
+        >>> # With instrumentors (lower latency, but uses monkey-patching)
         >>> llmobserve.observe(
         ...     collector_url="http://localhost:8000",
         ...     proxy_url="http://localhost:9000",
-        ...     use_instrumentors=True  # Default
+        ...     use_instrumentors=True  # Optional optimization
         ... )
         >>> 
         >>> # Track costs per your end-customer
@@ -149,12 +149,16 @@ def observe(
             logger.info(f"[llmobserve]   All HTTP calls will be tracked (universal coverage)")
         else:
             logger.info("[llmobserve] ✓ Context headers enabled (proxy can be added later)")
-            logger.warning("[llmobserve]   ⚠️  No proxy configured - events won't be tracked unless instrumentors are enabled")
+            if not use_instrumentors:
+                logger.warning("[llmobserve]   ⚠️  No proxy configured AND instrumentors disabled - API calls won't be tracked!")
+                logger.warning("[llmobserve]   💡 Either set proxy_url or use_instrumentors=True")
     else:
         logger.warning("[llmobserve] ✗ HTTP interception not available (install httpx, requests, or aiohttp)")
     
     # OPTIONAL: Also use per-SDK instrumentors for optimization (avoids proxy latency)
     if use_instrumentors:
+        logger.info("[llmobserve] ⚙️  Instrumentors enabled (lower latency, but uses monkey-patching)")
+        
         from llmobserve.instrumentation import auto_instrument
         libs_to_instrument = os.getenv("LLMOBSERVE_LIBS")
         if libs_to_instrument:
@@ -168,12 +172,12 @@ def observe(
         failed = [lib for lib, success in instrumentation_results.items() if not success]
         
         if successful:
-            logger.info(f"[llmobserve] ✓ Direct instrumentors (optimization): {', '.join(successful)}")
+            logger.info(f"[llmobserve]   ✓ Instrumented: {', '.join(successful)}")
         
         if failed:
             logger.debug(f"[llmobserve]   Not available: {', '.join(failed)} (will use proxy if configured)")
     else:
-        logger.info("[llmobserve] ⚙️  Instrumentors disabled (pure header-based mode)")
+        logger.info("[llmobserve] ✓ Pure header-based mode (no monkey-patching, universal coverage)")
     
     # Start flush timer
     try:

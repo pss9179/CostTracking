@@ -78,8 +78,18 @@ Open `http://localhost:3000` to view the dashboard.
 from llmobserve import observe, section
 from openai import OpenAI
 
-# Initialize observability
-observe(collector_url="http://localhost:8000")
+# Initialize observability (pure header-based, no monkey-patching)
+observe(
+    collector_url="http://localhost:8000",
+    proxy_url="http://localhost:9000"  # Required for tracking
+)
+
+# OR with instrumentors for lower latency (optional optimization)
+observe(
+    collector_url="http://localhost:8000",
+    proxy_url="http://localhost:9000",
+    use_instrumentors=True  # Enables monkey-patching for OpenAI/Pinecone
+)
 
 # Use sections to label different parts of your flow
 with section("retrieval"):
