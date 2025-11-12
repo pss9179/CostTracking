@@ -17,23 +17,30 @@ def observe(
     api_key: Optional[str] = None,
     flush_interval_ms: int = 500,
     customer_id: Optional[str] = None,
-    auto_start_proxy: bool = False
+    auto_start_proxy: bool = False,
+    use_instrumentors: bool = True
 ) -> None:
     """
-    Initialize LLM observability with hybrid SDK+Proxy architecture.
+    Initialize LLM observability with header-based context propagation.
     
-    This function:
-    1. Configures the SDK with collector and optional proxy URL
-    2. Patches HTTP clients (httpx, requests, aiohttp) to inject context headers
-    3. Routes requests through proxy (if configured) for universal API coverage
-    4. Starts the event buffer flush timer
+    Architecture:
+    1. HTTP clients (httpx/requests/aiohttp) ALWAYS inject context headers
+    2. Headers carry run_id, customer_id, section_path for distributed tracing
+    3. Proxy reads headers and emits events (universal coverage)
+    4. Instrumentors provide direct tracking as optimization (optional)
+    
+    This design ensures context propagates across:
+    - async/await coroutines
+    - Celery/RQ background jobs
+    - Multi-threaded workloads
+    - Any HTTP-based API
     
     Args:
         collector_url: URL of the collector API (e.g., "http://localhost:8000").
                       If None, reads from LLMOBSERVE_COLLECTOR_URL env var.
         proxy_url: URL of the proxy server (e.g., "http://localhost:9000").
-                  If None and auto_start_proxy=True, starts local proxy.
-                  If None and auto_start_proxy=False, runs in direct mode (no proxy).
+                  If provided, ALL external HTTP calls route through proxy.
+                  If None, headers are still injected (for future proxy).
         api_key: API key for authentication (get from dashboard).
                 If None, reads from LLMOBSERVE_API_KEY env var.
         flush_interval_ms: How often to flush events to collector (default: 500ms).
@@ -42,17 +49,23 @@ def observe(
                     Can be set via LLMOBSERVE_CUSTOMER_ID env var.
         auto_start_proxy: If True, automatically start local proxy server.
                          WARNING: Requires proxy dependencies installed.
+        use_instrumentors: If True, also use per-SDK instrumentors for optimization.
+                          If False, rely purely on header injection + proxy.
+                          Default: True (hybrid mode for best performance).
     
     Example:
         >>> import llmobserve
-        >>> # Simple: uses env vars, no proxy (direct mode)
-        >>> llmobserve.observe()
+        >>> # Header-based (works everywhere, requires proxy)
+        >>> llmobserve.observe(
+        ...     collector_url="http://localhost:8000",
+        ...     proxy_url="http://localhost:9000"
+        ... )
         >>> 
-        >>> # With external proxy (production):
+        >>> # Hybrid (headers + instrumentors for best performance)
         >>> llmobserve.observe(
         ...     collector_url="http://localhost:8000",
         ...     proxy_url="http://localhost:9000",
-        ...     api_key="llmo_sk_abc123..."
+        ...     use_instrumentors=True  # Default
         ... )
         >>> 
         >>> # Track costs per your end-customer
@@ -125,38 +138,42 @@ def observe(
         logger.debug("[llmobserve] Observability disabled, skipping instrumentation")
         return
     
-    # Use HYBRID approach: per-SDK instrumentors (reliable) + HTTP interception (universal fallback)
-    
-    # 1. Apply per-SDK instrumentors for major providers (OpenAI, Pinecone, etc.)
-    from llmobserve.instrumentation import auto_instrument
-    libs_to_instrument = os.getenv("LLMOBSERVE_LIBS")
-    if libs_to_instrument:
-        libs = [lib.strip() for lib in libs_to_instrument.split(",")]
-    else:
-        libs = None  # Instrument all available
-    
-    instrumentation_results = auto_instrument(libs=libs)
-    
-    successful = [lib for lib, success in instrumentation_results.items() if success]
-    failed = [lib for lib, success in instrumentation_results.items() if not success]
-    
-    if successful:
-        logger.info(f"[llmobserve] ✓ Instrumented: {', '.join(successful)}")
-    
-    if failed:
-        logger.debug(f"[llmobserve] ✗ Not available: {', '.join(failed)}")
-    
-    # 2. Also patch HTTP clients for universal fallback (catches providers without instrumentors)
+    # PRIMARY: Patch HTTP clients to inject context headers on ALL requests
+    # This ensures context propagates across async, Celery, threads, etc.
     from llmobserve.http_interceptor import patch_all_http_clients
     http_patched = patch_all_http_clients()
     
     if http_patched:
         if proxy_url:
-            logger.info(f"[llmobserve] ✓ HTTP proxy enabled: {proxy_url} (fallback for uninstrumented providers)")
+            logger.info(f"[llmobserve] ✓ Context headers enabled → routing through proxy: {proxy_url}")
+            logger.info(f"[llmobserve]   All HTTP calls will be tracked (universal coverage)")
         else:
-            logger.debug("[llmobserve] HTTP clients patched (direct mode)")
+            logger.info("[llmobserve] ✓ Context headers enabled (proxy can be added later)")
+            logger.warning("[llmobserve]   ⚠️  No proxy configured - events won't be tracked unless instrumentors are enabled")
     else:
-        logger.debug("[llmobserve] HTTP interception not available")
+        logger.warning("[llmobserve] ✗ HTTP interception not available (install httpx, requests, or aiohttp)")
+    
+    # OPTIONAL: Also use per-SDK instrumentors for optimization (avoids proxy latency)
+    if use_instrumentors:
+        from llmobserve.instrumentation import auto_instrument
+        libs_to_instrument = os.getenv("LLMOBSERVE_LIBS")
+        if libs_to_instrument:
+            libs = [lib.strip() for lib in libs_to_instrument.split(",")]
+        else:
+            libs = None  # Instrument all available
+        
+        instrumentation_results = auto_instrument(libs=libs)
+        
+        successful = [lib for lib, success in instrumentation_results.items() if success]
+        failed = [lib for lib, success in instrumentation_results.items() if not success]
+        
+        if successful:
+            logger.info(f"[llmobserve] ✓ Direct instrumentors (optimization): {', '.join(successful)}")
+        
+        if failed:
+            logger.debug(f"[llmobserve]   Not available: {', '.join(failed)} (will use proxy if configured)")
+    else:
+        logger.info("[llmobserve] ⚙️  Instrumentors disabled (pure header-based mode)")
     
     # Start flush timer
     try:

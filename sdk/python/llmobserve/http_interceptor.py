@@ -35,28 +35,32 @@ def patch_httpx():
                 proxy_url = config.get_proxy_url()
                 request_url_str = str(request.url)
                 
-                # Skip proxying for internal requests (to collector or proxy itself)
-                should_proxy = proxy_url and collector_url
-                if should_proxy:
-                    if request_url_str.startswith(collector_url):
-                        should_proxy = False
-                    elif request_url_str.startswith(proxy_url):
-                        should_proxy = False
+                # Skip internal requests (to collector or proxy itself)
+                is_internal = False
+                if collector_url and request_url_str.startswith(collector_url):
+                    is_internal = True
+                elif proxy_url and request_url_str.startswith(proxy_url):
+                    is_internal = True
                 
-                if should_proxy:
-                    # Inject context headers
-                    request.headers["X-LLMObserve-Run-ID"] = context.get_run_id()
-                    request.headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
-                    parent_span = context.get_current_span_id()
-                    request.headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
-                    request.headers["X-LLMObserve-Section"] = context.get_current_section()
-                    request.headers["X-LLMObserve-Section-Path"] = context.get_section_path()
-                    customer = context.get_customer_id()
-                    request.headers["X-LLMObserve-Customer-ID"] = customer if customer else ""
-                    
-                    # Store original URL in header and rewrite to proxy
-                    request.headers["X-LLMObserve-Target-URL"] = request_url_str
-                    request.url = httpx.URL(f"{proxy_url}/proxy")
+                if not is_internal:
+                    # ALWAYS inject context headers (for proxy OR direct instrumentation)
+                    try:
+                        request.headers["X-LLMObserve-Run-ID"] = context.get_run_id()
+                        request.headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
+                        parent_span = context.get_current_span_id()
+                        request.headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
+                        request.headers["X-LLMObserve-Section"] = context.get_current_section()
+                        request.headers["X-LLMObserve-Section-Path"] = context.get_section_path()
+                        customer = context.get_customer_id()
+                        request.headers["X-LLMObserve-Customer-ID"] = customer if customer else ""
+                        
+                        # If proxy is configured, route through proxy
+                        if proxy_url:
+                            request.headers["X-LLMObserve-Target-URL"] = request_url_str
+                            request.url = httpx.URL(f"{proxy_url}/proxy")
+                    except Exception as e:
+                        # Fail-open: if header injection fails, continue anyway
+                        logger.debug(f"[llmobserve] Header injection failed: {e}")
             
             return original_send(self, request, **kwargs)
         
@@ -80,28 +84,32 @@ def patch_httpx():
                 proxy_url = config.get_proxy_url()
                 request_url_str = str(request.url)
                 
-                # Skip proxying for internal requests (to collector or proxy itself)
-                should_proxy = proxy_url and collector_url
-                if should_proxy:
-                    if request_url_str.startswith(collector_url):
-                        should_proxy = False
-                    elif request_url_str.startswith(proxy_url):
-                        should_proxy = False
+                # Skip internal requests (to collector or proxy itself)
+                is_internal = False
+                if collector_url and request_url_str.startswith(collector_url):
+                    is_internal = True
+                elif proxy_url and request_url_str.startswith(proxy_url):
+                    is_internal = True
                 
-                if should_proxy:
-                    # Inject context headers
-                    request.headers["X-LLMObserve-Run-ID"] = context.get_run_id()
-                    request.headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
-                    parent_span = context.get_current_span_id()
-                    request.headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
-                    request.headers["X-LLMObserve-Section"] = context.get_current_section()
-                    request.headers["X-LLMObserve-Section-Path"] = context.get_section_path()
-                    customer = context.get_customer_id()
-                    request.headers["X-LLMObserve-Customer-ID"] = customer if customer else ""
-                    
-                    # Store original URL in header and rewrite to proxy
-                    request.headers["X-LLMObserve-Target-URL"] = request_url_str
-                    request.url = httpx.URL(f"{proxy_url}/proxy")
+                if not is_internal:
+                    # ALWAYS inject context headers (for proxy OR direct instrumentation)
+                    try:
+                        request.headers["X-LLMObserve-Run-ID"] = context.get_run_id()
+                        request.headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
+                        parent_span = context.get_current_span_id()
+                        request.headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
+                        request.headers["X-LLMObserve-Section"] = context.get_current_section()
+                        request.headers["X-LLMObserve-Section-Path"] = context.get_section_path()
+                        customer = context.get_customer_id()
+                        request.headers["X-LLMObserve-Customer-ID"] = customer if customer else ""
+                        
+                        # If proxy is configured, route through proxy
+                        if proxy_url:
+                            request.headers["X-LLMObserve-Target-URL"] = request_url_str
+                            request.url = httpx.URL(f"{proxy_url}/proxy")
+                    except Exception as e:
+                        # Fail-open: if header injection fails, continue anyway
+                        logger.debug(f"[llmobserve] Header injection failed: {e}")
             
             return await original_async_send(self, request, **kwargs)
         
@@ -134,31 +142,38 @@ def patch_requests():
                 collector_url = config.get_collector_url()
                 proxy_url = config.get_proxy_url()
                 
-                # Skip proxying for internal requests
-                should_proxy = proxy_url and collector_url
-                if should_proxy:
-                    if url.startswith(collector_url):
-                        should_proxy = False
-                    elif url.startswith(proxy_url):
-                        should_proxy = False
+                # Skip internal requests
+                is_internal = False
+                if collector_url and url.startswith(collector_url):
+                    is_internal = True
+                elif proxy_url and url.startswith(proxy_url):
+                    is_internal = True
                 
-                if should_proxy:
-                    # Inject context headers
-                    headers = kwargs.get("headers", {})
-                    headers["X-LLMObserve-Run-ID"] = context.get_run_id()
-                    headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
-                    parent_span = context.get_current_span_id()
-                    headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
-                    headers["X-LLMObserve-Section"] = context.get_current_section()
-                    headers["X-LLMObserve-Section-Path"] = context.get_section_path()
-                    customer = context.get_customer_id()
-                    headers["X-LLMObserve-Customer-ID"] = customer if customer else ""
-                    
-                    # Store original URL in header and rewrite to proxy
-                    headers["X-LLMObserve-Target-URL"] = url
-                    url = f"{proxy_url}/proxy"
-                    
-                    kwargs["headers"] = headers
+                if not is_internal:
+                    # ALWAYS inject context headers (for proxy OR direct instrumentation)
+                    try:
+                        headers = kwargs.get("headers", {})
+                        if headers is None:
+                            headers = {}
+                        
+                        headers["X-LLMObserve-Run-ID"] = context.get_run_id()
+                        headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
+                        parent_span = context.get_current_span_id()
+                        headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
+                        headers["X-LLMObserve-Section"] = context.get_current_section()
+                        headers["X-LLMObserve-Section-Path"] = context.get_section_path()
+                        customer = context.get_customer_id()
+                        headers["X-LLMObserve-Customer-ID"] = customer if customer else ""
+                        
+                        # If proxy is configured, route through proxy
+                        if proxy_url:
+                            headers["X-LLMObserve-Target-URL"] = url
+                            url = f"{proxy_url}/proxy"
+                        
+                        kwargs["headers"] = headers
+                    except Exception as e:
+                        # Fail-open: if header injection fails, continue anyway
+                        logger.debug(f"[llmobserve] Header injection failed: {e}")
             
             return original_request(self, method, url, **kwargs)
         
@@ -192,34 +207,38 @@ def patch_aiohttp():
                 proxy_url = config.get_proxy_url()
                 url_str = str(url)
                 
-                # Skip proxying for internal requests
-                should_proxy = proxy_url and collector_url
-                if should_proxy:
-                    if url_str.startswith(collector_url):
-                        should_proxy = False
-                    elif url_str.startswith(proxy_url):
-                        should_proxy = False
+                # Skip internal requests
+                is_internal = False
+                if collector_url and url_str.startswith(collector_url):
+                    is_internal = True
+                elif proxy_url and url_str.startswith(proxy_url):
+                    is_internal = True
                 
-                if should_proxy:
-                    # Inject context headers
-                    headers = kwargs.get("headers", {})
-                    if headers is None:
-                        headers = {}
-                    
-                    headers["X-LLMObserve-Run-ID"] = context.get_run_id()
-                    headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
-                    parent_span = context.get_current_span_id()
-                    headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
-                    headers["X-LLMObserve-Section"] = context.get_current_section()
-                    headers["X-LLMObserve-Section-Path"] = context.get_section_path()
-                    customer = context.get_customer_id()
-                    headers["X-LLMObserve-Customer-ID"] = customer if customer else ""
-                    
-                    # Store original URL in header and rewrite to proxy
-                    headers["X-LLMObserve-Target-URL"] = url_str
-                    url = f"{proxy_url}/proxy"
-                    
-                    kwargs["headers"] = headers
+                if not is_internal:
+                    # ALWAYS inject context headers (for proxy OR direct instrumentation)
+                    try:
+                        headers = kwargs.get("headers", {})
+                        if headers is None:
+                            headers = {}
+                        
+                        headers["X-LLMObserve-Run-ID"] = context.get_run_id()
+                        headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
+                        parent_span = context.get_current_span_id()
+                        headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
+                        headers["X-LLMObserve-Section"] = context.get_current_section()
+                        headers["X-LLMObserve-Section-Path"] = context.get_section_path()
+                        customer = context.get_customer_id()
+                        headers["X-LLMObserve-Customer-ID"] = customer if customer else ""
+                        
+                        # If proxy is configured, route through proxy
+                        if proxy_url:
+                            headers["X-LLMObserve-Target-URL"] = url_str
+                            url = f"{proxy_url}/proxy"
+                        
+                        kwargs["headers"] = headers
+                    except Exception as e:
+                        # Fail-open: if header injection fails, continue anyway
+                        logger.debug(f"[llmobserve] Header injection failed: {e}")
             
             return await original_request(self, method, url, **kwargs)
         
