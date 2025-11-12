@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,10 +20,12 @@ import { DollarSign, TrendingUp, Activity, Layers } from "lucide-react";
 import { KPICard } from "@/components/layout/KPICard";
 import { CustomerCostChart } from "@/components/CustomerCostChart";
 import { CustomerFilter } from "@/components/CustomerFilter";
+import { ProtectedLayout } from "@/components/ProtectedLayout";
+import { loadAuth } from "@/lib/auth";
 
 export default function DashboardPage() {
-  const { user, isLoaded } = useUser();
   const router = useRouter();
+  const [user, setUser] = useState<any>(null);
   
   const [runs, setRuns] = useState<Run[]>([]);
   const [allEvents, setAllEvents] = useState<any[]>([]);
@@ -34,7 +35,17 @@ export default function DashboardPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    // Load user from localStorage
+    const { user: loadedUser } = loadAuth();
+    if (!loadedUser) {
+      router.push("/login");
+      return;
+    }
+    setUser(loadedUser);
+  }, [router]);
+
+  useEffect(() => {
+    if (!user) return;
 
     async function loadData() {
       try {
@@ -175,13 +186,14 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">LLM Cost Dashboard</h1>
-        <div className="flex items-center gap-4">
-          <div className="text-sm text-muted-foreground">
-            {user?.emailAddresses[0].emailAddress}
-          </div>
+    <ProtectedLayout>
+      <div className="p-8 space-y-8">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">LLM Cost Dashboard</h1>
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-muted-foreground">
+              {user?.email}
+            </div>
           <Link
             href="/settings"
             className="text-sm text-blue-600 hover:underline"
@@ -452,6 +464,7 @@ export default function DashboardPage() {
         </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </ProtectedLayout>
   );
 }

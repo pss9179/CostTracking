@@ -25,6 +25,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { CustomerFilter } from "@/components/CustomerFilter";
+import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { fetchRuns, fetchRunDetail } from "@/lib/api";
 import { formatCost, formatDuration } from "@/lib/stats";
 import { 
@@ -213,12 +214,13 @@ export default function AgentsPage() {
   }
 
   return (
-    <div className="p-8 space-y-8">
-      <PageHeader
-        title="Agent Analytics"
-        description="Monitor your AI agents' costs, performance, and workflows"
-        breadcrumbs={[
-          { label: "Dashboard", href: "/" },
+    <ProtectedLayout>
+      <div className="p-8 space-y-8">
+        <PageHeader
+          title="Agent Analytics"
+          description="Monitor your AI agents' costs, performance, and workflows"
+          breadcrumbs={[
+            { label: "Dashboard", href: "/" },
           { label: "Agents" },
         ]}
       />
@@ -442,7 +444,8 @@ export default function AgentsPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+      </div>
+    </ProtectedLayout>
   );
 }
 
