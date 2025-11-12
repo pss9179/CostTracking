@@ -379,36 +379,38 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Customer Cost Chart */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <CustomerCostChart />
-        
-        {/* Customer Filter */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Filter by Customer</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              View costs segmented by your end-users
-            </p>
-          </CardHeader>
-          <CardContent>
-            <CustomerFilter
-              selectedCustomer={selectedCustomer}
-              onCustomerChange={setSelectedCustomer}
-            />
-            {selectedCustomer && (
-              <div className="mt-4 p-3 bg-blue-50 rounded">
-                <p className="text-sm text-blue-900">
-                  Filtering by: <strong>{selectedCustomer}</strong>
-                </p>
-                <p className="text-xs text-blue-700 mt-1">
-                  All charts and tables below are filtered to this customer
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {/* Customer Cost Chart - Only for SaaS Founders */}
+      {user?.user_type === "saas_founder" && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <CustomerCostChart />
+          
+          {/* Customer Filter */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Filter by Customer</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                View costs segmented by your end-users
+              </p>
+            </CardHeader>
+            <CardContent>
+              <CustomerFilter
+                selectedCustomer={selectedCustomer}
+                onCustomerChange={setSelectedCustomer}
+              />
+              {selectedCustomer && (
+                <div className="mt-4 p-3 bg-blue-50 rounded">
+                  <p className="text-sm text-blue-900">
+                    Filtering by: <strong>{selectedCustomer}</strong>
+                  </p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    All charts and tables below are filtered to this customer
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Recent Runs Preview */}
       <Card>
