@@ -303,5 +303,208 @@
   },
   "elevenlabs:eleven_turbo_v2": {
     "per_1k_chars": 0.18
+  },
+  
+  "mistral:mistral-large-latest": {
+    "input": 0.000002,
+    "output": 0.000006
+  },
+  "mistral:mistral-small-latest": {
+    "input": 0.000001,
+    "output": 0.000003
+  },
+  "mistral:mistral-tiny": {
+    "input": 0.00000025,
+    "output": 0.00000075
+  },
+  
+  "groq:llama-3.1-405b": {
+    "input": 0.00000059,
+    "output": 0.00000079
+  },
+  "groq:llama-3.1-70b": {
+    "input": 0.00000059,
+    "output": 0.00000079
+  },
+  "groq:llama-3.1-8b": {
+    "input": 0.00000005,
+    "output": 0.00000008
+  },
+  "groq:mixtral-8x7b": {
+    "input": 0.00000024,
+    "output": 0.00000024
+  },
+  
+  "ai21:j2-ultra": {
+    "input": 0.000015,
+    "output": 0.000015
+  },
+  "ai21:j2-mid": {
+    "input": 0.00001,
+    "output": 0.00001
+  },
+  
+  "huggingface:base": {
+    "per_1k_tokens": 0.00005
+  },
+  
+  "together:llama-3-70b": {
+    "input": 0.0000009,
+    "output": 0.0000009
+  },
+  "together:mixtral-8x22b": {
+    "input": 0.0000012,
+    "output": 0.0000012
+  },
+  
+  "replicate:base": {
+    "per_second": 0.00023
+  },
+  
+  "perplexity:pplx-70b-online": {
+    "input": 0.000001,
+    "output": 0.000001,
+    "per_request": 0.005
+  },
+  "perplexity:pplx-7b-online": {
+    "input": 0.0000002,
+    "output": 0.0000002,
+    "per_request": 0.005
+  },
+  
+  "azure_openai:gpt-4": {
+    "input": 0.00003,
+    "output": 0.00006
+  },
+  "azure_openai:gpt-35-turbo": {
+    "input": 0.0000015,
+    "output": 0.000002
+  },
+  
+  "aws_bedrock:claude-3-opus": {
+    "input": 0.000015,
+    "output": 0.000075
+  },
+  "aws_bedrock:claude-3-sonnet": {
+    "input": 0.000003,
+    "output": 0.000015
+  },
+  "aws_bedrock:llama-3-70b": {
+    "input": 0.00000265,
+    "output": 0.0000035
+  },
+  
+  "assemblyai:best": {
+    "per_minute": 0.00062
+  },
+  "assemblyai:nano": {
+    "per_minute": 0.00018
+  },
+  
+  "deepgram:nova-2": {
+    "per_minute": 0.0043
+  },
+  "deepgram:base": {
+    "per_minute": 0.0125
+  },
+  
+  "playht:standard": {
+    "per_1k_chars": 0.4
+  },
+  "playht:premium": {
+    "per_1k_chars": 1.2
+  },
+  
+  "azure_speech:standard": {
+    "per_1k_chars": 0.001
+  },
+  "azure_speech:neural": {
+    "per_1k_chars": 0.016
+  },
+  
+  "aws_polly:standard": {
+    "per_1m_chars": 4.0
+  },
+  "aws_polly:neural": {
+    "per_1m_chars": 16.0
+  },
+  
+  "aws_transcribe:standard": {
+    "per_minute": 0.024
+  },
+  
+  "stability:sd-xl": {
+    "per_image": 0.04
+  },
+  "stability:sd-3": {
+    "per_image": 0.065
+  },
+  
+  "runway:gen-2": {
+    "per_second": 0.05
+  },
+  
+  "aws_rekognition:detect_labels": {
+    "per_1k_images": 1.0
+  },
+  
+  "weaviate:standard": {
+    "per_million_ops": 0.25
+  },
+  
+  "qdrant:cloud": {
+    "per_million_ops": 0.4
+  },
+  
+  "milvus:cloud": {
+    "per_million_ops": 0.3
+  },
+  
+  "chroma:hosted": {
+    "per_million_ops": 0.2
+  },
+  
+  "mongodb:atlas_vector": {
+    "per_million_ops": 0.1
+  },
+  
+  "redis:vector": {
+    "per_million_ops": 0.15
+  },
+  
+  "elasticsearch:vector": {
+    "per_million_ops": 0.5
+  },
+  
+  "stripe:payment_intent": {
+    "percentage": 0.029,
+    "fixed_fee": 0.30
+  },
+  "stripe:transfer": {
+    "percentage": 0.0025,
+    "fixed_fee": 0
+  },
+  
+  "paypal:standard": {
+    "percentage": 0.0349,
+    "fixed_fee": 0.49
+  },
+  
+  "twilio:sms_outbound": {
+    "per_message": 0.0075
+  },
+  "twilio:voice_outbound": {
+    "per_minute": 0.014
+  },
+  
+  "sendgrid:email": {
+    "per_1k_emails": 0.95
+  },
+  
+  "algolia:search": {
+    "per_1k_requests": 0.5
+  },
+  "algolia:indexing": {
+    "per_1k_records": 0.4
   }
 }

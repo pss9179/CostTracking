@@ -9,7 +9,7 @@ import json
 
 def detect_provider(url: str) -> str:
     """
-    Detect provider from URL.
+    Detect provider from URL - NOW SUPPORTS 37+ APIS!
     
     Args:
         url: The target API URL
@@ -19,7 +19,7 @@ def detect_provider(url: str) -> str:
     """
     url_lower = url.lower()
     
-    # LLM Providers
+    # LLM Providers (13)
     if "api.openai.com" in url_lower:
         return "openai"
     elif "api.anthropic.com" in url_lower:
@@ -36,7 +36,7 @@ def detect_provider(url: str) -> str:
         return "ai21"
     elif "api-inference.huggingface.co" in url_lower:
         return "huggingface"
-    elif "api.together.xyz" in url_lower:
+    elif "api.together.xyz" in url_lower or "together.ai" in url_lower:
         return "together"
     elif "api.replicate.com" in url_lower:
         return "replicate"
@@ -44,10 +44,10 @@ def detect_provider(url: str) -> str:
         return "perplexity"
     elif "openai.azure.com" in url_lower:
         return "azure_openai"
-    elif "bedrock-runtime" in url_lower and "amazonaws.com" in url_lower:
+    elif ("bedrock-runtime" in url_lower or "bedrock" in url_lower) and "amazonaws.com" in url_lower:
         return "aws_bedrock"
     
-    # Voice AI
+    # Voice AI (7)
     elif "api.elevenlabs.io" in url_lower:
         return "elevenlabs"
     elif "api.assemblyai.com" in url_lower:
@@ -56,7 +56,7 @@ def detect_provider(url: str) -> str:
         return "deepgram"
     elif "play.ht" in url_lower or "api.play.ai" in url_lower:
         return "playht"
-    elif "speech.platform.bing.com" in url_lower or "cognitiveservices.azure.com" in url_lower:
+    elif "speech.platform.bing.com" in url_lower or ("cognitiveservices.azure.com" in url_lower and "speech" in url_lower):
         return "azure_speech"
     elif "polly" in url_lower and "amazonaws.com" in url_lower:
         return "aws_polly"
@@ -67,7 +67,7 @@ def detect_provider(url: str) -> str:
     elif "api.voyageai.com" in url_lower:
         return "voyage"
     
-    # Images/Video
+    # Images/Video (4)
     elif "api.stability.ai" in url_lower:
         return "stability"
     elif "api.runwayml.com" in url_lower:
@@ -75,7 +75,7 @@ def detect_provider(url: str) -> str:
     elif "rekognition" in url_lower and "amazonaws.com" in url_lower:
         return "aws_rekognition"
     
-    # Vector Databases
+    # Vector Databases (8)
     elif "pinecone.io" in url_lower:
         return "pinecone"
     elif "weaviate" in url_lower:
@@ -86,24 +86,24 @@ def detect_provider(url: str) -> str:
         return "milvus"
     elif "trychroma.com" in url_lower or "chromadb" in url_lower:
         return "chroma"
-    elif "mongodb.com" in url_lower or "mongodb.net" in url_lower:
+    elif ("mongodb.com" in url_lower or "mongodb.net" in url_lower) and ("vector" in url_lower or "search" in url_lower):
         return "mongodb"
-    elif "redis" in url_lower:
+    elif "redis" in url_lower and "vector" in url_lower:
         return "redis"
-    elif "elastic" in url_lower or "elasticsearch" in url_lower:
+    elif ("elastic" in url_lower or "elasticsearch" in url_lower) and "vector" in url_lower:
         return "elasticsearch"
     
-    # Search
+    # Search (1)
     elif "algolia" in url_lower:
         return "algolia"
     
-    # Payment Processing
+    # Payment Processing (2)
     elif "api.stripe.com" in url_lower:
         return "stripe"
-    elif "api.paypal.com" in url_lower or "paypal.com/v1" in url_lower:
+    elif "api.paypal.com" in url_lower or ("paypal.com" in url_lower and "/v1/" in url_lower):
         return "paypal"
     
-    # Communication
+    # Communication (2)
     elif "api.twilio.com" in url_lower:
         return "twilio"
     elif "api.sendgrid.com" in url_lower:

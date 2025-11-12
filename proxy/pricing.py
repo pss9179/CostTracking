@@ -104,5 +104,47 @@ def calculate_cost(provider: str, usage: Dict[str, Any]) -> float:
     if transaction_amount > 0 and "percentage" in pricing:
         return (transaction_amount * pricing["percentage"]) + pricing.get("fixed_fee", 0)
     
-    return 0.0
+    # Per-request (Perplexity)
+    if "per_request" in pricing:
+        cost += pricing["per_request"]
+    
+    # Per-second (Replicate, Runway)
+    duration_seconds = usage.get("duration_seconds", 0.0)
+    if duration_seconds > 0 and "per_second" in pricing:
+        return duration_seconds * pricing["per_second"]
+    
+    # Per-minute (STT/Voice)
+    audio_minutes = usage.get("audio_seconds", 0.0) / 60.0
+    if audio_minutes > 0 and "per_minute" in pricing:
+        return audio_minutes * pricing["per_minute"]
+    
+    # Per-character (TTS - already handled above via per_1k_chars)
+    # Per million characters (AWS Polly)
+    character_count = usage.get("character_count", 0)
+    if character_count > 0 and "per_1m_chars" in pricing:
+        return (character_count / 1_000_000) * pricing["per_1m_chars"]
+    
+    # Per 1k emails (SendGrid)
+    email_count = usage.get("email_count", 0)
+    if email_count > 0 and "per_1k_emails" in pricing:
+        return (email_count / 1000) * pricing["per_1k_emails"]
+    
+    # Per 1k requests/records (Algolia)
+    request_count = usage.get("request_count", 0)
+    if request_count > 0:
+        if "per_1k_requests" in pricing:
+            return (request_count / 1000) * pricing["per_1k_requests"]
+        elif "per_1k_records" in pricing:
+            return (request_count / 1000) * pricing["per_1k_records"]
+    
+    # Per 1k images (AWS Rekognition)
+    image_count = usage.get("image_count", 0)
+    if image_count > 0 and "per_1k_images" in pricing:
+        return (image_count / 1000) * pricing["per_1k_images"]
+    
+    # Per 1k tokens (HuggingFace)
+    if "per_1k_tokens" in pricing and (input_tokens > 0 or output_tokens > 0):
+        return ((input_tokens + output_tokens) / 1000) * pricing["per_1k_tokens"]
+    
+    return cost
 
