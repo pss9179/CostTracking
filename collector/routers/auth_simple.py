@@ -133,6 +133,7 @@ def signup(
             "id": str(user.id),
             "email": user.email,
             "name": user.name,
+            "user_type": user.user_type,
             "created_at": user.created_at.isoformat(),
             "subscription_tier": user.subscription_tier
         },
@@ -174,6 +175,7 @@ def login(
             "id": str(user.id),
             "email": user.email,
             "name": user.name,
+            "user_type": user.user_type,
             "created_at": user.created_at.isoformat(),
             "subscription_tier": user.subscription_tier
         }
@@ -198,6 +200,7 @@ async def get_me(
             "id": str(user.id),
             "email": user.email,
             "name": user.name,
+            "user_type": user.user_type,
             "created_at": user.created_at.isoformat(),
             "subscription_tier": user.subscription_tier
         },
