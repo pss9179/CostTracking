@@ -1,51 +1,60 @@
 """
-Main observe() function to initialize auto-instrumentation.
+Main observe() function to initialize hybrid SDK+Proxy architecture.
 
-Uses the new modular instrumentation API with fail-open safety.
+Patches HTTP clients and routes traffic through proxy for universal coverage.
 """
 import logging
 import os
 from typing import Optional
 from llmobserve import config, buffer, context
-from llmobserve.instrumentation import auto_instrument
 
 logger = logging.getLogger("llmobserve")
 
 
 def observe(
     collector_url: Optional[str] = None,
+    proxy_url: Optional[str] = None,
     api_key: Optional[str] = None,
     flush_interval_ms: int = 500,
-    customer_id: Optional[str] = None
+    customer_id: Optional[str] = None,
+    auto_start_proxy: bool = False
 ) -> None:
     """
-    Initialize LLM observability with auto-instrumentation.
+    Initialize LLM observability with hybrid SDK+Proxy architecture.
     
     This function:
-    1. Configures the SDK with collector URL and API key
-    2. Applies monkey-patches to supported providers (OpenAI, Pinecone)
-    3. Starts the event buffer flush timer
+    1. Configures the SDK with collector and optional proxy URL
+    2. Patches HTTP clients (httpx, requests, aiohttp) to inject context headers
+    3. Routes requests through proxy (if configured) for universal API coverage
+    4. Starts the event buffer flush timer
     
     Args:
         collector_url: URL of the collector API (e.g., "http://localhost:8000").
                       If None, reads from LLMOBSERVE_COLLECTOR_URL env var.
+        proxy_url: URL of the proxy server (e.g., "http://localhost:9000").
+                  If None and auto_start_proxy=True, starts local proxy.
+                  If None and auto_start_proxy=False, runs in direct mode (no proxy).
         api_key: API key for authentication (get from dashboard).
                 If None, reads from LLMOBSERVE_API_KEY env var.
         flush_interval_ms: How often to flush events to collector (default: 500ms).
                           Can be overridden with LLMOBSERVE_FLUSH_INTERVAL_MS env var.
         customer_id: Optional customer identifier for tracking your end-users.
                     Can be set via LLMOBSERVE_CUSTOMER_ID env var.
+        auto_start_proxy: If True, automatically start local proxy server.
+                         WARNING: Requires proxy dependencies installed.
     
     Example:
         >>> import llmobserve
-        >>> # Simple: uses env vars
+        >>> # Simple: uses env vars, no proxy (direct mode)
         >>> llmobserve.observe()
         >>> 
-        >>> # Or explicit:
+        >>> # With external proxy (production):
         >>> llmobserve.observe(
         ...     collector_url="http://localhost:8000",
+        ...     proxy_url="http://localhost:9000",
         ...     api_key="llmo_sk_abc123..."
         ... )
+        >>> 
         >>> # Track costs per your end-customer
         >>> from llmobserve import set_customer_id
         >>> set_customer_id("customer_xyz")
@@ -58,6 +67,9 @@ def observe(
     # Read from env vars if not provided
     if collector_url is None:
         collector_url = os.getenv("LLMOBSERVE_COLLECTOR_URL")
+    
+    if proxy_url is None:
+        proxy_url = os.getenv("LLMOBSERVE_PROXY_URL")
     
     if api_key is None:
         api_key = os.getenv("LLMOBSERVE_API_KEY")
@@ -86,9 +98,20 @@ def observe(
         logger.warning("[llmobserve] No API key provided - using unauthenticated mode")
         api_key = "dev-mode"  # Placeholder for MVP
     
+    # Auto-start proxy if requested (and not already provided)
+    if auto_start_proxy and not proxy_url:
+        try:
+            from llmobserve.proxy_manager import start_local_proxy
+            proxy_url = start_local_proxy(collector_url=collector_url)
+            logger.info(f"[llmobserve] Auto-started proxy at {proxy_url}")
+        except Exception as e:
+            logger.warning(f"[llmobserve] Failed to auto-start proxy: {e}. Running in direct mode.")
+            proxy_url = None
+    
     # Configure SDK
     config.configure(
         collector_url=collector_url,
+        proxy_url=proxy_url,
         api_key=api_key,
         flush_interval_ms=flush_interval_ms,
         customer_id=customer_id
@@ -102,25 +125,17 @@ def observe(
         logger.debug("[llmobserve] Observability disabled, skipping instrumentation")
         return
     
-    # Get libraries to instrument from env var or default to all
-    libs_env = os.getenv("LLMOBSERVE_LIBS")
-    if libs_env:
-        libs = [lib.strip() for lib in libs_env.split(",")]
+    # Patch HTTP clients (replaces per-SDK instrumentors)
+    from llmobserve.http_interceptor import patch_all_http_clients
+    patched = patch_all_http_clients()
+    
+    if patched:
+        if proxy_url:
+            logger.info(f"[llmobserve] HTTP clients patched, routing through proxy: {proxy_url}")
+        else:
+            logger.info("[llmobserve] HTTP clients patched (direct mode - no proxy)")
     else:
-        libs = None  # Instrument all registered libraries
-    
-    # Apply instrumentation with fail-open safety
-    results = auto_instrument(libs=libs)
-    
-    # Log results
-    successful = [lib for lib, success in results.items() if success]
-    failed = [lib for lib, success in results.items() if not success]
-    
-    if successful:
-        logger.info(f"[llmobserve] Successfully instrumented: {', '.join(successful)}")
-    
-    if failed:
-        logger.warning(f"[llmobserve] Failed to instrument: {', '.join(failed)}")
+        logger.warning("[llmobserve] No HTTP clients patched. Install httpx, requests, or aiohttp.")
     
     # Start flush timer
     try:

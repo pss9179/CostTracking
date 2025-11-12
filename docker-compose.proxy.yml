@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  proxy:
+    build:
+      context: .
+      dockerfile: proxy/Dockerfile
+    ports:
+      - "9000:9000"
+    environment:
+      - LLMOBSERVE_COLLECTOR_URL=http://collector:8000
+    depends_on:
+      - collector
+    networks:
+      - llmobserve
+
+  collector:
+    build:
+      context: ./collector
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./collector.db
+    networks:
+      - llmobserve
+    volumes:
+      - collector-data:/app
+
+  frontend:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_COLLECTOR_URL=http://localhost:8000
+    depends_on:
+      - collector
+    networks:
+      - llmobserve
+
+networks:
+  llmobserve:
+    driver: bridge
+
+volumes:
+  collector-data:
+

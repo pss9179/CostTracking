@@ -8,6 +8,7 @@ from typing import Optional
 _config = {
     "enabled": True,
     "collector_url": None,
+    "proxy_url": None,
     "api_key": None,
     "flush_interval_ms": 500,
     "customer_id": None,
@@ -17,6 +18,7 @@ _config = {
 def configure(
     collector_url: str,
     api_key: str,
+    proxy_url: Optional[str] = None,
     flush_interval_ms: int = 500,
     customer_id: Optional[str] = None
 ) -> None:
@@ -26,10 +28,12 @@ def configure(
     Args:
         collector_url: URL of the collector API
         api_key: API key for authentication (required)
+        proxy_url: URL of the proxy server (optional, for hybrid architecture)
         flush_interval_ms: How often to flush events to collector
         customer_id: Optional customer identifier for tracking your end-users
     """
     _config["collector_url"] = collector_url
+    _config["proxy_url"] = proxy_url
     _config["api_key"] = api_key
     _config["flush_interval_ms"] = flush_interval_ms
     _config["customer_id"] = customer_id
@@ -57,6 +61,16 @@ def get_api_key() -> Optional[str]:
 def get_flush_interval_ms() -> int:
     """Get the flush interval in milliseconds."""
     return _config.get("flush_interval_ms", 500)
+
+
+def get_proxy_url() -> Optional[str]:
+    """Get the proxy URL."""
+    return _config.get("proxy_url")
+
+
+def set_proxy_url(proxy_url: str) -> None:
+    """Set the proxy URL (used by auto-start)."""
+    _config["proxy_url"] = proxy_url
 
 
 def get_customer_id() -> Optional[str]:
