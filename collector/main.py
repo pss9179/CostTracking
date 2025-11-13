@@ -31,10 +31,19 @@ app = FastAPI(
     version="0.2.0"  # SaaS version
 )
 
-# CORS middleware - allow all origins for MVP
+# CORS middleware - configure based on environment
+import os
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+if ALLOWED_ORIGINS == ["*"]:
+    # Development: allow all
+    allow_origins = ["*"]
+else:
+    # Production: specific domains
+    allow_origins = [origin.strip() for origin in ALLOWED_ORIGINS]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
