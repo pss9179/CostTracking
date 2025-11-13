@@ -3,14 +3,24 @@ Universal HTTP client interceptor for llmobserve.
 
 Patches httpx, requests, and aiohttp to inject context headers
 and route requests through the proxy for automatic observability.
+
+FEATURES:
+- Retry detection (prevents double-counting)
+- Failed request handling (only tracks successful calls)
+- Rate limit detection (429 responses)
+- Batch API support (50% discount for OpenAI batches)
+- Clock skew protection
+- Graceful degradation
 """
 import uuid
 import logging
+import time
 from typing import Optional
 
 logger = logging.getLogger("llmobserve")
 
 from llmobserve import context, config
+from llmobserve import request_tracker
 
 
 def patch_httpx():
@@ -43,10 +53,24 @@ def patch_httpx():
                     is_internal = True
                 
                 if not is_internal:
-                    # ALWAYS inject context headers (for proxy OR direct instrumentation)
+                    # Generate request ID for retry detection
                     try:
+                        request_body = request.content if hasattr(request, 'content') else None
+                        request_id = request_tracker.generate_request_id(
+                            request.method,
+                            request_url_str,
+                            request_body
+                        )
+                        
+                        # Check if this is a retry (already tracked)
+                        if request_tracker.is_request_tracked(request_id):
+                            logger.debug(f"[llmobserve] Skipping retry: {request_id}")
+                            return original_send(self, request, **kwargs)
+                        
+                        # Inject context headers
                         request.headers["X-LLMObserve-Run-ID"] = context.get_run_id()
                         request.headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
+                        request.headers["X-LLMObserve-Request-ID"] = request_id
                         parent_span = context.get_current_span_id()
                         request.headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
                         request.headers["X-LLMObserve-Section"] = context.get_current_section()
@@ -54,13 +78,53 @@ def patch_httpx():
                         customer = context.get_customer_id()
                         request.headers["X-LLMObserve-Customer-ID"] = customer if customer else ""
                         
+                        # Add timestamp for clock skew detection
+                        current_timestamp = time.time()
+                        if request_tracker.validate_timestamp(current_timestamp):
+                            request.headers["X-LLMObserve-Timestamp"] = str(current_timestamp)
+                        
+                        # Detect batch API usage
+                        batch_info = request_tracker.extract_batch_api_info(
+                            request_url_str,
+                            dict(request.headers)
+                        )
+                        if batch_info:
+                            request.headers["X-LLMObserve-Batch-API"] = "true"
+                            request.headers["X-LLMObserve-Discount"] = str(batch_info["discount"])
+                        
                         # If proxy is configured, route through proxy
                         if proxy_url:
                             request.headers["X-LLMObserve-Target-URL"] = request_url_str
                             request.url = httpx.URL(f"{proxy_url}/proxy")
+                        
+                        # Execute request and check response
+                        response = original_send(self, request, **kwargs)
+                        
+                        # Check if we should track this response
+                        if request_tracker.should_track_response(response.status_code):
+                            # Check for rate limiting
+                            rate_limit_info = request_tracker.detect_rate_limit(
+                                response.status_code,
+                                dict(response.headers)
+                            )
+                            if rate_limit_info:
+                                logger.warning(
+                                    f"[llmobserve] Rate limit detected: {rate_limit_info}"
+                                )
+                            else:
+                                # Mark as tracked (successful tracking)
+                                request_tracker.mark_request_tracked(request_id)
+                        else:
+                            logger.debug(
+                                f"[llmobserve] Skipping tracking for status {response.status_code}"
+                            )
+                        
+                        return response
+                        
                     except Exception as e:
-                        # Fail-open: if header injection fails, continue anyway
-                        logger.debug(f"[llmobserve] Header injection failed: {e}")
+                        # Fail-open: if anything fails, continue anyway
+                        logger.debug(f"[llmobserve] Tracking failed: {e}")
+                        return original_send(self, request, **kwargs)
             
             return original_send(self, request, **kwargs)
         
@@ -92,10 +156,24 @@ def patch_httpx():
                     is_internal = True
                 
                 if not is_internal:
-                    # ALWAYS inject context headers (for proxy OR direct instrumentation)
                     try:
+                        # Generate request ID for retry detection
+                        request_body = request.content if hasattr(request, 'content') else None
+                        request_id = request_tracker.generate_request_id(
+                            request.method,
+                            request_url_str,
+                            request_body
+                        )
+                        
+                        # Check if this is a retry (already tracked)
+                        if request_tracker.is_request_tracked(request_id):
+                            logger.debug(f"[llmobserve] Skipping retry: {request_id}")
+                            return await original_async_send(self, request, **kwargs)
+                        
+                        # Inject context headers
                         request.headers["X-LLMObserve-Run-ID"] = context.get_run_id()
                         request.headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
+                        request.headers["X-LLMObserve-Request-ID"] = request_id
                         parent_span = context.get_current_span_id()
                         request.headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
                         request.headers["X-LLMObserve-Section"] = context.get_current_section()
@@ -103,13 +181,53 @@ def patch_httpx():
                         customer = context.get_customer_id()
                         request.headers["X-LLMObserve-Customer-ID"] = customer if customer else ""
                         
+                        # Add timestamp for clock skew detection
+                        current_timestamp = time.time()
+                        if request_tracker.validate_timestamp(current_timestamp):
+                            request.headers["X-LLMObserve-Timestamp"] = str(current_timestamp)
+                        
+                        # Detect batch API usage
+                        batch_info = request_tracker.extract_batch_api_info(
+                            request_url_str,
+                            dict(request.headers)
+                        )
+                        if batch_info:
+                            request.headers["X-LLMObserve-Batch-API"] = "true"
+                            request.headers["X-LLMObserve-Discount"] = str(batch_info["discount"])
+                        
                         # If proxy is configured, route through proxy
                         if proxy_url:
                             request.headers["X-LLMObserve-Target-URL"] = request_url_str
                             request.url = httpx.URL(f"{proxy_url}/proxy")
+                        
+                        # Execute request and check response
+                        response = await original_async_send(self, request, **kwargs)
+                        
+                        # Check if we should track this response
+                        if request_tracker.should_track_response(response.status_code):
+                            # Check for rate limiting
+                            rate_limit_info = request_tracker.detect_rate_limit(
+                                response.status_code,
+                                dict(response.headers)
+                            )
+                            if rate_limit_info:
+                                logger.warning(
+                                    f"[llmobserve] Rate limit detected: {rate_limit_info}"
+                                )
+                            else:
+                                # Mark as tracked (successful tracking)
+                                request_tracker.mark_request_tracked(request_id)
+                        else:
+                            logger.debug(
+                                f"[llmobserve] Skipping tracking for status {response.status_code}"
+                            )
+                        
+                        return response
+                        
                     except Exception as e:
-                        # Fail-open: if header injection fails, continue anyway
-                        logger.debug(f"[llmobserve] Header injection failed: {e}")
+                        # Fail-open: if anything fails, continue anyway
+                        logger.debug(f"[llmobserve] Async tracking failed: {e}")
+                        return await original_async_send(self, request, **kwargs)
             
             return await original_async_send(self, request, **kwargs)
         
