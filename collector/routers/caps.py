@@ -103,12 +103,17 @@ async def create_cap(
     if cap_data.cap_type != "global" and not cap_data.target_name:
         raise HTTPException(status_code=400, detail=f"target_name required for cap_type '{cap_data.cap_type}'")
     
+    # Validate enforcement
+    if cap_data.enforcement not in ["alert", "hard_block"]:
+        raise HTTPException(status_code=400, detail="Enforcement must be 'alert' or 'hard_block'")
+    
     cap = SpendingCap(
         user_id=user.id,
         cap_type=cap_data.cap_type,
         target_name=cap_data.target_name,
         limit_amount=cap_data.limit_amount,
         period=cap_data.period,
+        enforcement=cap_data.enforcement,
         alert_threshold=cap_data.alert_threshold,
         alert_email=cap_data.alert_email,
     )
@@ -131,6 +136,8 @@ async def create_cap(
         target_name=cap.target_name,
         limit_amount=cap.limit_amount,
         period=cap.period,
+        enforcement=cap.enforcement,
+        exceeded_at=cap.exceeded_at,
         alert_threshold=cap.alert_threshold,
         alert_email=cap.alert_email,
         enabled=cap.enabled,
@@ -198,6 +205,8 @@ async def get_cap(
         target_name=cap.target_name,
         limit_amount=cap.limit_amount,
         period=cap.period,
+        enforcement=cap.enforcement,
+        exceeded_at=cap.exceeded_at,
         alert_threshold=cap.alert_threshold,
         alert_email=cap.alert_email,
         enabled=cap.enabled,
@@ -226,6 +235,10 @@ async def update_cap(
         cap.alert_threshold = cap_update.alert_threshold
     if cap_update.alert_email is not None:
         cap.alert_email = cap_update.alert_email
+    if cap_update.enforcement is not None:
+        if cap_update.enforcement not in ["alert", "hard_block"]:
+            raise HTTPException(status_code=400, detail="Enforcement must be 'alert' or 'hard_block'")
+        cap.enforcement = cap_update.enforcement
     if cap_update.enabled is not None:
         cap.enabled = cap_update.enabled
     
@@ -247,6 +260,8 @@ async def update_cap(
         target_name=cap.target_name,
         limit_amount=cap.limit_amount,
         period=cap.period,
+        enforcement=cap.enforcement,
+        exceeded_at=cap.exceeded_at,
         alert_threshold=cap.alert_threshold,
         alert_email=cap.alert_email,
         enabled=cap.enabled,
@@ -306,4 +321,93 @@ async def list_alerts(
         )
         for alert in alerts
     ]
+
+
+@router.get("/check")
+async def check_caps(
+    provider: Optional[str] = Query(default=None, description="Provider name (e.g., 'openai')"),
+    model: Optional[str] = Query(default=None, description="Model ID (e.g., 'gpt-4o')"),
+    customer_id: Optional[str] = Query(default=None, description="Customer ID"),
+    agent: Optional[str] = Query(default=None, description="Agent name"),
+    user: User = Depends(get_current_clerk_user),
+    session: Session = Depends(get_session),
+):
+    """
+    Check if any hard caps would be exceeded for the given context.
+    
+    Called by SDK before making API calls to enforce hard blocks.
+    Returns list of exceeded caps (empty if all clear).
+    """
+    # Get all active hard_block caps for this user
+    caps = session.exec(
+        select(SpendingCap).where(
+            and_(
+                SpendingCap.user_id == user.id,
+                SpendingCap.enabled == True,
+                SpendingCap.enforcement == "hard_block",
+            )
+        )
+    ).all()
+    
+    if not caps:
+        return {
+            "allowed": True,
+            "exceeded_caps": [],
+            "message": "No active hard caps"
+        }
+    
+    exceeded_caps = []
+    
+    for cap in caps:
+        # Calculate period dates
+        period_start, period_end = get_period_dates(cap.period)
+        
+        # Check if this cap applies to the current request context
+        applies = False
+        
+        if cap.cap_type == "global":
+            applies = True
+        elif cap.cap_type == "provider" and provider and cap.target_name == provider:
+            applies = True
+        elif cap.cap_type == "model" and model and cap.target_name == model:
+            applies = True
+        elif cap.cap_type == "customer" and customer_id and cap.target_name == customer_id:
+            applies = True
+        elif cap.cap_type == "agent" and agent and cap.target_name == agent:
+            applies = True
+        
+        if not applies:
+            continue
+        
+        # Calculate current spend for this cap
+        current_spend = calculate_current_spend(
+            session, user.id, cap.cap_type, cap.target_name, period_start, period_end
+        )
+        
+        # Check if exceeded
+        if current_spend >= cap.limit_amount:
+            exceeded_caps.append({
+                "cap_id": str(cap.id),
+                "cap_type": cap.cap_type,
+                "target_name": cap.target_name,
+                "limit": cap.limit_amount,
+                "current": current_spend,
+                "period": cap.period,
+                "exceeded_at": cap.exceeded_at.isoformat() if cap.exceeded_at else None,
+            })
+            
+            # Mark as exceeded if not already
+            if not cap.exceeded_at:
+                cap.exceeded_at = datetime.utcnow()
+                session.add(cap)
+    
+    # Commit any exceeded_at updates
+    if exceeded_caps:
+        session.commit()
+    
+    return {
+        "allowed": len(exceeded_caps) == 0,
+        "exceeded_caps": exceeded_caps,
+        "message": f"{len(exceeded_caps)} hard cap(s) exceeded" if exceeded_caps else "All caps OK"
+    }
 

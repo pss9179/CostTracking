@@ -47,6 +47,7 @@ export default function SettingsPage() {
   const [targetName, setTargetName] = useState("");
   const [limitAmount, setLimitAmount] = useState<string>("100");
   const [period, setPeriod] = useState<string>("monthly");
+  const [enforcement, setEnforcement] = useState<string>("alert");
   const [alertThreshold, setAlertThreshold] = useState<string>("80");
   const [alertEmail, setAlertEmail] = useState("");
   const [creatingCap, setCreatingCap] = useState(false);
@@ -187,6 +188,7 @@ export default function SettingsPage() {
         target_name: capType === "global" ? undefined : targetName,
         limit_amount: parseFloat(limitAmount),
         period,
+        enforcement,
         alert_threshold: parseFloat(alertThreshold) / 100,
         alert_email: alertEmail || user?.email,
       };
@@ -496,6 +498,25 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
+                    <Label>Enforcement Mode</Label>
+                    <Select value={enforcement} onValueChange={setEnforcement}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="alert">🟡 Alert Only (Email notification)</SelectItem>
+                        <SelectItem value="hard_block">🔴 Hard Block (Prevent requests)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {enforcement === "hard_block" 
+                        ? "Requests will be blocked when cap is exceeded"
+                        : "You'll receive email alerts, but requests won't be blocked"
+                      }
+                    </p>
+                  </div>
+
+                  <div>
                     <Label>Alert Threshold (%)</Label>
                     <Input
                       type="number"
@@ -561,6 +582,12 @@ export default function SettingsPage() {
                           {cap.target_name && (
                             <span className="text-sm font-medium">{cap.target_name}</span>
                           )}
+                          <Badge 
+                            variant={cap.enforcement === "hard_block" ? "destructive" : "outline"}
+                            className={cap.enforcement === "hard_block" ? "bg-red-600" : ""}
+                          >
+                            {cap.enforcement === "hard_block" ? "🔴 Hard Block" : "🟡 Alert Only"}
+                          </Badge>
                           <Badge variant={cap.enabled ? "default" : "outline"}>
                             {cap.enabled ? "Active" : "Disabled"}
                           </Badge>

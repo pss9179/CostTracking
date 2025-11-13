@@ -21,6 +21,26 @@ logger = logging.getLogger("llmobserve")
 
 from llmobserve import context, config
 from llmobserve import request_tracker
+from llmobserve.caps import check_spending_caps, should_check_caps
+
+
+def extract_provider_from_url(url: str) -> Optional[str]:
+    """Extract provider name from API URL."""
+    url_lower = url.lower()
+    if "api.openai.com" in url_lower or "openai" in url_lower:
+        return "openai"
+    elif "api.anthropic.com" in url_lower or "anthropic" in url_lower:
+        return "anthropic"
+    elif "generativelanguage.googleapis.com" in url_lower or "gemini" in url_lower:
+        return "google"
+    elif "pinecone.io" in url_lower:
+        return "pinecone"
+    elif "api.cohere.ai" in url_lower:
+        return "cohere"
+    elif "api.together.xyz" in url_lower:
+        return "together"
+    # Add more providers as needed
+    return None
 
 
 def patch_httpx():
@@ -96,6 +116,20 @@ def patch_httpx():
                         if proxy_url:
                             request.headers["X-LLMObserve-Target-URL"] = request_url_str
                             request.url = httpx.URL(f"{proxy_url}/proxy")
+                        
+                        # Check spending caps before making request
+                        if should_check_caps():
+                            provider = extract_provider_from_url(request_url_str)
+                            customer_id = context.get_customer_id()
+                            agent = context.get_current_section()  # Use section as agent
+                            
+                            # This will raise BudgetExceededError if cap exceeded
+                            check_spending_caps(
+                                provider=provider,
+                                model=None,  # Model detection would require parsing request body
+                                customer_id=customer_id,
+                                agent=agent if agent != "/" else None,
+                            )
                         
                         # Execute request and check response
                         response = original_send(self, request, **kwargs)
@@ -199,6 +233,20 @@ def patch_httpx():
                         if proxy_url:
                             request.headers["X-LLMObserve-Target-URL"] = request_url_str
                             request.url = httpx.URL(f"{proxy_url}/proxy")
+                        
+                        # Check spending caps before making request
+                        if should_check_caps():
+                            provider = extract_provider_from_url(request_url_str)
+                            customer_id = context.get_customer_id()
+                            agent = context.get_current_section()  # Use section as agent
+                            
+                            # This will raise BudgetExceededError if cap exceeded
+                            check_spending_caps(
+                                provider=provider,
+                                model=None,  # Model detection would require parsing request body
+                                customer_id=customer_id,
+                                agent=agent if agent != "/" else None,
+                            )
                         
                         # Execute request and check response
                         response = await original_async_send(self, request, **kwargs)

@@ -46,6 +46,7 @@ from llmobserve.middleware import (
     django_middleware
 )
 from llmobserve.robustness import get_patch_state, validate_patch_integrity
+from llmobserve.caps import BudgetExceededError
 
 __version__ = "0.3.0"  # API key-based authentication
 
@@ -81,6 +82,8 @@ __all__ = [
     # Debugging/robustness
     "get_patch_state",
     "validate_patch_integrity",
+    # Spending caps
+    "BudgetExceededError",
 ]
 
 

@@ -109,6 +109,10 @@ class SpendingCap(SQLModel, table=True):
     limit_amount: float = Field(description="Dollar amount cap (e.g., 100.00 for $100)")
     period: str = Field(description="Period: 'daily', 'weekly', 'monthly'")
     
+    # Enforcement mode
+    enforcement: str = Field(default="alert", description="Enforcement: 'alert' (email only) or 'hard_block' (prevent requests)")
+    exceeded_at: Optional[datetime] = Field(default=None, description="When cap was first exceeded in current period")
+    
     # Alert settings
     alert_threshold: float = Field(default=0.8, description="Alert when % of cap is reached (0.8 = 80%)")
     alert_email: str = Field(description="Email to send alerts to")
@@ -166,6 +170,7 @@ class CapCreate(SQLModel):
     target_name: Optional[str] = None
     limit_amount: float
     period: str
+    enforcement: str = "alert"  # 'alert' or 'hard_block'
     alert_threshold: float = 0.8
     alert_email: str
 
@@ -175,6 +180,7 @@ class CapUpdate(SQLModel):
     limit_amount: Optional[float] = None
     alert_threshold: Optional[float] = None
     alert_email: Optional[str] = None
+    enforcement: Optional[str] = None
     enabled: Optional[bool] = None
 
 
@@ -185,6 +191,8 @@ class CapResponse(SQLModel):
     target_name: Optional[str]
     limit_amount: float
     period: str
+    enforcement: str
+    exceeded_at: Optional[datetime] = None
     alert_threshold: float
     alert_email: str
     enabled: bool
