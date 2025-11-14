@@ -230,15 +230,16 @@ export default function CostsPage() {
     const realData = aggregateByAgent(filteredEvents);
     if (realData.length === 0) {
       return [
-        { key: 'agent:research', cost: 0.089, calls: 450 },
-        { key: 'agent:planner', cost: 0.067, calls: 320 },
-        { key: 'agent:executor', cost: 0.045, calls: 280 },
-        { key: 'agent:analyzer', cost: 0.034, calls: 190 },
-        { key: 'agent:synthesizer', cost: 0.028, calls: 150 },
+        { agent: 'agent:research', cost: 0.089, calls: 450, percentage: 0 },
+        { agent: 'agent:planner', cost: 0.067, calls: 320, percentage: 0 },
+        { agent: 'agent:executor', cost: 0.045, calls: 280, percentage: 0 },
+        { agent: 'agent:analyzer', cost: 0.034, calls: 190, percentage: 0 },
+        { agent: 'agent:synthesizer', cost: 0.028, calls: 150, percentage: 0 },
       ].map(item => ({
-        key: item.key,
+        agent: item.agent,
         cost: item.cost * (0.8 + Math.random() * 0.4),
         calls: item.calls,
+        percentage: item.percentage,
       }));
     }
     return realData;
@@ -262,12 +263,12 @@ export default function CostsPage() {
 
   const totalCost = filteredEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
 
-  const handleExportCSV = (data: any[], filename: string) => {
-    exportToCSV(data, filename);
+  const handleExportCSV = (data: any[]) => {
+    exportToCSV(data);
   };
 
-  const handleExportJSON = (data: any, filename: string) => {
-    exportToJSON(data, filename);
+  const handleExportJSON = (data: any) => {
+    exportToJSON(data);
   };
 
   // Filter events for chart based on selected models
@@ -330,7 +331,7 @@ export default function CostsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => handleExportCSV(allEvents, "cost-events.csv")}
+              onClick={() => handleExportCSV(allEvents)}
             >
               <Download className="mr-2 h-4 w-4" />
               Export CSV
@@ -338,7 +339,7 @@ export default function CostsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => handleExportJSON({ byProvider, byAgent, providerGroups }, "cost-analysis.json")}
+              onClick={() => handleExportJSON({ byProvider, byAgent, providerGroups })}
             >
               <Download className="mr-2 h-4 w-4" />
               Export JSON
@@ -409,14 +410,14 @@ export default function CostsPage() {
                   </TableHeader>
                   <TableBody>
                     {byProvider.map((item) => (
-                      <TableRow key={item.key}>
+                      <TableRow key={item.provider}>
                         <TableCell>
-                          <Badge variant="secondary">{item.key}</Badge>
+                          <Badge variant="secondary">{item.provider}</Badge>
                         </TableCell>
                         <TableCell className="text-right font-semibold">
                           {formatCost(item.cost)}
                         </TableCell>
-                        <TableCell className="text-right">{item.count}</TableCell>
+                        <TableCell className="text-right">{item.calls}</TableCell>
                         <TableCell className="text-right text-muted-foreground">
                           {calculatePercentage(item.cost, totalCost).toFixed(1)}%
                         </TableCell>
@@ -436,13 +437,13 @@ export default function CostsPage() {
                 <ResponsiveContainer width="100%" height={300}>
                   <RechartsPieChart>
                     <Pie
-                      data={byProvider}
+                      data={byProvider as any}
                       dataKey="cost"
-                      nameKey="key"
+                      nameKey="provider"
                       cx="50%"
                       cy="50%"
                       outerRadius={100}
-                      label={(entry) => `${entry.key}: ${formatCost(entry.cost)}`}
+                      label={(entry: any) => `${entry.provider}: ${formatCost(entry.cost)}`}
                     >
                       {byProvider.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -589,17 +590,17 @@ export default function CostsPage() {
                     <TableBody>
                       {byAgent.map((item) => (
                         <TableRow
-                          key={item.key}
+                          key={item.agent}
                           className="cursor-pointer hover:bg-muted/50"
-                          onClick={() => handleAgentClick(item.key)}
+                          onClick={() => handleAgentClick(item.agent)}
                         >
                           <TableCell>
-                            <Badge variant="secondary">{item.key}</Badge>
+                            <Badge variant="secondary">{item.agent}</Badge>
                           </TableCell>
                           <TableCell className="text-right font-semibold">
                             {formatCost(item.cost)}
                           </TableCell>
-                          <TableCell className="text-right">{item.count}</TableCell>
+                          <TableCell className="text-right">{item.calls}</TableCell>
                           <TableCell className="text-right">
                             {formatDuration(item.avgLatency || 0)}
                           </TableCell>
@@ -623,7 +624,7 @@ export default function CostsPage() {
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={byAgent.slice(0, 10)}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="key" angle={-45} textAnchor="end" height={100} />
+                    <XAxis dataKey="agent" angle={-45} textAnchor="end" height={100} />
                     <YAxis tickFormatter={(value) => formatCost(value)} />
                     <Tooltip
                       formatter={(value: any) => formatCost(Number(value))}
