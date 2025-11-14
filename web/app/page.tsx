@@ -193,8 +193,9 @@ export default function DashboardPage() {
       if (eventDate < startDate || !event.provider || event.provider === "internal") return;
       
       const dateKey = eventDate.toISOString().split('T')[0]; // YYYY-MM-DD
-      const dayData = dayMap.get(dateKey) || { date: dateKey };
-      dayData[event.provider] = (dayData[event.provider] || 0) + (event.cost_usd || 0);
+      const dayData = dayMap.get(dateKey) || { date: dateKey } as Record<string, any>;
+      const provider = event.provider || 'unknown';
+      dayData[provider] = ((dayData[provider] as number) || 0) + (event.cost_usd || 0);
       dayMap.set(dateKey, dayData);
     });
     
