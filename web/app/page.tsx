@@ -213,7 +213,7 @@ export default function DashboardPage() {
         const date = new Date();
         date.setDate(date.getDate() - (Math.min(days, 30) - 1 - i));
         const dateKey = date.toISOString().split('T')[0];
-        const dayData: Record<string, number> = { date: dateKey };
+        const dayData: Record<string, any> = { date: dateKey };
         providers.forEach((provider, idx) => {
           // Create realistic variation
           const baseCost = [0.15, 0.08, 0.03, 0.02][idx];
