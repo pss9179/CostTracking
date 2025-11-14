@@ -203,8 +203,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="p-8 space-y-8">
-        <h1 className="text-3xl font-bold">LLM Cost Dashboard</h1>
+      <div className="space-y-8">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map(i => (
             <Card key={i}>
@@ -223,27 +222,24 @@ export default function DashboardPage() {
 
   return (
     <ProtectedLayout>
-      <div className="p-8 space-y-8">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <div className="flex items-center gap-4">
+      <div className="space-y-6">
+        <div className="flex items-center justify-end gap-4">
           <Link
             href="/settings"
-            className="text-sm text-blue-600 hover:underline"
+            className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
           >
             Settings →
           </Link>
           <Link
             href="/runs"
-            className="text-sm text-blue-600 hover:underline"
+            className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
           >
             View All Runs →
           </Link>
         </div>
-      </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
         <KPICard
           title="Total Cost (24h)"
           value={formatCost(stats.total_cost_24h)}
@@ -276,28 +272,28 @@ export default function DashboardPage() {
       />
 
       {/* Provider Breakdown Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Provider Breakdown</CardTitle>
+      <Card className="border-gray-200">
+        <CardHeader className="border-b border-gray-100">
+          <CardTitle className="text-lg font-semibold text-gray-900">Provider Breakdown</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Provider</TableHead>
-                  <TableHead className="text-right">Calls</TableHead>
-                  <TableHead className="text-right">Cost</TableHead>
-                  <TableHead className="text-right">Avg Latency</TableHead>
-                  <TableHead className="text-right">Errors</TableHead>
-                  <TableHead className="text-right">% of Spend</TableHead>
-                  <TableHead className="text-right">Trend (7d)</TableHead>
+                <TableRow className="border-gray-200 hover:bg-transparent">
+                  <TableHead className="px-4 py-3 font-semibold text-gray-700">Provider</TableHead>
+                  <TableHead className="px-4 py-3 font-semibold text-gray-700 text-right">Calls</TableHead>
+                  <TableHead className="px-4 py-3 font-semibold text-gray-700 text-right">Cost</TableHead>
+                  <TableHead className="px-4 py-3 font-semibold text-gray-700 text-right">Avg Latency</TableHead>
+                  <TableHead className="px-4 py-3 font-semibold text-gray-700 text-right">Errors</TableHead>
+                  <TableHead className="px-4 py-3 font-semibold text-gray-700 text-right">% of Spend</TableHead>
+                  <TableHead className="px-4 py-3 font-semibold text-gray-700 text-right">Trend (7d)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredProviderStats.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="px-4 py-8 text-center text-gray-500">
                       {selectedCustomer ? `No data for customer: ${selectedCustomer}` : "No provider data available"}
                     </TableCell>
                   </TableRow>
@@ -309,18 +305,18 @@ export default function DashboardPage() {
                     const sparklineData = providerSparklines.get(provider.provider) || [];
                     
                     return (
-                      <TableRow key={provider.provider}>
-                        <TableCell>
-                          <Badge variant="outline">{provider.provider}</Badge>
+                      <TableRow key={provider.provider} className="border-gray-100 hover:bg-gray-50">
+                        <TableCell className="px-4 py-3">
+                          <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-200">{provider.provider}</Badge>
                         </TableCell>
-                        <TableCell className="text-right">{provider.call_count.toLocaleString()}</TableCell>
-                        <TableCell className="text-right font-semibold">
+                        <TableCell className="px-4 py-3 text-right text-gray-900">{provider.call_count.toLocaleString()}</TableCell>
+                        <TableCell className="px-4 py-3 text-right font-semibold text-gray-900">
                           {formatCost(provider.total_cost)}
                         </TableCell>
-                        <TableCell className="text-right">{provider.avg_latency?.toFixed(0) || 0}ms</TableCell>
-                        <TableCell className="text-right">{provider.error_count || 0}</TableCell>
-                        <TableCell className="text-right">{percentage.toFixed(1)}%</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="px-4 py-3 text-right text-gray-900">{provider.avg_latency?.toFixed(0) || 0}ms</TableCell>
+                        <TableCell className="px-4 py-3 text-right text-gray-900">{provider.error_count || 0}</TableCell>
+                        <TableCell className="px-4 py-3 text-right text-gray-900">{percentage.toFixed(1)}%</TableCell>
+                        <TableCell className="px-4 py-3 text-right">
                           <div className="flex justify-end">
                             <Sparkline 
                               data={sparklineData}
@@ -344,18 +340,18 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-1">
 
         {/* Top Agents/Workflows */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Agents & Workflows (24h)</CardTitle>
+        <Card className="border-gray-200">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-lg font-semibold text-gray-900">Top Agents & Workflows (24h)</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Agent/Tool</TableHead>
-                  <TableHead className="text-right">Total Cost</TableHead>
-                  <TableHead className="text-right">Calls</TableHead>
-                  <TableHead className="text-right">Avg/Call</TableHead>
+                <TableRow className="border-gray-200 hover:bg-transparent">
+                  <TableHead className="px-4 py-3 font-semibold text-gray-700">Agent/Tool</TableHead>
+                  <TableHead className="px-4 py-3 font-semibold text-gray-700 text-right">Total Cost</TableHead>
+                  <TableHead className="px-4 py-3 font-semibold text-gray-700 text-right">Calls</TableHead>
+                  <TableHead className="px-4 py-3 font-semibold text-gray-700 text-right">Avg/Call</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -381,7 +377,7 @@ export default function DashboardPage() {
                   if (sortedAgents.length === 0) {
                     return (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        <TableCell colSpan={4} className="px-4 py-8 text-center text-gray-500">
                           No agent data available
                         </TableCell>
                       </TableRow>
@@ -411,7 +407,7 @@ export default function DashboardPage() {
                     return (
                       <TableRow 
                         key={agent}
-                        className={runId ? "cursor-pointer hover:bg-muted/50" : ""}
+                        className={cn("border-gray-100", runId ? "cursor-pointer hover:bg-gray-50" : "")}
                         onClick={() => {
                           if (runId) {
                             console.log(`[Dashboard] Navigating to run: ${runId}`);
@@ -419,14 +415,14 @@ export default function DashboardPage() {
                           }
                         }}
                       >
-                        <TableCell>
-                          <Badge variant="secondary">{agent}</Badge>
+                        <TableCell className="px-4 py-3">
+                          <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200">{agent}</Badge>
                         </TableCell>
-                        <TableCell className="text-right font-semibold">
+                        <TableCell className="px-4 py-3 text-right font-semibold text-gray-900">
                           {formatCost(stats.cost)}
                         </TableCell>
-                        <TableCell className="text-right">{stats.calls}</TableCell>
-                        <TableCell className="text-right text-muted-foreground">
+                        <TableCell className="px-4 py-3 text-right text-gray-900">{stats.calls}</TableCell>
+                        <TableCell className="px-4 py-3 text-right text-gray-600">
                           {formatCost(stats.cost / stats.calls)}
                         </TableCell>
                       </TableRow>

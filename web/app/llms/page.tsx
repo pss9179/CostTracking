@@ -119,19 +119,11 @@ export default function LLMsPage() {
 
   return (
     <ProtectedLayout>
-      <div className="container mx-auto p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">LLMs</h1>
-            <p className="text-muted-foreground mt-1">
-              Model-level cost and usage breakdown
-            </p>
-          </div>
-
-          {/* Provider Filter */}
+      <div className="space-y-6">
+        {/* Header with Filter */}
+        <div className="flex items-center justify-end">
           <Select value={selectedProvider} onValueChange={setSelectedProvider}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-48 border-gray-300">
               <SelectValue placeholder="Select provider" />
             </SelectTrigger>
             <SelectContent>
@@ -146,54 +138,54 @@ export default function LLMsPage() {
         </div>
 
         {/* Metrics Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">LLM Spend</CardTitle>
-              <Zap className="h-4 w-4 text-muted-foreground" />
+        <div className="grid gap-5 md:grid-cols-4">
+          <Card className="border-gray-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-medium text-gray-600">LLM Spend</CardTitle>
+              <Zap className="h-4 w-4 text-gray-400" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${totalCost.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground">
+            <CardContent className="pt-0">
+              <div className="text-3xl font-bold text-gray-900">${totalCost.toFixed(2)}</div>
+              <p className="text-xs text-gray-500 mt-2">
                 {totalCalls} total requests
               </p>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Requests</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
+          <Card className="border-gray-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-medium text-gray-600">Requests</CardTitle>
+              <Activity className="h-4 w-4 text-gray-400" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalCalls.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
+            <CardContent className="pt-0">
+              <div className="text-3xl font-bold text-gray-900">{totalCalls.toLocaleString()}</div>
+              <p className="text-xs text-gray-500 mt-2">
                 Across {filteredStats.length} models
               </p>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tokens</CardTitle>
-              <Hash className="h-4 w-4 text-muted-foreground" />
+          <Card className="border-gray-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-medium text-gray-600">Tokens</CardTitle>
+              <Hash className="h-4 w-4 text-gray-400" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{(totalTokens / 1000).toFixed(1)}K</div>
-              <p className="text-xs text-muted-foreground">
+            <CardContent className="pt-0">
+              <div className="text-3xl font-bold text-gray-900">{(totalTokens / 1000).toFixed(1)}K</div>
+              <p className="text-xs text-gray-500 mt-2">
                 Total processed
               </p>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Latency</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+          <Card className="border-gray-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-sm font-medium text-gray-600">Avg Latency</CardTitle>
+              <Clock className="h-4 w-4 text-gray-400" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{avgLatency.toFixed(0)}ms</div>
-              <p className="text-xs text-muted-foreground">
+            <CardContent className="pt-0">
+              <div className="text-3xl font-bold text-gray-900">{avgLatency.toFixed(0)}ms</div>
+              <p className="text-xs text-gray-500 mt-2">
                 Per request
               </p>
             </CardContent>
@@ -201,11 +193,11 @@ export default function LLMsPage() {
         </div>
 
         {/* Chart - Grouped by Provider */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Spend by Model (Grouped by Provider)</CardTitle>
+        <Card className="border-gray-200">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-lg font-semibold text-gray-900">Spend by Model (Grouped by Provider)</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             {loading ? (
               <div className="h-64 flex items-center justify-center">
                 <p className="text-muted-foreground">Loading...</p>
@@ -245,47 +237,47 @@ export default function LLMsPage() {
         </Card>
 
         {/* Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Model Breakdown</CardTitle>
+        <Card className="border-gray-200">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-lg font-semibold text-gray-900">Model Breakdown</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="border-b">
+                <thead className="border-b border-gray-200">
                   <tr className="text-left">
-                    <th className="p-2 font-medium">Provider</th>
-                    <th className="p-2 font-medium">Model ID</th>
-                    <th className="p-2 font-medium text-right">Calls</th>
-                    <th className="p-2 font-medium text-right">Prompt Tkn</th>
-                    <th className="p-2 font-medium text-right">Comp Tkn</th>
-                    <th className="p-2 font-medium text-right">Total Tkn</th>
-                    <th className="p-2 font-medium text-right">Cost</th>
-                    <th className="p-2 font-medium text-right">Avg Latency</th>
-                    <th className="p-2 font-medium text-right">Errors</th>
-                    <th className="p-2 font-medium text-right">% of LLM</th>
+                    <th className="px-4 py-3 font-semibold text-gray-700">Provider</th>
+                    <th className="px-4 py-3 font-semibold text-gray-700">Model ID</th>
+                    <th className="px-4 py-3 font-semibold text-gray-700 text-right">Calls</th>
+                    <th className="px-4 py-3 font-semibold text-gray-700 text-right">Prompt Tkn</th>
+                    <th className="px-4 py-3 font-semibold text-gray-700 text-right">Comp Tkn</th>
+                    <th className="px-4 py-3 font-semibold text-gray-700 text-right">Total Tkn</th>
+                    <th className="px-4 py-3 font-semibold text-gray-700 text-right">Cost</th>
+                    <th className="px-4 py-3 font-semibold text-gray-700 text-right">Avg Latency</th>
+                    <th className="px-4 py-3 font-semibold text-gray-700 text-right">Errors</th>
+                    <th className="px-4 py-3 font-semibold text-gray-700 text-right">% of LLM</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredStats.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="p-4 text-center text-muted-foreground">
+                      <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
                         No LLM data available
                       </td>
                     </tr>
                   ) : (
                     filteredStats.map((s, i) => (
-                      <tr key={i} className="border-b hover:bg-muted/50">
-                        <td className="p-2">{s.provider}</td>
-                        <td className="p-2 font-mono text-xs">{s.model_id}</td>
-                        <td className="p-2 text-right">{s.calls.toLocaleString()}</td>
-                        <td className="p-2 text-right">{s.tokens_prompt.toLocaleString()}</td>
-                        <td className="p-2 text-right">{s.tokens_completion.toLocaleString()}</td>
-                        <td className="p-2 text-right">{s.tokens_total.toLocaleString()}</td>
-                        <td className="p-2 text-right font-medium">${s.cost.toFixed(4)}</td>
-                        <td className="p-2 text-right">{s.avg_latency.toFixed(0)}ms</td>
-                        <td className="p-2 text-right">{s.errors}</td>
-                        <td className="p-2 text-right">
+                      <tr key={i} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-gray-900">{s.provider}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-600">{s.model_id}</td>
+                        <td className="px-4 py-3 text-right text-gray-900">{s.calls.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right text-gray-900">{s.tokens_prompt.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right text-gray-900">{s.tokens_completion.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right text-gray-900">{s.tokens_total.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-gray-900">${s.cost.toFixed(4)}</td>
+                        <td className="px-4 py-3 text-right text-gray-900">{s.avg_latency.toFixed(0)}ms</td>
+                        <td className="px-4 py-3 text-right text-gray-900">{s.errors}</td>
+                        <td className="px-4 py-3 text-right text-gray-900">
                           {totalCost > 0 ? ((s.cost / totalCost) * 100).toFixed(1) : 0}%
                         </td>
                       </tr>

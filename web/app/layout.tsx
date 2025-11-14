@@ -1,6 +1,14 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
+import { DM_Sans } from "next/font/google";
 import "./globals.css";
+import { LayoutWrapper } from "@/components/LayoutWrapper";
+
+const dmSans = DM_Sans({ 
+  subsets: ["latin"],
+  variable: "--font-dm-sans",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "LLM Observe - Cost Observability Dashboard",
@@ -15,8 +23,8 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
-        <body className="min-h-screen bg-background antialiased">
-          {children}
+        <body className={`${dmSans.className} min-h-screen bg-background antialiased`}>
+          <LayoutWrapper>{children}</LayoutWrapper>
         </body>
       </html>
     </ClerkProvider>

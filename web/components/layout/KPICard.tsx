@@ -56,26 +56,26 @@ export function KPICard({
       : Minus;
 
   return (
-    <Card className={className}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+    <Card className={cn("border-gray-200 bg-white", className)}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <CardTitle className="text-sm font-medium text-gray-600">{title}</CardTitle>
+        {Icon && <Icon className="h-4 w-4 text-gray-400" />}
       </CardHeader>
-      <CardContent>
-        <div className="space-y-1">
-          <div className="text-2xl font-bold">{value}</div>
+      <CardContent className="pt-0">
+        <div className="space-y-2">
+          <div className="text-3xl font-bold text-gray-900">{value}</div>
           {change !== undefined && (
-            <div className={cn("flex items-center text-xs", trendColor)}>
-              <TrendIcon className="mr-1 h-3 w-3" />
-              <span className="font-medium">
+            <div className={cn("flex items-center text-xs font-medium", trendColor)}>
+              <TrendIcon className="mr-1 h-3.5 w-3.5" />
+              <span>
                 {change > 0 ? "+" : ""}
                 {change.toFixed(1)}%
               </span>
-              <span className="ml-1 text-muted-foreground">{changeLabel}</span>
+              <span className="ml-1.5 text-gray-500 font-normal">{changeLabel}</span>
             </div>
           )}
           {description && (
-            <p className="text-xs text-muted-foreground mt-1">{description}</p>
+            <p className="text-xs text-gray-500 mt-1">{description}</p>
           )}
         </div>
       </CardContent>
