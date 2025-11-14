@@ -183,7 +183,7 @@ export default function DashboardPage() {
   })();
 
   // Prepare daily chart data for stacked area chart
-  const dailyChartData = (() => {
+  const dailyChartData: Array<{ date: string; [provider: string]: string | number }> = (() => {
     const dateRangeMs = getDateRangeMs(dateRange);
     const startDate = new Date(Date.now() - dateRangeMs);
     const dayMap = new Map<string, Record<string, number>>();
@@ -220,7 +220,7 @@ export default function DashboardPage() {
           const variation = 0.7 + Math.random() * 0.6; // 70% to 130% variation
           dayData[provider] = baseCost * variation * (1 + Math.sin(i * 0.3) * 0.2);
         });
-        return dayData;
+        return dayData as { date: string; [provider: string]: string | number };
       });
     }
     
