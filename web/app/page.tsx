@@ -26,6 +26,7 @@ import { ProviderCostChart } from "@/components/dashboard/ProviderCostChart";
 import { Sparkline } from "@/components/Sparkline";
 import { useDateRange } from "@/contexts/DateRangeContext";
 import { getDateRangeMs } from "@/components/DateRangeFilter";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const router = useRouter();
