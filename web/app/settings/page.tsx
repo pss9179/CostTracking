@@ -218,7 +218,7 @@ export default function SettingsPage() {
       if (!session) return;
 
       const { fetchCaps } = await import("@/lib/api");
-      const data = await fetchCaps(session);
+      const data = await fetchCaps();
       setCaps(data);
     } catch (err) {
       console.error("Failed to load caps:", err);
