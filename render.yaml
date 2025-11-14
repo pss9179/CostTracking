@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: llmobserve-api
+    runtime: python
+    plan: starter  # Free tier: starter, paid: standard
+    buildCommand: pip install -r collector/requirements.txt
+    startCommand: cd collector && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false  # Set this manually in Render dashboard
+      - key: ENV
+        value: production
+      - key: SERVICE_NAME
+        value: llmobserve-api
+      - key: ALLOW_CONTENT_CAPTURE
+        value: "false"
+      - key: CLERK_SECRET_KEY
+        sync: false  # Set this manually
+      - key: ALLOWED_ORIGINS
+        value: "*"  # Update this with your frontend URL later
+      - key: EMAIL_PROVIDER
+        sync: false  # Set to sendgrid, smtp, etc.
+      - key: SENDGRID_API_KEY
+        sync: false  # If using SendGrid
+      - key: SMTP_HOST
+        sync: false  # If using SMTP
+      - key: SMTP_PORT
+        sync: false  # If using SMTP
+      - key: SMTP_USERNAME
+        sync: false  # If using SMTP
+      - key: SMTP_PASSWORD
+        sync: false  # If using SMTP
+
