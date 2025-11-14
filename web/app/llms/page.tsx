@@ -34,6 +34,12 @@ export default function LLMsPage() {
         // Aggregate by provider + model
         const aggregated = new Map<string, LLMStats>();
         
+        // Note: Run type doesn't have provider/model info - would need to fetch RunDetail for each run
+        // For now, return empty stats since LLM data requires event-level details
+        // TODO: Implement proper LLM aggregation by fetching run details
+        setStats([]);
+        return;
+        
         runs.forEach(run => {
           if (!run.provider || run.provider === "internal") return; // Skip internal/agent events
           
