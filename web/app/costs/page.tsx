@@ -583,7 +583,6 @@ export default function CostsPage() {
                         <TableHead>Agent</TableHead>
                         <TableHead className="text-right">Cost</TableHead>
                         <TableHead className="text-right">Calls</TableHead>
-                        <TableHead className="text-right">Avg Latency</TableHead>
                         <TableHead className="text-right">%</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -601,9 +600,6 @@ export default function CostsPage() {
                             {formatCost(item.cost)}
                           </TableCell>
                           <TableCell className="text-right">{item.calls}</TableCell>
-                          <TableCell className="text-right">
-                            {formatDuration(item.avgLatency || 0)}
-                          </TableCell>
                           <TableCell className="text-right text-muted-foreground">
                             {calculatePercentage(item.cost, totalCost).toFixed(1)}%
                           </TableCell>
