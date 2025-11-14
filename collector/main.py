@@ -91,13 +91,22 @@ cap_monitor_task = None
 @app.on_event("startup")
 async def on_startup():
     """Initialize database tables and start background services."""
-    init_db()
-    run_migrations()
+    try:
+        init_db()
+        run_migrations()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}", exc_info=True)
+        # Don't crash the app - it might connect later
+        # Healthcheck will still work
     
     # Start cap monitor in background
-    global cap_monitor_task
-    cap_monitor_task = asyncio.create_task(run_cap_monitor(check_interval_seconds=300))
-    logger.info("Started cap monitor background service")
+    try:
+        global cap_monitor_task
+        cap_monitor_task = asyncio.create_task(run_cap_monitor(check_interval_seconds=300))
+        logger.info("Started cap monitor background service")
+    except Exception as e:
+        logger.error(f"Failed to start cap monitor: {e}", exc_info=True)
 
 @app.on_event("shutdown")
 async def on_shutdown():
