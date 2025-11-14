@@ -199,11 +199,11 @@ export default function DashboardPage() {
       dayMap.set(dateKey, dayData);
     });
     
-    const realData = Array.from(dayMap.values()).sort((a, b) => {
+    const realData: Array<{ date: string; [provider: string]: string | number }> = Array.from(dayMap.values()).sort((a, b) => {
       const aDate = (a as Record<string, any>).date as string;
       const bDate = (b as Record<string, any>).date as string;
       return aDate.localeCompare(bDate);
-    });
+    }) as Array<{ date: string; [provider: string]: string | number }>;
     
     // Add fake data if no real data
     if (realData.length === 0) {
