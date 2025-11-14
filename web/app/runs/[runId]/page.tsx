@@ -179,7 +179,11 @@ export default function RunDetailPage() {
               <CardTitle>Hierarchical Trace View</CardTitle>
             </CardHeader>
             <CardContent>
-              <GraphTreeVisualization events={detail.events} />
+              <GraphTreeVisualization events={detail.events.map(e => ({
+                ...e,
+                input_tokens: e.input_tokens ?? 0,
+                output_tokens: e.output_tokens ?? 0,
+              }))} />
             </CardContent>
           </Card>
         </TabsContent>
