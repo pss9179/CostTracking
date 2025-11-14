@@ -110,17 +110,7 @@ export default function RunsPage() {
   };
 
   const handleExport = () => {
-    exportToCSV(
-      filteredAndSortedRuns.map((run) => ({
-        run_id: run.run_id,
-        started_at: run.started_at,
-        total_cost: run.total_cost,
-        call_count: run.call_count,
-        top_section: run.top_section,
-        sections: run.sections.join(", "),
-      })),
-      `runs-${new Date().toISOString().split('T')[0]}.csv`
-    );
+    exportToCSV(filteredAndSortedRuns);
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
