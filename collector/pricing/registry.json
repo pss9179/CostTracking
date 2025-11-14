@@ -506,5 +506,82 @@
   },
   "algolia:indexing": {
     "per_1k_records": 0.4
+  },
+  
+  "aws_s3:put": {
+    "per_1k_requests": 0.005
+  },
+  "aws_s3:get": {
+    "per_1k_requests": 0.0004
+  },
+  "aws_s3:storage-standard": {
+    "per_gb_month": 0.023
+  },
+  "aws_s3:storage-standard-ia": {
+    "per_gb_month": 0.0125
+  },
+  "aws_s3:storage-onezone-ia": {
+    "per_gb_month": 0.01
+  },
+  "aws_s3:storage-glacier-instant": {
+    "per_gb_month": 0.004
+  },
+  "aws_s3:storage-glacier-flexible": {
+    "per_gb_month": 0.0036
+  },
+  "aws_s3:storage-glacier-deep": {
+    "per_gb_month": 0.00099
+  },
+  "aws_s3:storage-express-onezone": {
+    "per_gb_month": 0.11
+  },
+  "aws_s3:transfer_out": {
+    "per_gb": 0.09
+  },
+  
+  "gcs:class_a": {
+    "per_1k_requests": 0.005
+  },
+  "gcs:class_b": {
+    "per_1k_requests": 0.0004
+  },
+  "gcs:storage": {
+    "per_gb_month": 0.020
+  },
+  "gcs:transfer_out": {
+    "per_gb": 0.12
+  },
+  
+  "azure_blob:write": {
+    "per_1k_requests": 0.0005
+  },
+  "azure_blob:read": {
+    "per_1k_requests": 0.00004
+  },
+  "azure_blob:storage": {
+    "per_gb_month": 0.018
+  },
+  "azure_blob:transfer_out": {
+    "per_gb": 0.087
+  },
+  
+  "cloudflare_r2:class_a": {
+    "per_million": 4.5
+  },
+  "cloudflare_r2:class_b": {
+    "per_million": 0.36
+  },
+  "cloudflare_r2:storage": {
+    "per_gb_month": 0.015
+  },
+  
+  "backblaze_b2:storage": {
+    "per_gb_month": 0.005
+  },
+  "backblaze_b2:download": {
+    "per_gb": 0.01
+  },
+  "backblaze_b2:class_c": {
+    "per_1k_requests": 0.0004
   }
 }

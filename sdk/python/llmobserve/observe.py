@@ -19,29 +19,36 @@ def observe(
     tenant_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     auto_start_proxy: bool = False,
-    use_instrumentors: bool = False
+    use_instrumentors: bool = False,
+    auto_detect_agents: bool = True
 ) -> None:
     """
-    Initialize LLM observability with header-based context propagation.
+    Initialize LLM observability with reverse proxy architecture.
     
     Architecture:
-    1. HTTP clients (httpx/requests/aiohttp) ALWAYS inject context headers
-    2. Headers carry run_id, tenant_id, customer_id, section_path for distributed tracing
-    3. Proxy reads headers and emits events (universal coverage)
-    4. Instrumentors provide direct tracking as optimization (optional)
+    1. HTTP clients (httpx/requests/aiohttp) inject context headers
+    2. ALL API calls route through reverse proxy (no monkey-patching)
+    3. Proxy parses responses, calculates costs, emits events
+    4. SDK-agnostic: works with any API without SDK-specific code
+    
+    Benefits:
+    - No monkey-patching: SDK updates don't break tracking
+    - Universal coverage: Works with OpenAI, Pinecone, GraphQL, any HTTP API
+    - Transparent: Requests forwarded unchanged (like Kong)
+    - Stable: No dependency on SDK internals
     
     This design ensures context propagates across:
     - async/await coroutines
     - Celery/RQ background jobs
     - Multi-threaded workloads
-    - Any HTTP-based API
+    - Any HTTP-based API (including GraphQL, gRPC over HTTP)
     
     Args:
         collector_url: URL of the collector API (e.g., "http://localhost:8000").
                       If None, reads from LLMOBSERVE_COLLECTOR_URL env var.
         proxy_url: URL of the proxy server (e.g., "http://localhost:9000").
-                  If provided, ALL external HTTP calls route through proxy.
-                  If None, headers are still injected (for future proxy).
+                  If None, proxy will be auto-started on port 9000.
+                  Set to None explicitly to disable proxy (not recommended).
         api_key: API key for authentication (get from dashboard).
                 If None, reads from LLMOBSERVE_API_KEY env var.
         flush_interval_ms: How often to flush events to collector (default: 500ms).
@@ -52,11 +59,11 @@ def observe(
                   Use unique tenant_id per logged-in customer for multi-tenant SaaS.
         customer_id: Optional end-customer identifier (tracks tenant's customers).
                     Can be set via LLMOBSERVE_CUSTOMER_ID env var.
-        auto_start_proxy: If True, automatically start local proxy server.
-                         WARNING: Requires proxy dependencies installed.
-        use_instrumentors: If True, also use per-SDK instrumentors for optimization.
-                          If False, rely purely on header injection + proxy.
-                          Default: False (pure header mode, no monkey-patching).
+        auto_start_proxy: DEPRECATED - Proxy auto-starts by default now.
+                         Set proxy_url=None explicitly to disable.
+        use_instrumentors: If True, use per-SDK instrumentors for other providers.
+                          OpenAI and Pinecone ALWAYS use proxy (no monkey-patching).
+                          Default: False (pure proxy mode).
     
     Example:
         >>> import llmobserve
@@ -120,14 +127,25 @@ def observe(
         api_key = "dev-mode"  # Placeholder for MVP
     
     # Auto-start proxy if requested (and not already provided)
-    if auto_start_proxy and not proxy_url:
-        try:
-            from llmobserve.proxy_manager import start_local_proxy
-            proxy_url = start_local_proxy(collector_url=collector_url)
-            logger.info(f"[llmobserve] Auto-started proxy at {proxy_url}")
-        except Exception as e:
-            logger.warning(f"[llmobserve] Failed to auto-start proxy: {e}. Running in direct mode.")
-            proxy_url = None
+    # DEFAULT: Auto-start proxy for universal coverage (no monkey-patching)
+    if not proxy_url:
+        if auto_start_proxy:
+            try:
+                from llmobserve.proxy_manager import start_local_proxy
+                proxy_url = start_local_proxy(collector_url=collector_url)
+                logger.info(f"[llmobserve] Auto-started proxy at {proxy_url}")
+            except Exception as e:
+                logger.warning(f"[llmobserve] Failed to auto-start proxy: {e}")
+                proxy_url = None
+        else:
+            # Try to auto-start proxy by default (can be disabled with proxy_url=None explicitly)
+            try:
+                from llmobserve.proxy_manager import start_local_proxy
+                proxy_url = start_local_proxy(collector_url=collector_url)
+                logger.info(f"[llmobserve] Auto-started proxy at {proxy_url} (default: all APIs route through proxy)")
+            except Exception as e:
+                logger.warning(f"[llmobserve] Failed to auto-start proxy: {e}. Set proxy_url manually or install proxy dependencies.")
+                proxy_url = None
     
     # Configure SDK
     config.configure(
@@ -136,7 +154,8 @@ def observe(
         api_key=api_key,
         flush_interval_ms=flush_interval_ms,
         tenant_id=tenant_id,
-        customer_id=customer_id
+        customer_id=customer_id,
+        auto_detect_agents=auto_detect_agents
     )
     
     # Set customer in context if provided
@@ -159,13 +178,13 @@ def observe(
     if patched_protocols:
         logger.info(f"[llmobserve] ✓ Protocols patched: {', '.join(patched_protocols).upper()}")
         if proxy_url:
-            logger.info(f"[llmobserve]   → Routing through proxy: {proxy_url}")
-            logger.info(f"[llmobserve]   → Universal coverage for all patched protocols")
+            logger.info(f"[llmobserve]   → Routing ALL API calls through proxy: {proxy_url}")
+            logger.info(f"[llmobserve]   → Universal coverage (no monkey-patching, SDK-agnostic)")
+            logger.info(f"[llmobserve]   → OpenAI, Pinecone, and all APIs tracked via proxy")
         else:
-            logger.info("[llmobserve]   → Context headers enabled (proxy can be added later)")
-            if not use_instrumentors:
-                logger.warning("[llmobserve]   ⚠️  No proxy configured AND instrumentors disabled - API calls won't be tracked!")
-                logger.warning("[llmobserve]   💡 Either set proxy_url or use_instrumentors=True")
+            logger.warning("[llmobserve]   ⚠️  No proxy configured - API calls won't be tracked!")
+            logger.warning("[llmobserve]   💡 Proxy is required for cost tracking (no monkey-patching)")
+            logger.warning("[llmobserve]   💡 Set proxy_url or enable auto_start_proxy=True")
     
     if failed_protocols:
         logger.debug(f"[llmobserve]   Not available: {', '.join(failed_protocols).upper()} (libraries not installed)")
@@ -174,15 +193,20 @@ def observe(
         logger.warning("[llmobserve] ✗ No protocols could be patched (install httpx/requests/aiohttp/grpcio/websockets)")
     
     # OPTIONAL: Also use per-SDK instrumentors for optimization (avoids proxy latency)
+    # NOTE: OpenAI and Pinecone instrumentors are DISABLED - they break when SDKs update
+    # All API calls route through proxy instead (universal, SDK-agnostic)
     if use_instrumentors:
         logger.info("[llmobserve] ⚙️  Instrumentors enabled (lower latency, but uses monkey-patching)")
+        logger.warning("[llmobserve]   ⚠️  OpenAI and Pinecone instrumentors are DISABLED (use proxy instead)")
         
         from llmobserve.instrumentation import auto_instrument
         libs_to_instrument = os.getenv("LLMOBSERVE_LIBS")
         if libs_to_instrument:
             libs = [lib.strip() for lib in libs_to_instrument.split(",")]
+            # Remove OpenAI and Pinecone from list if present
+            libs = [lib for lib in libs if lib not in ["openai", "pinecone"]]
         else:
-            libs = None  # Instrument all available
+            libs = None  # Instrument all available (except OpenAI/Pinecone)
         
         instrumentation_results = auto_instrument(libs=libs)
         
@@ -195,7 +219,8 @@ def observe(
         if failed:
             logger.debug(f"[llmobserve]   Not available: {', '.join(failed)} (will use proxy if configured)")
     else:
-        logger.info("[llmobserve] ✓ Pure header-based mode (no monkey-patching, universal coverage)")
+        logger.info("[llmobserve] ✓ Proxy-based mode (no monkey-patching, SDK-agnostic, universal coverage)")
+        logger.info("[llmobserve]   → OpenAI, Pinecone, and all APIs tracked via reverse proxy")
     
     # Start flush timer
     try:

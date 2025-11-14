@@ -13,6 +13,7 @@ _config = {
     "flush_interval_ms": 500,
     "tenant_id": None,  # Defaults to "default_tenant" if not set
     "customer_id": None,
+    "auto_detect_agents": True,  # Automatically detect agents from call stack
 }
 
 
@@ -22,7 +23,8 @@ def configure(
     proxy_url: Optional[str] = None,
     flush_interval_ms: int = 500,
     tenant_id: Optional[str] = None,
-    customer_id: Optional[str] = None
+    customer_id: Optional[str] = None,
+    auto_detect_agents: bool = True
 ) -> None:
     """
     Configure the SDK.
@@ -39,6 +41,7 @@ def configure(
     _config["proxy_url"] = proxy_url
     _config["api_key"] = api_key
     _config["flush_interval_ms"] = flush_interval_ms
+    _config["auto_detect_agents"] = auto_detect_agents
     
     # Set tenant_id: explicit arg > env var > "default_tenant"
     if tenant_id:
@@ -99,4 +102,9 @@ def get_customer_id() -> Optional[str]:
         return ctx_customer
     
     return _config.get("customer_id")
+
+
+def get_auto_detect_agents() -> bool:
+    """Get whether automatic agent detection is enabled."""
+    return _config.get("auto_detect_agents", True)
 

@@ -47,6 +47,13 @@ from llmobserve.middleware import (
 )
 from llmobserve.robustness import get_patch_state, validate_patch_integrity
 from llmobserve.caps import BudgetExceededError
+from llmobserve.grpc_costs import configure_grpc_cost, clear_grpc_costs
+from llmobserve.static_analyzer import preview_agent_tree, analyze_code_file, analyze_code_string
+from llmobserve.multi_language_analyzer import (
+    preview_multi_language_tree,
+    analyze_multi_language_file,
+    analyze_multi_language_code,
+)
 
 __version__ = "0.3.0"  # API key-based authentication
 
@@ -84,6 +91,17 @@ __all__ = [
     "validate_patch_integrity",
     # Spending caps
     "BudgetExceededError",
+    # gRPC cost configuration
+    "configure_grpc_cost",
+    "clear_grpc_costs",
+    # Static analysis (preview before execution)
+    "preview_agent_tree",
+    "analyze_code_file",
+    "analyze_code_string",
+    # Multi-language static analysis
+    "preview_multi_language_tree",
+    "analyze_multi_language_file",
+    "analyze_multi_language_code",
 ]
 
 

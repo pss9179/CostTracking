@@ -106,17 +106,22 @@ def is_initialized() -> bool:
 
 
 # Import and register instrumentors
-try:
-    from llmobserve.instrumentation.openai_instrumentor import instrument_openai
-    register_instrumentor("openai", instrument_openai)
-except ImportError:
-    logger.debug("[llmobserve] OpenAI instrumentor not available")
+# NOTE: OpenAI and Pinecone are DISABLED - all API calls route through proxy instead
+# This prevents monkey-patching from breaking when SDKs update
+# Proxy provides universal coverage without SDK-specific code
 
-try:
-    from llmobserve.instrumentation.pinecone_instrumentor import instrument_pinecone
-    register_instrumentor("pinecone", instrument_pinecone)
-except ImportError:
-    logger.debug("[llmobserve] Pinecone instrumentor not available")
+# OpenAI and Pinecone removed - use proxy instead
+# try:
+#     from llmobserve.instrumentation.openai_instrumentor import instrument_openai
+#     register_instrumentor("openai", instrument_openai)
+# except ImportError:
+#     logger.debug("[llmobserve] OpenAI instrumentor not available")
+
+# try:
+#     from llmobserve.instrumentation.pinecone_instrumentor import instrument_pinecone
+#     register_instrumentor("pinecone", instrument_pinecone)
+# except ImportError:
+#     logger.debug("[llmobserve] Pinecone instrumentor not available")
 
 # LLM Providers
 try:

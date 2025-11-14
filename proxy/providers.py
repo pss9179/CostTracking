@@ -120,6 +120,10 @@ def extract_endpoint(url: str, method: str = "POST") -> str:
         parsed = urlparse(url)
         path = parsed.path
         
+        # Check for GraphQL endpoints
+        if "graphql" in path.lower() or path.endswith("/graphql") or path.endswith("/gql"):
+            return "graphql"
+        
         # Extract meaningful endpoint
         if "/v1/" in path:
             endpoint = path.split("/v1/")[1]
@@ -174,6 +178,8 @@ def parse_usage(provider: str, response_body: Dict[str, Any], request_body: Dict
             usage["input_tokens"] = usage_data.get("prompt_tokens", 0)
             usage["output_tokens"] = usage_data.get("completion_tokens", 0)
             usage["cached_tokens"] = usage_data.get("prompt_tokens_details", {}).get("cached_tokens", 0)
+            # Subtract cached tokens from input tokens (they're counted separately)
+            usage["input_tokens"] = usage["input_tokens"] - usage["cached_tokens"]
         
         elif provider == "anthropic":
             usage["model"] = response_body.get("model")

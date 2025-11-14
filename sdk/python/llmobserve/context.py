@@ -66,11 +66,22 @@ def get_current_section() -> str:
     """
     Get the current section label (last segment only).
     
-    Returns the most recent section from the stack, or "default" if none.
+    Returns the most recent section from the stack, or auto-detects from call stack.
     For backward compatibility with flat event model.
     """
     stack = _get_section_stack()
-    return stack[-1]["label"] if stack else "default"
+    if stack:
+        return stack[-1]["label"]
+    
+    # Auto-detect agent if no section is set and auto-detection is enabled
+    from llmobserve import config
+    if config.get_auto_detect_agents():
+        from llmobserve.agent_detector import detect_agent_from_stack
+        detected = detect_agent_from_stack()
+        if detected:
+            return detected
+    
+    return "default"
 
 
 def get_section_path() -> str:
@@ -78,12 +89,21 @@ def get_section_path() -> str:
     Get the full hierarchical section path.
     
     Returns:
-        Full path like "agent:researcher/tool:web_search/step:analyze" or "default" if no sections.
+        Full path like "agent:researcher/tool:web_search/step:analyze" or auto-detected path.
     """
     stack = _get_section_stack()
-    if not stack:
-        return "default"
-    return "/".join(item["label"] for item in stack)
+    if stack:
+        return "/".join(item["label"] for item in stack)
+    
+    # Auto-detect hierarchical context if no sections are set and auto-detection is enabled
+    from llmobserve import config
+    if config.get_auto_detect_agents():
+        from llmobserve.agent_detector import detect_hierarchical_context
+        detected = detect_hierarchical_context()
+        if detected:
+            return "/".join(detected)
+    
+    return "default"
 
 
 def get_current_span_id() -> Optional[str]:

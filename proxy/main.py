@@ -14,6 +14,12 @@ from typing import Optional
 
 from providers import detect_provider, extract_endpoint, parse_usage
 from pricing import calculate_cost
+from graphql_parser import (
+    is_graphql_request,
+    parse_graphql_request,
+    extract_graphql_endpoint,
+    parse_graphql_response,
+)
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -93,9 +99,23 @@ async def proxy_request(request: Request):
     except:
         pass
     
+    # Detect GraphQL requests
+    content_type = request.headers.get("Content-Type", "")
+    is_graphql = is_graphql_request(content_type, request_body, request_json)
+    graphql_info = {}
+    
+    if is_graphql:
+        graphql_info = parse_graphql_request(request_body, request_json)
+        logger.debug(f"[proxy] GraphQL request detected: {graphql_info.get('operation_type')} {graphql_info.get('operation_name')}")
+    
     # Detect provider
     provider = detect_provider(target_url)
-    endpoint = extract_endpoint(target_url, request.method)
+    
+    # Extract endpoint (use GraphQL endpoint if GraphQL request)
+    if is_graphql and graphql_info.get("query"):
+        endpoint = extract_graphql_endpoint(graphql_info["query"], target_url)
+    else:
+        endpoint = extract_endpoint(target_url, request.method)
     
     # Forward request to actual API
     start_time = time.time()
@@ -125,11 +145,41 @@ async def proxy_request(request: Request):
         except:
             pass
         
+        # Parse GraphQL response if applicable
+        graphql_response_info = {}
+        if is_graphql and response_json:
+            graphql_response_info = parse_graphql_response(response_json)
+        
         # Extract usage
         usage = parse_usage(provider, response_json or {}, request_json)
         
         # Calculate cost
         cost_usd = calculate_cost(provider, usage)
+        
+        # Determine span type
+        if is_graphql:
+            span_type = "graphql_call"
+        elif provider in ["openai", "anthropic", "google", "cohere", "mistral", "groq"]:
+            span_type = "llm_call"
+        else:
+            span_type = "api_call"
+        
+        # Build event metadata
+        event_metadata = {
+            "http_status": response.status_code,
+            "provider": provider,
+        }
+        
+        # Add GraphQL metadata if applicable
+        if is_graphql:
+            event_metadata.update({
+                "graphql_operation_type": graphql_info.get("operation_type"),
+                "graphql_operation_name": graphql_info.get("operation_name"),
+                "graphql_field_count": graphql_info.get("field_count", 0),
+                "graphql_complexity_score": graphql_info.get("complexity_score", 0),
+                "graphql_response_data_size": graphql_response_info.get("data_size", 0),
+                "graphql_response_error_count": graphql_response_info.get("error_count", 0),
+            })
         
         # Emit event to collector
         event = {
@@ -139,7 +189,7 @@ async def proxy_request(request: Request):
             "parent_span_id": parent_span_id if parent_span_id else None,
             "section": section,
             "section_path": section_path,
-            "span_type": "llm_call" if provider in ["openai", "anthropic", "google", "cohere", "mistral", "groq"] else "api_call",
+            "span_type": span_type,
             "provider": provider,
             "endpoint": endpoint,
             "model": usage.get("model"),
@@ -150,10 +200,7 @@ async def proxy_request(request: Request):
             "cached_tokens": usage.get("cached_tokens", 0),
             "status": "ok" if response.status_code < 400 else "error",
             "customer_id": customer_id if customer_id else None,
-            "event_metadata": {
-                "http_status": response.status_code,
-                "provider": provider,
-            }
+            "event_metadata": event_metadata,
         }
         
         # Emit event (non-blocking)
@@ -171,6 +218,17 @@ async def proxy_request(request: Request):
         
         logger.error(f"[proxy] Error forwarding request: {e}")
         
+        # Determine span type for error
+        error_span_type = "graphql_call" if is_graphql else "api_call"
+        
+        # Build error event metadata
+        error_metadata = {"error": str(e)}
+        if is_graphql:
+            error_metadata.update({
+                "graphql_operation_type": graphql_info.get("operation_type"),
+                "graphql_operation_name": graphql_info.get("operation_name"),
+            })
+        
         # Emit error event
         error_event = {
             "id": str(uuid.uuid4()),
@@ -179,7 +237,7 @@ async def proxy_request(request: Request):
             "parent_span_id": parent_span_id if parent_span_id else None,
             "section": section,
             "section_path": section_path,
-            "span_type": "api_call",
+            "span_type": error_span_type,
             "provider": provider,
             "endpoint": endpoint,
             "model": None,
@@ -189,7 +247,7 @@ async def proxy_request(request: Request):
             "output_tokens": 0,
             "status": "error",
             "customer_id": customer_id if customer_id else None,
-            "event_metadata": {"error": str(e)}
+            "event_metadata": error_metadata,
         }
         
         await emit_event(error_event)
