@@ -119,7 +119,7 @@ export default function RunsPage() {
         top_section: run.top_section,
         sections: run.sections.join(", "),
       })),
-      `runs-${format(new Date(), "yyyy-MM-dd")}.csv`
+      `runs-${new Date().toISOString().split('T')[0]}.csv`
     );
   };
 
