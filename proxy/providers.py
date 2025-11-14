@@ -109,6 +109,10 @@ def detect_provider(url: str) -> str:
     elif "api.sendgrid.com" in url_lower:
         return "sendgrid"
     
+    # Database/Backend (1)
+    elif "supabase.co" in url_lower:
+        return "supabase"
+    
     else:
         return "unknown"
 
@@ -247,13 +251,22 @@ def parse_usage(provider: str, response_body: Dict[str, Any], request_body: Dict
             usage["model"] = "sms" if "messages" in str(request_body) else "voice"
         
         elif provider == "pinecone":
-            # Count operations
+            # Count operations based on endpoint type
+            # ALWAYS set operation_count to at least 1 (each API call is 1 operation)
+            usage["operation_count"] = 1
+            
             if request_body:
+                # For upsert operations - count vectors
                 vectors = request_body.get("vectors", [])
-                if isinstance(vectors, list):
+                if isinstance(vectors, list) and len(vectors) > 0:
                     usage["operation_count"] = len(vectors)
                 elif isinstance(vectors, dict):
-                    usage["operation_count"] = len(vectors.get("vectors", []))
+                    vectors_list = vectors.get("vectors", [])
+                    if isinstance(vectors_list, list) and len(vectors_list) > 0:
+                        usage["operation_count"] = len(vectors_list)
+                # For query operations - already set to 1 above
+                # For list/fetch operations - already set to 1 above
+            
             usage["model"] = "serverless"
         
         elif provider == "weaviate" or provider == "qdrant" or provider == "milvus":

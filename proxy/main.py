@@ -10,6 +10,7 @@ import httpx
 import time
 import uuid
 import logging
+import json
 from typing import Optional
 
 from providers import detect_provider, extract_endpoint, parse_usage
@@ -31,6 +32,10 @@ app = FastAPI(
     version="0.1.0"
 )
 
+# Disable compression middleware to avoid double-compression issues
+from fastapi.middleware.gzip import GZipMiddleware
+# Don't add GZipMiddleware - we handle compression manually
+
 # Global config
 COLLECTOR_URL = None
 
@@ -49,13 +54,21 @@ async def emit_event(event: dict):
     
     try:
         async with httpx.AsyncClient() as client:
-            await client.post(
+            response = await client.post(
                 f"{COLLECTOR_URL}/events/",
                 json=[event],
                 timeout=5.0
             )
+            if response.status_code != 201:
+                error_detail = response.text[:500] if response.text else "No error message"
+                logger.error(f"[proxy] Failed to emit event: {response.status_code}")
+                logger.error(f"[proxy] Error detail: {error_detail}")
+                logger.error(f"[proxy] Event that failed: provider={event.get('provider')}, model={event.get('model')}, section={event.get('section')}")
+                logger.error(f"[proxy] Event keys: {list(event.keys())}")
     except Exception as e:
         logger.error(f"[proxy] Failed to emit event: {e}")
+        import traceback
+        logger.error(f"[proxy] Traceback: {traceback.format_exc()}")
 
 
 @app.get("/health")
@@ -69,7 +82,7 @@ async def health_check():
 @app.put("/proxy")
 @app.delete("/proxy")
 @app.patch("/proxy")
-async def proxy_request(request: Request):
+async def proxy_request(request: Request) -> Response:
     """
     Universal proxy endpoint.
     
@@ -83,6 +96,7 @@ async def proxy_request(request: Request):
     section = request.headers.get("X-LLMObserve-Section", "default")
     section_path = request.headers.get("X-LLMObserve-Section-Path", "default")
     customer_id = request.headers.get("X-LLMObserve-Customer-ID", "")
+    tenant_id = request.headers.get("X-LLMObserve-Tenant-ID", "default_tenant")
     target_url = request.headers.get("X-LLMObserve-Target-URL")
     
     if not target_url:
@@ -121,27 +135,46 @@ async def proxy_request(request: Request):
     start_time = time.time()
     
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        # Create httpx client with decompression disabled
+        # We'll handle decompression manually to avoid issues
+        async with httpx.AsyncClient(
+            timeout=120.0,
+            # Disable automatic decompression - we'll handle it manually
+        ) as client:
             # Copy headers (remove LLMObserve headers)
             forward_headers = {
                 k: v for k, v in request.headers.items()
-                if not k.startswith("X-LLMObserve") and k.lower() != "host"
+                if not k.startswith("X-LLMObserve") and k.lower() not in ["host", "content-length"]
             }
             
-            # Forward request
+            # CRITICAL: Remove Accept-Encoding to prevent upstream compression
+            forward_headers.pop("Accept-Encoding", None)
+            forward_headers.pop("accept-encoding", None)
+            # Request no compression
+            forward_headers["Accept-Encoding"] = "identity"
+            
+            # Forward request - httpx will auto-decompress if Content-Encoding is present
             response = await client.request(
                 method=request.method,
                 url=target_url,
                 headers=forward_headers,
-                content=request_body
+                content=request_body,
+                follow_redirects=True
             )
+            
+            # Read response content - httpx automatically decompresses if Content-Encoding header present
+            # After reading, content is ALWAYS decompressed (even if upstream sent compressed)
+            response_content = await response.aread()
+            
+            # CRITICAL: httpx has already decompressed the content
+            # We MUST remove Content-Encoding header so client-side httpx doesn't try to decompress again
         
         latency_ms = (time.time() - start_time) * 1000
         
-        # Parse response
+        # Parse response JSON for cost calculation
         response_json = None
         try:
-            response_json = response.json()
+            response_json = json.loads(response_content)
         except:
             pass
         
@@ -153,8 +186,8 @@ async def proxy_request(request: Request):
         # Extract usage
         usage = parse_usage(provider, response_json or {}, request_json)
         
-        # Calculate cost
-        cost_usd = calculate_cost(provider, usage)
+        # Calculate cost (pass endpoint and tenant_id for tier-specific pricing)
+        cost_usd = calculate_cost(provider, usage, endpoint, tenant_id)
         
         # Determine span type
         if is_graphql:
@@ -171,7 +204,7 @@ async def proxy_request(request: Request):
         }
         
         # Add GraphQL metadata if applicable
-        if is_graphql:
+        if is_graphql and graphql_response_info:
             event_metadata.update({
                 "graphql_operation_type": graphql_info.get("operation_type"),
                 "graphql_operation_name": graphql_info.get("operation_name"),
@@ -199,19 +232,65 @@ async def proxy_request(request: Request):
             "output_tokens": usage.get("output_tokens", 0),
             "cached_tokens": usage.get("cached_tokens", 0),
             "status": "ok" if response.status_code < 400 else "error",
+            "tenant_id": tenant_id,
             "customer_id": customer_id if customer_id else None,
             "event_metadata": event_metadata,
+            "is_streaming": False,  # Add required fields
+            "stream_cancelled": False,
         }
         
         # Emit event (non-blocking)
         await emit_event(event)
         
         # Return response to SDK
-        return Response(
-            content=response.content,
+        # Build clean response headers - NO compression indicators
+        response_headers = {}
+        content_type = "application/json"
+        
+        for key, value in response.headers.items():
+            key_lower = key.lower()
+            
+            # NEVER include compression headers
+            if key_lower in ["content-encoding", "transfer-encoding"]:
+                continue
+            
+            # Skip length - we'll set it
+            if key_lower == "content-length":
+                continue
+            
+            # Skip connection headers
+            if key_lower in ["connection", "keep-alive"]:
+                continue
+            
+            # Save content type
+            if key_lower == "content-type":
+                content_type = value
+            
+            # Forward all other headers
+            response_headers[key] = value
+        
+        # Set Content-Length to actual decompressed size
+        response_headers["Content-Length"] = str(len(response_content))
+        
+        # Ensure content is bytes
+        if isinstance(response_content, str):
+            response_content = response_content.encode('utf-8')
+        
+        # Return Response - ensure no compression headers
+        resp = Response(
+            content=response_content,
             status_code=response.status_code,
-            headers=dict(response.headers)
+            headers=response_headers,
+            media_type=content_type
         )
+        
+        # Double-check no compression headers slipped through
+        if "Content-Encoding" in resp.headers:
+            del resp.headers["Content-Encoding"]
+        if "content-encoding" in resp.headers:
+            del resp.headers["content-encoding"]
+        
+        return resp
     
     except Exception as e:
         latency_ms = (time.time() - start_time) * 1000
@@ -246,6 +325,7 @@ async def proxy_request(request: Request):
             "input_tokens": 0,
             "output_tokens": 0,
             "status": "error",
+            "tenant_id": tenant_id,
             "customer_id": customer_id if customer_id else None,
             "event_metadata": error_metadata,
         }

@@ -82,6 +82,7 @@ async def sync_user_from_clerk(
 ):
     """
     Manually sync a user from Clerk (for testing/onboarding).
+    Updates existing user or creates new one.
     
     Request body should include:
     - id: Clerk user ID
@@ -102,13 +103,21 @@ async def sync_user_from_clerk(
     existing_user = session.exec(statement).first()
     
     if existing_user:
+        # Update existing user with latest info from Clerk
+        existing_user.email = email
+        if name:
+            existing_user.name = name
+        session.add(existing_user)
+        session.commit()
+        session.refresh(existing_user)
+        
         return {
-            "message": "User already exists",
+            "message": "User updated successfully",
             "user_id": str(existing_user.id),
             "created": False,
         }
     
-    # Create user
+    # Create new user
     user = User(
         clerk_user_id=clerk_user_id,
         email=email,
@@ -118,7 +127,7 @@ async def sync_user_from_clerk(
     session.commit()
     session.refresh(user)
     
-    # Auto-generate first API key
+    # Auto-generate first API key for new users
     api_key = generate_api_key()
     key_hash = hash_api_key(api_key)
     key_prefix = get_key_prefix(api_key)

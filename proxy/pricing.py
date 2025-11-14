@@ -5,17 +5,32 @@ Uses the same pricing registry as the collector.
 """
 import json
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 # Load pricing registry
 PRICING_REGISTRY = {}
 
 
 def load_pricing_registry():
-    """Load pricing registry from JSON file."""
+    """
+    Load pricing registry from collector API (which reads from Supabase).
+    Falls back to JSON file if API unavailable.
+    """
     global PRICING_REGISTRY
     
-    # Try to load from collector/pricing/registry.json
+    # Try to load from collector API (which reads from Supabase)
+    collector_url = os.getenv("COLLECTOR_URL", "http://localhost:8000")
+    try:
+        import httpx
+        response = httpx.get(f"{collector_url}/pricing/", timeout=5.0)
+        if response.status_code == 200:
+            PRICING_REGISTRY = response.json()
+            print(f"[Proxy Pricing] Loaded {len(PRICING_REGISTRY)} pricing entries from collector API")
+            return
+    except Exception as e:
+        print(f"[Proxy Pricing] Failed to load from API, trying JSON file: {e}")
+    
+    # Fallback: load from JSON file
     registry_path = os.path.join(
         os.path.dirname(__file__),
         "..",
@@ -27,39 +42,109 @@ def load_pricing_registry():
     try:
         with open(registry_path, "r") as f:
             PRICING_REGISTRY = json.load(f)
+            print(f"[Proxy Pricing] Loaded {len(PRICING_REGISTRY)} pricing entries from JSON file")
     except FileNotFoundError:
-        # Fallback: load from environment or use defaults
-        pass
+        print(f"[Proxy Pricing] JSON file not found, using empty registry")
+        PRICING_REGISTRY = {}
 
 
 # Load on module import
 load_pricing_registry()
 
 
-def calculate_cost(provider: str, usage: Dict[str, Any]) -> float:
+def get_tenant_tier(tenant_id: Optional[str], provider: str) -> Optional[str]:
+    """
+    Get the tier for a tenant/provider combination.
+    Queries the collector API to get tier configuration.
+    """
+    if not tenant_id or tenant_id == "default_tenant":
+        return None
+    
+    try:
+        import httpx
+        collector_url = os.getenv("COLLECTOR_URL", "http://localhost:8000")
+        response = httpx.get(
+            f"{collector_url}/provider-tiers/?tenant_id={tenant_id}",
+            timeout=2.0
+        )
+        if response.status_code == 200:
+            tiers = response.json()
+            for tier_config in tiers:
+                if tier_config.get("provider") == provider and tier_config.get("is_active"):
+                    return tier_config.get("tier")
+    except Exception:
+        # Fail silently - fall back to default pricing
+        pass
+    
+    return None
+
+
+def calculate_cost(provider: str, usage: Dict[str, Any], endpoint: Optional[str] = None, tenant_id: Optional[str] = None) -> float:
     """
     Calculate cost from usage data.
     
     Args:
-        provider: Provider name (e.g., "openai", "anthropic")
+        provider: Provider name (e.g., "openai", "anthropic", "unknown")
         usage: Usage data dict with keys like model, input_tokens, output_tokens, etc.
+        endpoint: Optional endpoint name (e.g., "charges.create", "messages.create")
     
     Returns:
         Cost in USD
     """
     model = usage.get("model")
-    if not model:
+    
+    # Get tenant tier if available
+    tenant_tier = get_tenant_tier(tenant_id, provider) if tenant_id else None
+    
+    # Try pricing lookup in order:
+    # 1. provider:model:tier (tier-specific model pricing)
+    # 2. provider:model (model pricing)
+    # 3. provider:endpoint:tier (tier-specific endpoint pricing)
+    # 4. provider:endpoint (endpoint pricing)
+    # 5. provider:tier (tier-specific provider pricing)
+    # 6. provider (fallback)
+    
+    pricing_key = None
+    pricing = None
+    
+    # Try tier-specific pricing first
+    if tenant_tier:
+        if model:
+            pricing_key = f"{provider}:{model}:{tenant_tier}"
+            if pricing_key in PRICING_REGISTRY:
+                pricing = PRICING_REGISTRY[pricing_key]
+        
+        if not pricing and endpoint:
+            pricing_key = f"{provider}:{endpoint}:{tenant_tier}"
+            if pricing_key in PRICING_REGISTRY:
+                pricing = PRICING_REGISTRY[pricing_key]
+        
+        if not pricing:
+            pricing_key = f"{provider}:{tenant_tier}"
+            if pricing_key in PRICING_REGISTRY:
+                pricing = PRICING_REGISTRY[pricing_key]
+    
+    # Fall back to non-tier-specific pricing
+    if not pricing:
+        if model:
+            pricing_key = f"{provider}:{model}"
+            if pricing_key in PRICING_REGISTRY:
+                pricing = PRICING_REGISTRY[pricing_key]
+        
+        # If no model or model-based pricing not found, try endpoint-based
+        if not pricing and endpoint:
+            pricing_key = f"{provider}:{endpoint}"
+            if pricing_key in PRICING_REGISTRY:
+                pricing = PRICING_REGISTRY[pricing_key]
+        
+        # Fallback to provider-level pricing
+        if not pricing:
+            pricing_key = provider
+            if pricing_key in PRICING_REGISTRY:
+                pricing = PRICING_REGISTRY[pricing_key]
+    
+    if not pricing:
         return 0.0
-    
-    pricing_key = f"{provider}:{model}"
-    
-    if pricing_key not in PRICING_REGISTRY:
-        # Fallback: try without model
-        pricing_key = provider
-        if pricing_key not in PRICING_REGISTRY:
-            return 0.0
-    
-    pricing = PRICING_REGISTRY[pricing_key]
     
     # Token-based (LLMs, embeddings)
     input_tokens = usage.get("input_tokens", 0)
@@ -104,9 +189,16 @@ def calculate_cost(provider: str, usage: Dict[str, Any]) -> float:
     if transaction_amount > 0 and "percentage" in pricing:
         return (transaction_amount * pricing["percentage"]) + pricing.get("fixed_fee", 0)
     
-    # Per-request (Perplexity)
+    # Per-request (Perplexity) or per-call (custom APIs)
+    cost = 0.0
     if "per_request" in pricing:
         cost += pricing["per_request"]
+    elif "per_call" in pricing:
+        cost += pricing["per_call"]
+    
+    # If we have per-call/per-request pricing, return it (don't check other metrics)
+    if cost > 0:
+        return cost
     
     # Per-second (Replicate, Runway)
     duration_seconds = usage.get("duration_seconds", 0.0)
@@ -145,6 +237,20 @@ def calculate_cost(provider: str, usage: Dict[str, Any]) -> float:
     # Per 1k tokens (HuggingFace)
     if "per_1k_tokens" in pricing and (input_tokens > 0 or output_tokens > 0):
         return ((input_tokens + output_tokens) / 1000) * pricing["per_1k_tokens"]
+    
+    # Storage-based pricing (Vector DBs, file storage)
+    storage_gb = usage.get("storage_gb", 0.0)
+    if storage_gb > 0:
+        # Per GB per month (e.g., Pinecone storage)
+        if "per_gb_month" in pricing:
+            # Convert to per-day cost (approximate: divide by 30)
+            return (storage_gb / 30.0) * pricing["per_gb_month"]
+        # Per GB per day (e.g., OpenAI file storage)
+        elif "per_gb_day" in pricing:
+            return storage_gb * pricing["per_gb_day"]
+        # One-time per GB (e.g., Pinecone import)
+        elif "per_gb" in pricing:
+            return storage_gb * pricing["per_gb"]
     
     return cost
 

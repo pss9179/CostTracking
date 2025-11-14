@@ -158,9 +158,11 @@ def observe(
         auto_detect_agents=auto_detect_agents
     )
     
-    # Set customer in context if provided
+    # Set customer and tenant in context if provided
     if customer_id:
         context.set_customer_id(customer_id)
+    if tenant_id:
+        context.set_tenant_id(tenant_id)
     
     if not config.is_enabled():
         logger.debug("[llmobserve] Observability disabled, skipping instrumentation")

@@ -11,6 +11,7 @@ from typing import Optional, List, Dict, Any
 # ContextVar storage for async safety
 _run_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("run_id", default=None)
 _customer_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("customer_id", default=None)
+_tenant_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("tenant_id", default=None)
 _section_stack_var: contextvars.ContextVar[List[Dict[str, Any]]] = contextvars.ContextVar("section_stack", default=None)
 
 
@@ -60,6 +61,26 @@ def set_customer_id(customer_id: Optional[str] = None) -> None:
         customer_id: Customer/end-user identifier (e.g., "user_123", "enduser_42")
     """
     _customer_id_var.set(customer_id)
+
+
+def get_tenant_id() -> Optional[str]:
+    """Get the current tenant ID."""
+    tenant_id = _tenant_id_var.get()
+    if tenant_id is None:
+        # Fallback to config if not set in context
+        from llmobserve import config
+        tenant_id = config.get_tenant_id()
+    return tenant_id
+
+
+def set_tenant_id(tenant_id: Optional[str] = None) -> None:
+    """
+    Set the tenant ID for all subsequent events.
+    
+    Args:
+        tenant_id: Tenant identifier (e.g., "acme", "real_user_test")
+    """
+    _tenant_id_var.set(tenant_id)
 
 
 def get_current_section() -> str:
@@ -206,6 +227,9 @@ def section(name: str):
                     "status": status,
                     "customer_id": get_customer_id(),
                     "event_metadata": {"error": error_message} if error_message else None,
+                    "is_streaming": False,  # Add required fields
+                    "stream_cancelled": False,
+                    "tenant_id": config.get_tenant_id(),  # Add tenant_id
                 }
                 buffer.add_event(event)
         except Exception:

@@ -17,7 +17,7 @@ from pathlib import Path
 sdk_path = Path(__file__).parent.parent / "sdk" / "python"
 sys.path.insert(0, str(sdk_path))
 
-from llmobserve import observe, section, set_run_id, set_tenant_id, set_customer_id
+from llmobserve import observe, section, set_run_id, set_customer_id
 
 
 def mock_openai_call(model: str, input_tokens: int, output_tokens: int, endpoint: str = "chat") -> None:
@@ -381,31 +381,31 @@ def main():
     
     try:
         # Test different model families with different tenants
-        set_tenant_id("acme")
+        # tenant_id set via observe() call
         test_gpt5_models()
         time.sleep(0.5)
         
-        set_tenant_id("beta-corp")
+        # tenant_id set via observe() call
         test_gpt41_models()
         time.sleep(0.5)
         
-        set_tenant_id("acme")
+        # tenant_id set via observe() call
         test_realtime_api()
         time.sleep(0.5)
         
-        set_tenant_id("gamma-inc")
+        # tenant_id set via observe() call
         test_legacy_models()
         time.sleep(0.5)
         
-        set_tenant_id("beta-corp")
+        # tenant_id set via observe() call
         test_mixed_workload()
         time.sleep(0.5)
         
-        set_tenant_id("premium-client")
+        # tenant_id set via observe() call
         test_expensive_run()
         time.sleep(0.5)
         
-        set_tenant_id("acme")
+        # tenant_id set via observe() call
         test_cost_comparison()
         time.sleep(0.5)
         
@@ -414,19 +414,19 @@ def main():
         print("🌳 TESTING HIERARCHICAL TRACING")
         print("=" * 70)
         
-        set_tenant_id("hierarchical-demo")
+        # tenant_id set via observe() call
         test_hierarchical_agent_workflow()
         time.sleep(0.5)
         
-        set_tenant_id("hierarchical-demo")
+        # tenant_id set via observe() call
         test_multi_agent_orchestration()
         time.sleep(0.5)
         
-        set_tenant_id("hierarchical-demo")
+        # tenant_id set via observe() call
         test_data_pipeline_workflow()
         time.sleep(0.5)
         
-        set_tenant_id("hierarchical-demo")
+        # tenant_id set via observe() call
         test_mixed_flat_and_hierarchical()
         time.sleep(2)
         

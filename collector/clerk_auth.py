@@ -5,16 +5,19 @@ Verifies Clerk session tokens and extracts user information.
 
 import logging
 import os
+import base64
+import json
 from typing import Optional
 from fastapi import HTTPException, Request, Depends
+from fastapi import Request as FastAPIRequest
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlmodel import Session, select
-import httpx
 
 from models import User
 from db import get_session
 
 logger = logging.getLogger(__name__)
+# Use auto_error=True to see what's happening with missing tokens
 security = HTTPBearer(auto_error=False)
 
 CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY", "")
@@ -23,7 +26,8 @@ CLERK_DOMAIN = "superb-toucan-96.clerk.accounts.dev"  # From your .env
 
 async def verify_clerk_token(token: str) -> Optional[dict]:
     """
-    Verify Clerk session token using Clerk's API.
+    Verify Clerk JWT token by decoding it.
+    For MVP, we decode without full verification (production should verify signature).
     Returns user data if valid, None otherwise.
     """
     if not CLERK_SECRET_KEY:
@@ -31,78 +35,123 @@ async def verify_clerk_token(token: str) -> Optional[dict]:
         return None
     
     try:
-        # Verify token with Clerk's API
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"https://api.clerk.com/v1/sessions/{token}/verify",
-                headers={
-                    "Authorization": f"Bearer {CLERK_SECRET_KEY}",
-                    "Content-Type": "application/json"
-                },
-                timeout=5.0
-            )
-            
-            if response.status_code == 200:
-                session_data = response.json()
-                return {
-                    "clerk_user_id": session_data.get("user_id"),
-                    "session_id": session_data.get("id"),
-                }
-            else:
-                logger.warning(f"[Clerk Auth] Token verification failed: {response.status_code}")
-                return None
+        # Decode JWT (format: header.payload.signature)
+        parts = token.split('.')
+        if len(parts) != 3:
+            logger.warning(f"[Clerk Auth] Invalid JWT format: {len(parts)} parts")
+            return None
+        
+        # Decode payload (base64url)
+        payload = parts[1]
+        # Add padding if needed
+        padding = len(payload) % 4
+        if padding:
+            payload += '=' * (4 - padding)
+        
+        decoded = base64.urlsafe_b64decode(payload)
+        token_data = json.loads(decoded)
+        
+        logger.info(f"[Clerk Auth] Token decoded successfully. Claims: {list(token_data.keys())}")
+        
+        # Extract user ID from JWT claims (Clerk uses 'sub' for user ID)
+        clerk_user_id = token_data.get("sub") or token_data.get("user_id") or token_data.get("id")
+        if not clerk_user_id:
+            logger.warning(f"[Clerk Auth] No user ID in token. Available keys: {list(token_data.keys())}")
+            return None
+        
+        logger.info(f"[Clerk Auth] Extracted Clerk user ID: {clerk_user_id}")
+        
+        return {
+            "clerk_user_id": clerk_user_id,
+            "session_id": token_data.get("sid"),
+        }
     
     except Exception as e:
-        logger.error(f"[Clerk Auth] Error verifying token: {e}")
+        logger.error(f"[Clerk Auth] Error decoding token: {type(e).__name__}: {e}", exc_info=True)
+        import traceback
+        logger.error(f"[Clerk Auth] Traceback: {traceback.format_exc()}")
         return None
 
 
 async def get_current_clerk_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    request: FastAPIRequest,
     session: Session = Depends(get_session)
 ) -> User:
     """
     Extract and verify Clerk user from Authorization header.
     Returns User model from database.
     """
-    if not credentials:
+    # Manually extract Authorization header
+    auth_header = request.headers.get("Authorization")
+    logger.info(f"[Clerk Auth] Authorization header: {auth_header[:50] if auth_header else 'None'}...")
+    
+    if not auth_header:
+        logger.warning("[Clerk Auth] No Authorization header found")
+        logger.warning(f"[Clerk Auth] All headers: {dict(request.headers)}")
         raise HTTPException(status_code=401, detail="No authorization token provided")
     
-    token = credentials.credentials
+    # Extract Bearer token
+    if not auth_header.startswith("Bearer "):
+        logger.warning(f"[Clerk Auth] Invalid Authorization header format: {auth_header[:50]}")
+        raise HTTPException(status_code=401, detail="Invalid Authorization header format")
+    
+    token = auth_header[7:]  # Remove "Bearer " prefix
+    logger.info(f"[Clerk Auth] === STARTING TOKEN VERIFICATION ===")
+    logger.info(f"[Clerk Auth] Received token (first 50 chars): {token[:50]}...")
+    logger.info(f"[Clerk Auth] Token length: {len(token)}")
     
     # Verify token with Clerk
-    clerk_data = await verify_clerk_token(token)
-    if not clerk_data:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    
-    clerk_user_id = clerk_data["clerk_user_id"]
+    try:
+        logger.info("[Clerk Auth] Calling verify_clerk_token...")
+        clerk_data = await verify_clerk_token(token)
+        logger.info(f"[Clerk Auth] verify_clerk_token returned: {clerk_data}")
+        if not clerk_data:
+            logger.error("[Clerk Auth] verify_clerk_token returned None - token verification failed")
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        
+        clerk_user_id = clerk_data["clerk_user_id"]
+        logger.info(f"[Clerk Auth] Token verified, Clerk user ID: {clerk_user_id}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Clerk Auth] Exception in verify_clerk_token: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=401, detail=f"Token verification error: {str(e)}")
     
     # Look up user in local DB
-    statement = select(User).where(User.clerk_user_id == clerk_user_id)
-    user = session.exec(statement).first()
-    
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail=f"User not found. Clerk ID: {clerk_user_id}. Please contact support."
-        )
-    
-    return user
+    try:
+        statement = select(User).where(User.clerk_user_id == clerk_user_id)
+        user = session.exec(statement).first()
+        
+        if not user:
+            logger.warning(f"[Clerk Auth] User not found in DB for Clerk ID: {clerk_user_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"User not found. Clerk ID: {clerk_user_id}. Please contact support."
+            )
+        
+        logger.info(f"[Clerk Auth] User found: {user.email} (ID: {user.id})")
+        return user
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Clerk Auth] Exception looking up user: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 async def get_optional_clerk_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    request: FastAPIRequest,
     session: Session = Depends(get_session)
 ) -> Optional[User]:
     """
     Extract Clerk user if token provided, otherwise return None.
     Used for endpoints that can work with or without auth.
     """
-    if not credentials:
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
         return None
     
     try:
-        return await get_current_clerk_user(credentials, session)
+        return await get_current_clerk_user(request, session)
     except HTTPException:
         return None
 

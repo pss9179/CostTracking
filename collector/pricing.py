@@ -1,24 +1,88 @@
 """
 Pricing utilities for computing costs from usage data.
+Loads pricing from Supabase database (falls back to JSON file if DB unavailable).
 """
 import json
 from pathlib import Path
 from typing import Dict, Any, Optional
+from sqlmodel import Session, select
+from db import SessionLocal
+from models import Pricing
 
 # Load pricing registry
 PRICING_FILE = Path(__file__).parent / "pricing" / "registry.json"
 
+# Cache for pricing registry (loaded from DB)
+_PRICING_CACHE: Optional[Dict[str, Any]] = None
+
 
 def load_pricing_registry() -> Dict[str, Any]:
-    """Load pricing registry from JSON file."""
-    with open(PRICING_FILE, "r") as f:
-        return json.load(f)
+    """
+    Load pricing registry from Supabase database.
+    Falls back to JSON file if database is unavailable.
+    """
+    global _PRICING_CACHE
+    
+    # Return cached version if available
+    if _PRICING_CACHE is not None:
+        return _PRICING_CACHE
+    
+    try:
+        # Try to load from database
+        session = SessionLocal()
+        try:
+            statement = select(Pricing).where(Pricing.is_active == True)
+            pricing_entries = session.exec(statement).all()
+            
+            registry = {}
+            for entry in pricing_entries:
+                # Build key: "provider:model" or "provider"
+                if entry.model:
+                    key = f"{entry.provider}:{entry.model}"
+                else:
+                    key = entry.provider
+                
+                # Convert pricing_data dict to JSON-compatible format
+                registry[key] = entry.pricing_data
+            
+            _PRICING_CACHE = registry
+            print(f"[Pricing] Loaded {len(registry)} pricing entries from database")
+            return registry
+            
+        finally:
+            session.close()
+            
+    except Exception as e:
+        # Fallback to JSON file
+        print(f"[Pricing] Database unavailable, falling back to JSON file: {e}")
+        try:
+            with open(PRICING_FILE, "r") as f:
+                registry = json.load(f)
+                _PRICING_CACHE = registry
+                return registry
+        except FileNotFoundError:
+            print(f"[Pricing] JSON file not found, returning empty registry")
+            return {}
 
 
 def save_pricing_registry(registry: Dict[str, Any]) -> None:
-    """Save pricing registry to JSON file."""
+    """
+    Save pricing registry.
+    Note: This saves to JSON file for backward compatibility.
+    To add pricing to database, use SQL INSERT or the migration script.
+    """
     with open(PRICING_FILE, "w") as f:
         json.dump(registry, f, indent=2)
+    
+    # Clear cache so next load picks up changes
+    global _PRICING_CACHE
+    _PRICING_CACHE = None
+
+
+def clear_pricing_cache():
+    """Clear pricing cache to force reload from database."""
+    global _PRICING_CACHE
+    _PRICING_CACHE = None
 
 
 def compute_cost(

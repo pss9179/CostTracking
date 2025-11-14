@@ -44,6 +44,10 @@ export default function DashboardPage() {
 
     async function loadData() {
       try {
+        // For now, don't filter by tenant_id to maintain backward compatibility
+        // TODO: Enable tenant filtering once data is properly tagged with tenant_id
+        // const tenantId = getTenantId(user.id);
+        
         const [runsData, providersData] = await Promise.all([
           fetchRuns(1000),
           fetchProviderStats(24)
@@ -105,8 +109,13 @@ export default function DashboardPage() {
     const total_calls = recentEvents.length;
     const week_cost = weekEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0) / 7;
 
-    // Get unique run IDs
-    const uniqueRuns = new Set(recentEvents.map(e => e.run_id));
+    // Get unique run IDs from ALL events (not just filtered by customer)
+    // This ensures total_runs shows all runs, not just customer-filtered ones
+    const allRecentEvents = allEvents.filter(e => {
+      const eventDate = new Date(e.created_at);
+      return eventDate >= yesterday;
+    });
+    const uniqueRuns = new Set(allRecentEvents.map(e => e.run_id));
 
     return {
       total_cost_24h: total_cost,
@@ -144,7 +153,7 @@ export default function DashboardPage() {
           };
         })
       : providerStats
-    ).filter(stat => stat.provider !== "internal");
+    ).filter(stat => stat.provider !== "internal" && stat.provider !== "unknown"); // Hide "unknown" provider
     
     // Add fake data if no real data
     if (realStats.length === 0) {
@@ -356,9 +365,13 @@ export default function DashboardPage() {
                   </TableRow>
                 ) : (
                   filteredProviderStats.map((provider) => {
-                    const percentage = stats.total_cost_24h > 0
-                      ? calculatePercentage(provider.total_cost, stats.total_cost_24h)
-                      : 0;
+                    // Use percentage from API if available, otherwise calculate from stats
+                    // This prevents >100% when using filtered events vs API totals
+                    const percentage = provider.percentage !== undefined && provider.percentage !== null
+                      ? provider.percentage
+                      : (stats.total_cost_24h > 0
+                          ? calculatePercentage(provider.total_cost, stats.total_cost_24h)
+                          : 0);
                     const sparklineData = providerSparklines.get(provider.provider) || [];
                     
                     return (
@@ -560,7 +573,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-right">
                     <div className="font-semibold">
-                      ${run.total_cost.toFixed(6)}
+                      {formatCost(run.total_cost)}
                     </div>
                   </div>
                 </div>

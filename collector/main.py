@@ -3,8 +3,11 @@ FastAPI main application for LLM Observe Collector.
 """
 import asyncio
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from db import init_db, run_migrations
 from routers import (
     events,
@@ -19,6 +22,7 @@ from routers import (
     clerk_webhook,
     clerk_api_keys,
     caps,
+    provider_tiers,
 )
 from cap_monitor import run_cap_monitor
 
@@ -43,11 +47,42 @@ else:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,
+    allow_origins=["http://localhost:3000", "http://localhost:3001", "*"],  # Explicitly allow localhost
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+# Add CORS headers to error responses
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    response = JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers={
+            "Access-Control-Allow-Origin": "http://localhost:3000",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+    return response
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    response = JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+        headers={
+            "Access-Control-Allow-Origin": "http://localhost:3000",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+    return response
 
 # Background task for cap monitoring
 cap_monitor_task = None
@@ -87,6 +122,7 @@ def health_check():
 # Include routers
 app.include_router(clerk_webhook.router)  # Clerk webhook (no auth required)
 app.include_router(clerk_api_keys.router)  # Clerk-authenticated API keys
+app.include_router(provider_tiers.router)  # Provider tier configuration
 app.include_router(auth_simple.router)  # Simple email/password auth (legacy)
 app.include_router(users.router)  # User management
 app.include_router(api_keys.router)  # API key management

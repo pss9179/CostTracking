@@ -37,10 +37,24 @@ export function CustomerCostChart() {
   useEffect(() => {
     async function loadCustomers() {
       try {
-        const response = await fetch('/api/customers');
+        // Fetch customer stats from collector API
+        const response = await fetch('http://localhost:8000/stats/by-customer?hours=720'); // 30 days
         if (!response.ok) throw new Error("Failed to fetch customer data");
         const data = await response.json();
-        setCustomers(data);
+        
+        // Filter out test/fake customers and only show real ones
+        // Real customers should have meaningful IDs, not test patterns
+        const realCustomers = data.filter((c: any) => {
+          const id = c.customer_id || '';
+          // Exclude test patterns
+          return id && 
+                 !id.startsWith('test_') && 
+                 !id.startsWith('rag_') &&
+                 !id.startsWith('customer_') &&
+                 id.length > 5; // Real customer IDs are usually longer
+        });
+        
+        setCustomers(realCustomers);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load");
       } finally {

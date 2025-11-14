@@ -19,13 +19,14 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 async def get_my_customers(
     *,
     user_id: Optional[UUID] = None,  # Made optional for MVP
+    tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
     session: Session = Depends(get_session),
     days: int = Query(7, ge=1, le=90, description="Number of days to look back")
 ) -> List[Dict[str, Any]]:
     """
     Get customer breakdown.
     
-    For MVP: Returns all customer data if no user_id provided.
+    For MVP: Returns all customer data if no user_id or tenant_id provided.
     Returns cost, calls, and latency per customer.
     """
     time_ago = datetime.utcnow() - timedelta(days=days)
@@ -40,8 +41,10 @@ async def get_my_customers(
         TraceEvent.created_at >= time_ago
     ))
     
-    # Filter by user_id if provided
-    if user_id:
+    # Filter by tenant_id (preferred) or user_id
+    if tenant_id:
+        statement = statement.where(TraceEvent.tenant_id == tenant_id)
+    elif user_id:
         statement = statement.where(TraceEvent.user_id == user_id)
     
     statement = statement.group_by(TraceEvent.customer_id).order_by(func.sum(TraceEvent.cost_usd).desc())

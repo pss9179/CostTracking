@@ -10,7 +10,7 @@ from typing import List
 from models import User, APIKey, APIKeyListItem, APIKeyResponse
 from db import get_session
 from clerk_auth import get_current_clerk_user
-from auth import generate_api_key
+from auth import generate_api_key, hash_api_key, get_key_prefix
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -62,12 +62,13 @@ async def create_api_key(
     """Create a new API key for the authenticated user."""
     # Generate new API key
     api_key = generate_api_key()
+    key_hash = hash_api_key(api_key)
     
     # Create API key record
     api_key_record = APIKey(
         user_id=current_user.id,
-        key_hash=api_key,  # Will be hashed by model
-        key_prefix=api_key[:12],
+        key_hash=key_hash,
+        key_prefix=get_key_prefix(api_key),
         name=name
     )
     

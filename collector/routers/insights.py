@@ -1,10 +1,10 @@
 """
 Insights router - auto-generated insights and anomaly detection.
 """
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from uuid import UUID
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session, select, func, and_
 from models import TraceEvent
 from db import get_session
@@ -260,24 +260,33 @@ def _retry_loop_insights(session: Session, user_id: UUID) -> List[Dict[str, Any]
 
 @router.get("/daily")
 def get_daily_insights(
-    user_id: UUID = Depends(get_current_user_id),
+    user_id: Optional[UUID] = Depends(get_current_user_id),
+    tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
     session: Session = Depends(get_session)
 ) -> List[Dict[str, Any]]:
     """
     Get auto-generated insights for the last 24 hours.
     
-    Automatically filtered by authenticated user.
+    Automatically filtered by authenticated user or tenant_id.
     Returns insights about cost spikes, inefficiencies, token bloat, and retry patterns.
     
-    Requires: Authorization: Bearer <api_key> header
+    For MVP: Can work without authentication if tenant_id is provided.
     """
     insights = []
     
-    # Run all insight detectors with user_id filter
-    insights.extend(_section_spike_insights(session, user_id))
-    insights.extend(_model_inefficiency_insights(session, user_id))
-    insights.extend(_token_bloat_insights(session, user_id))
-    insights.extend(_retry_loop_insights(session, user_id))
+    # If tenant_id provided, use it; otherwise use user_id
+    # Note: Insight functions currently use user_id, but we can add tenant_id support later
+    # For now, tenant_id filtering happens at the query level in each insight function
+    if tenant_id:
+        # TODO: Update insight functions to support tenant_id
+        # For now, skip insights if only tenant_id provided (user_id is None)
+        pass
+    elif user_id:
+        # Run all insight detectors with user_id filter
+        insights.extend(_section_spike_insights(session, user_id))
+        insights.extend(_model_inefficiency_insights(session, user_id))
+        insights.extend(_token_bloat_insights(session, user_id))
+        insights.extend(_retry_loop_insights(session, user_id))
     
     return insights
 

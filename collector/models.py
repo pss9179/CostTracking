@@ -279,6 +279,54 @@ class TraceEvent(SQLModel, table=True):
         ]
 
 
+class Pricing(SQLModel, table=True):
+    """Pricing configuration for API providers and models."""
+    __tablename__ = "pricing"
+    
+    id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
+    provider: str = Field(index=True, description="Provider name (e.g., 'openai', 'stripe')")
+    model: Optional[str] = Field(default=None, index=True, description="Model name (e.g., 'gpt-4o', 'charges.create')")
+    pricing_type: str = Field(default="token_based", description="Type: 'token_based', 'per_call', 'per_million', etc.")
+    pricing_data: dict = Field(default={}, sa_column=Column(JSON), description="Pricing structure (JSON)")
+    description: Optional[str] = Field(default=None, description="Human-readable description")
+    source: Optional[str] = Field(default=None, description="Source URL or reference")
+    region: Optional[str] = Field(default=None, description="Region for region-specific pricing")
+    tier: Optional[str] = Field(default=None, index=True, description="Tier/plan name (e.g., 'free', 'serverless', 'standard')")
+    effective_date: datetime = Field(default_factory=datetime.utcnow, description="When pricing became effective")
+    expires_at: Optional[datetime] = Field(default=None, description="When pricing expires")
+    is_active: bool = Field(default=True, description="Whether this pricing is currently active")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        indexes = [
+            Index("idx_pricing_provider_model", "provider", "model"),
+            Index("idx_pricing_active", "is_active"),
+            Index("idx_pricing_tier", "tier"),
+        ]
+
+
+class ProviderTier(SQLModel, table=True):
+    """User/tenant provider tier configuration."""
+    __tablename__ = "provider_tiers"
+    
+    id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
+    user_id: Optional[UUID] = Field(default=None, foreign_key="users.id", index=True, description="User ID (for single-user accounts)")
+    tenant_id: Optional[str] = Field(default=None, index=True, description="Tenant ID (for multi-tenant accounts)")
+    provider: str = Field(index=True, description="Provider name (e.g., 'pinecone', 'openai')")
+    tier: str = Field(description="Tier name (e.g., 'free', 'serverless', 'standard', 'dedicated')")
+    plan_name: Optional[str] = Field(default=None, description="Human-readable plan name")
+    is_active: bool = Field(default=True, description="Whether this tier config is active")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        indexes = [
+            Index("idx_provider_tiers_tenant_provider", "tenant_id", "provider"),
+            Index("idx_provider_tiers_user_id", "user_id"),
+        ]
+
+
 class TraceEventCreate(SQLModel):
     """Schema for creating trace events (used in API requests)."""
     id: str

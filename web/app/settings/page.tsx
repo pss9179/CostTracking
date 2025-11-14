@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useAuth } from "@clerk/nextjs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { Copy, Check, Trash2, Plus, Key, Settings as SettingsIcon, Bell, DollarSign, AlertTriangle } from "lucide-react";
-import type { Cap, CapCreate, Alert as AlertType } from "@/lib/api";
+import type { Cap, CapCreate, Alert as AlertType, ProviderTier } from "@/lib/api";
+import { fetchProviderTiers, setProviderTier, deleteProviderTier } from "@/lib/api";
 
 interface APIKey {
   id: string;
@@ -31,6 +32,7 @@ interface APIKey {
 
 export default function SettingsPage() {
   const { isLoaded, isSignedIn, user: clerkUser } = useUser();
+  const { getToken } = useAuth();
   const [user, setUser] = useState<any>(null);
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
   const [caps, setCaps] = useState<Cap[]>([]);
@@ -51,19 +53,57 @@ export default function SettingsPage() {
   const [alertThreshold, setAlertThreshold] = useState<string>("80");
   const [alertEmail, setAlertEmail] = useState("");
   const [creatingCap, setCreatingCap] = useState(false);
+  
+  // Provider tiers state
+  const [providerTiers, setProviderTiers] = useState<ProviderTier[]>([]);
+  const [loadingTiers, setLoadingTiers] = useState(false);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) return;
-    loadAPIKeys();
-    loadCaps();
-    loadAlerts();
-  }, [isLoaded, isSignedIn]);
+    if (!isLoaded || !isSignedIn || !clerkUser) return;
+    
+    // Sync user to database first if needed
+    async function syncUserIfNeeded() {
+      try {
+        const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
+        const syncResponse = await fetch(`${collectorUrl}/users/sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: clerkUser.id,
+            email_addresses: clerkUser.emailAddresses.map(e => ({ email_address: e.emailAddress })),
+            first_name: clerkUser.firstName,
+            last_name: clerkUser.lastName,
+          }),
+        });
+        
+        if (!syncResponse.ok) {
+          const errorText = await syncResponse.text();
+          console.error("Failed to sync user:", syncResponse.status, errorText);
+        } else {
+          const syncData = await syncResponse.json();
+          console.log("User synced successfully:", syncData);
+        }
+      } catch (err) {
+        console.error("Failed to sync user:", err);
+      }
+    }
+    
+    syncUserIfNeeded().then(() => {
+      // Wait a bit for sync to complete, then load data
+      setTimeout(() => {
+        loadAPIKeys();
+        loadCaps();
+        loadAlerts();
+        loadProviderTiers();
+      }, 500);
+    });
+  }, [isLoaded, isSignedIn, clerkUser]);
 
   const loadAPIKeys = async () => {
     try {
       setLoading(true);
       // Get Clerk session token
-      const session = await (clerkUser as any)?.getToken?.();
+      const session = await getToken();
       if (!session) {
         console.error("No Clerk session token");
         return;
@@ -81,7 +121,13 @@ export default function SettingsPage() {
         setUser(data.user);
         setApiKeys(data.api_keys);
       } else {
-        console.error("Failed to load API keys:", await response.text());
+        const errorText = await response.text();
+        console.error("Failed to load API keys:", errorText);
+        // If user not found, try syncing again
+        if (response.status === 404) {
+          console.log("User not found, syncing...");
+          // Sync will happen in useEffect
+        }
       }
     } catch (err) {
       console.error("Failed to load API keys:", err);
@@ -91,32 +137,48 @@ export default function SettingsPage() {
   };
 
   const handleCreateKey = async () => {
-    if (!newKeyName.trim()) return;
+    if (!newKeyName.trim()) {
+      alert("Please enter a name for your API key");
+      return;
+    }
 
     try {
       setCreatingKey(true);
-      const session = await (clerkUser as any)?.getToken?.();
-      if (!session) return;
+      const session = await getToken();
+      if (!session) {
+        alert("Please sign in to create an API key");
+        setCreatingKey(false);
+        return;
+      }
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/clerk/api-keys?name=${encodeURIComponent(newKeyName)}`,
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${session}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      console.log("Creating API key with token:", session.substring(0, 20) + "...");
+      
+      const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/clerk/api-keys?name=${encodeURIComponent(newKeyName)}`;
+      console.log("POST to:", url);
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session}`,
+          "Content-Type": "application/json",
+        },
+      });
 
       if (response.ok) {
         const data = await response.json();
         setNewKey(data.key);
         setNewKeyName("");
         await loadAPIKeys();
+        alert("API key created successfully! Copy it now - you won't be able to see it again.");
+      } else {
+        const errorText = await response.text();
+        console.error("Failed to create API key:", response.status, errorText);
+        console.error("Full response:", response);
+        alert(`Failed to create API key: ${response.status} - ${errorText}`);
       }
     } catch (err) {
       console.error("Failed to create API key:", err);
+      alert(`Error: ${err instanceof Error ? err.message : "Failed to create API key"}`);
     } finally {
       setCreatingKey(false);
     }
@@ -128,7 +190,7 @@ export default function SettingsPage() {
     }
 
     try {
-      const session = await (clerkUser as any)?.getToken?.();
+      const session = await getToken();
       if (!session) return;
 
       const response = await fetch(
@@ -152,7 +214,7 @@ export default function SettingsPage() {
 
   const loadCaps = async () => {
     try {
-      const session = await (clerkUser as any)?.getToken?.();
+      const session = await getToken();
       if (!session) return;
 
       const { fetchCaps } = await import("@/lib/api");
@@ -165,7 +227,7 @@ export default function SettingsPage() {
 
   const loadAlerts = async () => {
     try {
-      const session = await (clerkUser as any)?.getToken?.();
+      const session = await getToken();
       if (!session) return;
 
       const { fetchAlerts } = await import("@/lib/api");
@@ -179,7 +241,7 @@ export default function SettingsPage() {
   const handleCreateCap = async () => {
     try {
       setCreatingCap(true);
-      const session = await (clerkUser as any)?.getToken?.();
+      const session = await getToken();
       if (!session) return;
 
       const { createCap } = await import("@/lib/api");
@@ -214,7 +276,7 @@ export default function SettingsPage() {
 
   const handleToggleCap = async (capId: string, enabled: boolean) => {
     try {
-      const session = await (clerkUser as any)?.getToken?.();
+      const session = await getToken();
       if (!session) return;
 
       const { updateCap } = await import("@/lib/api");
@@ -231,7 +293,7 @@ export default function SettingsPage() {
     }
 
     try {
-      const session = await (clerkUser as any)?.getToken?.();
+      const session = await getToken();
       if (!session) return;
 
       const { deleteCap } = await import("@/lib/api");
@@ -246,6 +308,36 @@ export default function SettingsPage() {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const loadProviderTiers = async () => {
+    try {
+      setLoadingTiers(true);
+      const session = await getToken();
+      if (!session) return;
+      
+      const tenantId = clerkUser?.id;
+      const tiers = await fetchProviderTiers(tenantId);
+      setProviderTiers(tiers);
+    } catch (err) {
+      console.error("Failed to load provider tiers:", err);
+    } finally {
+      setLoadingTiers(false);
+    }
+  };
+
+  const handleSetProviderTier = async (provider: string, tier: string, planName?: string) => {
+    try {
+      const session = await getToken();
+      if (!session) return;
+      
+      const tenantId = clerkUser?.id;
+      await setProviderTier(provider, tier, planName, tenantId);
+      await loadProviderTiers(); // Reload
+    } catch (err) {
+      console.error("Failed to set provider tier:", err);
+      alert("Failed to update provider tier. Please try again.");
+    }
   };
 
   return (
@@ -267,11 +359,15 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div>
               <Label>Name</Label>
-              <div className="mt-1 text-sm">{user?.name || "Not set"}</div>
+              <div className="mt-1 text-sm">
+                {user?.name || clerkUser?.fullName || clerkUser?.firstName || "Not set"}
+              </div>
             </div>
             <div>
               <Label>Email</Label>
-              <div className="mt-1 text-sm">{user?.email}</div>
+              <div className="mt-1 text-sm">
+                {user?.email || clerkUser?.emailAddresses?.[0]?.emailAddress || "Not set"}
+              </div>
             </div>
             <div>
               <Label>Subscription</Label>
@@ -282,7 +378,11 @@ export default function SettingsPage() {
             <div>
               <Label>Member Since</Label>
               <div className="mt-1 text-sm">
-                {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "Unknown"}
+                {user?.created_at
+                  ? new Date(user.created_at).toLocaleDateString()
+                  : clerkUser?.createdAt
+                  ? new Date(clerkUser.createdAt).toLocaleDateString()
+                  : "Unknown"}
               </div>
             </div>
           </CardContent>

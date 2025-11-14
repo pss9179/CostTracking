@@ -38,12 +38,13 @@ def extract_top_level_section(section_path: str) -> str:
 def get_latest_runs(
     limit: int = 50,
     user_id: Optional[UUID] = None,  # Made optional for MVP
+    tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
     session: Session = Depends(get_session)
 ) -> List[Dict[str, Any]]:
     """
     Get latest runs with aggregated metrics.
     
-    For MVP: Returns all runs if no user_id provided.
+    For MVP: Returns all runs if no user_id or tenant_id provided.
     For production: Should require authentication.
     
     Returns: List of runs with total_cost, call_count, sections, etc.
@@ -63,8 +64,10 @@ def get_latest_runs(
         sections_agg.label("sections")
     ).group_by(TraceEvent.run_id)
     
-    # Filter by user_id if provided
-    if user_id:
+    # Filter by tenant_id (preferred for multi-tenancy) or user_id
+    if tenant_id:
+        statement = statement.where(TraceEvent.tenant_id == tenant_id)
+    elif user_id:
         statement = statement.where(TraceEvent.user_id == user_id)
     
     statement = statement.order_by(func.min(TraceEvent.created_at).desc()).limit(limit)
@@ -78,8 +81,13 @@ def get_latest_runs(
             select(TraceEvent.section_path)
             .where(TraceEvent.run_id == result.run_id)
             .where(TraceEvent.section_path.isnot(None))
-            .limit(1)
         )
+        # Apply same tenant/user filter
+        if tenant_id:
+            section_path_statement = section_path_statement.where(TraceEvent.tenant_id == tenant_id)
+        elif user_id:
+            section_path_statement = section_path_statement.where(TraceEvent.user_id == user_id)
+        section_path_statement = section_path_statement.limit(1)
         section_path_result = session.exec(section_path_statement).first()
         
         # Extract top-level section
@@ -92,15 +100,20 @@ def get_latest_runs(
             section_statement = (
                 select(TraceEvent.section)
                 .where(TraceEvent.run_id == result.run_id)
-                .limit(1)
             )
+            # Apply same tenant/user filter
+            if tenant_id:
+                section_statement = section_statement.where(TraceEvent.tenant_id == tenant_id)
+            elif user_id:
+                section_statement = section_statement.where(TraceEvent.user_id == user_id)
+            section_statement = section_statement.limit(1)
             section_result = session.exec(section_statement).first()
             top_section = section_result if section_result else "unknown"
         
         runs.append({
             "run_id": result.run_id,
             "started_at": result.started_at.isoformat(),
-            "total_cost": round(result.total_cost, 6),
+            "total_cost": result.total_cost,  # Don't round - let frontend format it
             "call_count": result.call_count,
             "sections": result.sections.split(",") if result.sections else [],
             "top_section": top_section
@@ -114,12 +127,13 @@ def get_top_sections(
     hours: int = Query(24, description="Time window in hours"),
     limit: int = Query(10, description="Number of sections to return"),
     user_id: Optional[UUID] = None,  # Made optional for MVP
+    tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
     session: Session = Depends(get_session)
 ) -> List[Dict[str, Any]]:
     """
     Get top sections (agent/tool/step level) aggregated by cost.
     
-    For MVP: Returns all data if no user_id provided.
+    For MVP: Returns all data if no user_id or tenant_id provided.
     Returns agent-level sections like "agent:research_assistant",
     NOT internal retry/test sections.
     """
@@ -129,7 +143,10 @@ def get_top_sections(
     
     # Get all events in timeframe
     statement = select(TraceEvent).where(TraceEvent.created_at >= cutoff_time).where(TraceEvent.section_path.isnot(None))
-    if user_id:
+    # Filter by tenant_id (preferred) or user_id
+    if tenant_id:
+        statement = statement.where(TraceEvent.tenant_id == tenant_id)
+    elif user_id:
         statement = statement.where(TraceEvent.user_id == user_id)
     
     events = session.exec(statement).all()
@@ -175,6 +192,7 @@ def get_top_sections(
 def get_run_detail(
     run_id: str,
     user_id: Optional[UUID] = None,  # Made optional for MVP
+    tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
     session: Session = Depends(get_session)
 ) -> Dict[str, Any]:
     """
@@ -185,7 +203,10 @@ def get_run_detail(
     """
     # Check if run exists
     statement = select(TraceEvent).where(TraceEvent.run_id == run_id)
-    if user_id:
+    # Filter by tenant_id (preferred) or user_id
+    if tenant_id:
+        statement = statement.where(TraceEvent.tenant_id == tenant_id)
+    elif user_id:
         statement = statement.where(TraceEvent.user_id == user_id)
     statement = statement.limit(1)
     
@@ -196,7 +217,9 @@ def get_run_detail(
     
     # Get total cost for percentage calculations
     total_statement = select(func.sum(TraceEvent.cost_usd)).where(TraceEvent.run_id == run_id)
-    if user_id:
+    if tenant_id:
+        total_statement = total_statement.where(TraceEvent.tenant_id == tenant_id)
+    elif user_id:
         total_statement = total_statement.where(TraceEvent.user_id == user_id)
     total_cost = session.exec(total_statement).one() or 0.0
     
@@ -206,7 +229,9 @@ def get_run_detail(
         func.sum(TraceEvent.cost_usd).label("cost"),
         func.count(TraceEvent.id).label("count")
     ).where(TraceEvent.run_id == run_id)
-    if user_id:
+    if tenant_id:
+        section_statement = section_statement.where(TraceEvent.tenant_id == tenant_id)
+    elif user_id:
         section_statement = section_statement.where(TraceEvent.user_id == user_id)
     section_statement = section_statement.group_by(TraceEvent.section).order_by(func.sum(TraceEvent.cost_usd).desc())
     section_results = session.exec(section_statement).all()
@@ -227,7 +252,9 @@ def get_run_detail(
         func.sum(TraceEvent.cost_usd).label("cost"),
         func.count(TraceEvent.id).label("count")
     ).where(TraceEvent.run_id == run_id)
-    if user_id:
+    if tenant_id:
+        provider_statement = provider_statement.where(TraceEvent.tenant_id == tenant_id)
+    elif user_id:
         provider_statement = provider_statement.where(TraceEvent.user_id == user_id)
     provider_statement = provider_statement.group_by(TraceEvent.provider).order_by(func.sum(TraceEvent.cost_usd).desc())
     provider_results = session.exec(provider_statement).all()
@@ -248,7 +275,9 @@ def get_run_detail(
         func.sum(TraceEvent.cost_usd).label("cost"),
         func.count(TraceEvent.id).label("count")
     ).where(TraceEvent.run_id == run_id).where(TraceEvent.model.isnot(None))
-    if user_id:
+    if tenant_id:
+        model_statement = model_statement.where(TraceEvent.tenant_id == tenant_id)
+    elif user_id:
         model_statement = model_statement.where(TraceEvent.user_id == user_id)
     model_statement = model_statement.group_by(TraceEvent.model).order_by(func.sum(TraceEvent.cost_usd).desc())
     model_results = session.exec(model_statement).all()
@@ -265,7 +294,9 @@ def get_run_detail(
     
     # Get individual events (latest 50)
     events_statement = select(TraceEvent).where(TraceEvent.run_id == run_id)
-    if user_id:
+    if tenant_id:
+        events_statement = events_statement.where(TraceEvent.tenant_id == tenant_id)
+    elif user_id:
         events_statement = events_statement.where(TraceEvent.user_id == user_id)
     events_statement = events_statement.order_by(TraceEvent.created_at.desc()).limit(50)
     events = session.exec(events_statement).all()

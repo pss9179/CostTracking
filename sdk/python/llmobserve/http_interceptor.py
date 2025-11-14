@@ -51,6 +51,46 @@ def patch_httpx():
         logger.debug("[llmobserve] httpx not installed, skipping patch")
         return False
     
+    # Patch httpx decoder to handle decompression errors gracefully
+    # GZipDecoder.decode catches zlib.error and wraps it in DecodingError
+    # We need to catch zlib.error BEFORE it gets wrapped
+    try:
+        import httpx._decoders as decoders_module
+        import zlib
+        from httpx import DecodingError
+        
+        # Patch GZipDecoder.decode - this is the actual implementation that raises the error
+        if hasattr(decoders_module, 'GZipDecoder'):
+            if not hasattr(decoders_module.GZipDecoder.decode, "_llmobserve_patched"):
+                original_gzip_decode = decoders_module.GZipDecoder.decode
+                
+                def patched_gzip_decode(self, data: bytes) -> bytes:
+                    """Handle decompression errors gracefully - catch zlib.error before it's wrapped."""
+                    try:
+                        return original_gzip_decode(self, data)
+                    except zlib.error as e:
+                        # zlib.error with "incorrect header check" means content is already decompressed
+                        error_str = str(e)
+                        if "incorrect header check" in error_str or "-3" in error_str:
+                            logger.debug(f"[llmobserve] zlib.error caught - content already decompressed: {error_str}")
+                            return data
+                        # Re-raise if it's a different zlib error
+                        raise
+                    except DecodingError as e:
+                        # DecodingError wrapping zlib error - check error message
+                        error_str = str(e)
+                        if "incorrect header check" in error_str or "Error -3" in error_str or "-3" in error_str:
+                            logger.debug(f"[llmobserve] DecodingError caught - content already decompressed: {error_str}")
+                            return data
+                        raise
+                
+                decoders_module.GZipDecoder.decode = patched_gzip_decode
+                decoders_module.GZipDecoder.decode._llmobserve_patched = True
+                decoders_module.GZipDecoder.decode._llmobserve_original = original_gzip_decode
+                logger.debug("[llmobserve] Patched httpx GZipDecoder.decode to handle proxy responses")
+    except (ImportError, AttributeError) as e:
+        logger.debug(f"[llmobserve] Could not patch httpx decoder: {e}")
+    
     # Patch sync client
     if hasattr(httpx.Client, "send"):
         if hasattr(httpx.Client.send, "_llmobserve_patched"):
@@ -115,6 +155,11 @@ def patch_httpx():
                         # If proxy is configured, route through proxy
                         if proxy_url:
                             request.headers["X-LLMObserve-Target-URL"] = request_url_str
+                            # CRITICAL: Remove Accept-Encoding to prevent decompression issues
+                            if "Accept-Encoding" in request.headers:
+                                del request.headers["Accept-Encoding"]
+                            if "accept-encoding" in request.headers:
+                                del request.headers["accept-encoding"]
                             request.url = httpx.URL(f"{proxy_url}/proxy")
                         
                         # Check spending caps before making request
@@ -132,7 +177,52 @@ def patch_httpx():
                             )
                         
                         # Execute request and check response
+                        # CRITICAL: If going through proxy, disable decompression by modifying request
+                        # before sending
+                        if proxy_url and proxy_url in str(request.url):
+                            # Ensure Accept-Encoding is not in request
+                            if "Accept-Encoding" in request.headers:
+                                del request.headers["Accept-Encoding"]
+                        
                         response = original_send(self, request, **kwargs)
+                        
+                        # CRITICAL FIX: If response came from proxy, modify headers IMMEDIATELY
+                        # httpx reads headers when response is created, so we must modify before any access
+                        if proxy_url and hasattr(response, 'url'):
+                            response_url = str(response.url)
+                            if proxy_url in response_url:
+                                # Remove Content-Encoding from response headers IMMEDIATELY
+                                # httpx checks this header when reading content, so we must remove it
+                                # before httpx reads the content
+                                if hasattr(response, 'headers'):
+                                    # httpx uses HeaderList internally - modify _list directly
+                                    if hasattr(response.headers, '_list'):
+                                        response.headers._list = [
+                                            (k, v) for k, v in response.headers._list 
+                                            if k.lower() != 'content-encoding'
+                                        ]
+                                    # Also try direct modification
+                                    try:
+                                        # Try to get raw headers dict
+                                        if hasattr(response.headers, 'raw'):
+                                            # Remove from raw headers
+                                            raw_headers = response.headers.raw
+                                            if isinstance(raw_headers, list):
+                                                response.headers.raw = [
+                                                    (k, v) for k, v in raw_headers
+                                                    if k.lower() != b'content-encoding'
+                                                ]
+                                    except:
+                                        pass
+                                    # Force remove via __delitem__
+                                    try:
+                                        del response.headers["Content-Encoding"]
+                                    except:
+                                        pass
+                                    try:
+                                        del response.headers["content-encoding"]
+                                    except:
+                                        pass
                         
                         # Check if we should track this response
                         if request_tracker.should_track_response(response.status_code):
@@ -232,6 +322,11 @@ def patch_httpx():
                         # If proxy is configured, route through proxy
                         if proxy_url:
                             request.headers["X-LLMObserve-Target-URL"] = request_url_str
+                            # CRITICAL: Remove Accept-Encoding to prevent decompression issues
+                            if "Accept-Encoding" in request.headers:
+                                del request.headers["Accept-Encoding"]
+                            if "accept-encoding" in request.headers:
+                                del request.headers["accept-encoding"]
                             request.url = httpx.URL(f"{proxy_url}/proxy")
                         
                         # Check spending caps before making request
@@ -250,6 +345,33 @@ def patch_httpx():
                         
                         # Execute request and check response
                         response = await original_async_send(self, request, **kwargs)
+                        
+                        # CRITICAL FIX: If response came from proxy, modify headers IMMEDIATELY
+                        if proxy_url and hasattr(response, 'url'):
+                            response_url = str(response.url)
+                            if proxy_url in response_url:
+                                # Remove Content-Encoding from response headers IMMEDIATELY
+                                if hasattr(response, 'headers'):
+                                    # Use _headers dict directly if available (httpx internal)
+                                    if hasattr(response.headers, '_list'):
+                                        # httpx uses HeaderList internally
+                                        response.headers._list = [
+                                            (k, v) for k, v in response.headers._list 
+                                            if k.lower() != 'content-encoding'
+                                        ]
+                                    # Also try direct dict access
+                                    if isinstance(response.headers, dict):
+                                        response.headers.pop("Content-Encoding", None)
+                                        response.headers.pop("content-encoding", None)
+                                    # Force remove via __delitem__ if possible
+                                    try:
+                                        del response.headers["Content-Encoding"]
+                                    except (KeyError, TypeError):
+                                        pass
+                                    try:
+                                        del response.headers["content-encoding"]
+                                    except (KeyError, TypeError):
+                                        pass
                         
                         # Check if we should track this response
                         if request_tracker.should_track_response(response.status_code):
@@ -330,10 +452,17 @@ def patch_requests():
                         headers["X-LLMObserve-Section-Path"] = context.get_section_path()
                         customer = context.get_customer_id()
                         headers["X-LLMObserve-Customer-ID"] = customer if customer else ""
+                        tenant = context.get_tenant_id()
+                        headers["X-LLMObserve-Tenant-ID"] = tenant if tenant else "default_tenant"
                         
                         # If proxy is configured, route through proxy
                         if proxy_url:
                             headers["X-LLMObserve-Target-URL"] = url
+                            # CRITICAL: Remove Accept-Encoding when routing through proxy
+                            if "Accept-Encoding" in headers:
+                                del headers["Accept-Encoding"]
+                            if "accept-encoding" in headers:
+                                del headers["accept-encoding"]
                             url = f"{proxy_url}/proxy"
                         
                         kwargs["headers"] = headers
@@ -395,6 +524,8 @@ def patch_aiohttp():
                         headers["X-LLMObserve-Section-Path"] = context.get_section_path()
                         customer = context.get_customer_id()
                         headers["X-LLMObserve-Customer-ID"] = customer if customer else ""
+                        tenant = context.get_tenant_id()
+                        headers["X-LLMObserve-Tenant-ID"] = tenant if tenant else "default_tenant"
                         
                         # If proxy is configured, route through proxy
                         if proxy_url:
@@ -413,6 +544,88 @@ def patch_aiohttp():
         wrapped_request._llmobserve_original = original_request
         
         logger.debug("[llmobserve] Patched aiohttp.ClientSession._request")
+    
+    return True
+
+
+def patch_urllib3():
+    """Patch urllib3 to inject headers and route through proxy.
+    
+    This is needed for Pinecone SDK which uses urllib3 directly.
+    """
+    try:
+        import urllib3
+        from urllib3.poolmanager import PoolManager
+        from urllib3.connectionpool import HTTPConnectionPool
+    except ImportError:
+        logger.debug("[llmobserve] urllib3 not installed, skipping patch")
+        return False
+    
+    # Check if already patched
+    if hasattr(PoolManager, "request") and hasattr(PoolManager.request, "_llmobserve_patched"):
+        logger.debug("[llmobserve] urllib3.PoolManager already patched")
+        return True
+    
+    # Patch PoolManager.request (used by Pinecone)
+    original_request = PoolManager.request
+    
+    def wrapped_request(self, method, url, **kwargs):
+        """Wrapped urllib3 request that injects headers and routes through proxy."""
+        if config.is_enabled():
+            collector_url = config.get_collector_url()
+            proxy_url = config.get_proxy_url()
+            url_str = str(url)
+            
+            # Skip internal requests
+            is_internal = False
+            if collector_url and url_str.startswith(collector_url):
+                is_internal = True
+            elif proxy_url and url_str.startswith(proxy_url):
+                is_internal = True
+            
+            if not is_internal:
+                # Inject context headers
+                try:
+                    headers = kwargs.get("headers", {})
+                    if headers is None:
+                        headers = {}
+                    
+                    # Convert headers to dict if it's a custom object
+                    if not isinstance(headers, dict):
+                        headers = dict(headers) if hasattr(headers, '__iter__') else {}
+                    
+                    headers["X-LLMObserve-Run-ID"] = context.get_run_id()
+                    headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
+                    parent_span = context.get_current_span_id()
+                    headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
+                    headers["X-LLMObserve-Section"] = context.get_current_section()
+                    headers["X-LLMObserve-Section-Path"] = context.get_section_path()
+                    customer = context.get_customer_id()
+                    headers["X-LLMObserve-Customer-ID"] = customer if customer else ""
+                    tenant = context.get_tenant_id()
+                    headers["X-LLMObserve-Tenant-ID"] = tenant if tenant else "default_tenant"
+                    
+                    # If proxy is configured, route through proxy
+                    if proxy_url:
+                        headers["X-LLMObserve-Target-URL"] = url_str
+                        # CRITICAL: Remove Accept-Encoding when routing through proxy
+                        headers.pop("Accept-Encoding", None)
+                        headers.pop("accept-encoding", None)
+                        # Route to proxy
+                        url = f"{proxy_url}/proxy"
+                    
+                    kwargs["headers"] = headers
+                except Exception as e:
+                    # Fail-open: if header injection fails, continue anyway
+                    logger.debug(f"[llmobserve] urllib3 header injection failed: {e}")
+        
+        return original_request(self, method, url, **kwargs)
+    
+    PoolManager.request = wrapped_request
+    wrapped_request._llmobserve_patched = True
+    wrapped_request._llmobserve_original = original_request
+    
+    logger.debug("[llmobserve] Patched urllib3.PoolManager.request")
     
     return True
 
@@ -440,6 +653,11 @@ def patch_all_http_clients():
         patched.append("aiohttp")
     else:
         failed.append("aiohttp")
+    
+    if patch_urllib3():
+        patched.append("urllib3")
+    else:
+        failed.append("urllib3")
     
     if patched:
         logger.info(f"[llmobserve] Successfully patched HTTP clients: {', '.join(patched)}")
