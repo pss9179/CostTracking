@@ -40,14 +40,9 @@ export default function InfrastructurePage() {
         // Note: Run type doesn't have provider info - would need to fetch RunDetail for each run
         // For now, return empty stats since infrastructure data requires event-level details
         // TODO: Implement proper infrastructure aggregation by fetching run details
-
-        // Calculate averages
-        const result = Array.from(aggregated.values()).map(s => ({
-          ...s,
-          avg_latency: s.calls > 0 ? s.avg_latency / s.calls : 0,
-        }));
-
-        setStats(result.sort((a, b) => b.cost - a.cost));
+        
+        // Return empty array for now - infrastructure stats require event-level data
+        setStats([]);
       } catch (error) {
         console.error("Failed to load infrastructure stats:", error);
       } finally {
