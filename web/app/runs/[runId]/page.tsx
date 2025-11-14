@@ -243,8 +243,8 @@ export default function RunDetailPage() {
                         {event.latency_ms.toFixed(0)}
                       </TableCell>
                       <TableCell className="text-right text-xs">
-                        {event.input_tokens + event.output_tokens > 0
-                          ? `${event.input_tokens} / ${event.output_tokens}`
+                        {((event.input_tokens ?? 0) + (event.output_tokens ?? 0)) > 0
+                          ? `${event.input_tokens ?? 0} / ${event.output_tokens ?? 0}`
                           : "—"}
                       </TableCell>
                       <TableCell className="text-right font-semibold text-xs">
