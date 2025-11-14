@@ -20,7 +20,11 @@ def observe(
     customer_id: Optional[str] = None,
     auto_start_proxy: bool = False,
     use_instrumentors: bool = False,
-    auto_detect_agents: bool = True
+    auto_detect_agents: bool = True,
+    enable_tool_wrapping: bool = True,
+    enable_llm_wrappers: bool = False,
+    enable_http_fallback: bool = True,
+    auto_wrap_frameworks: bool = False
 ) -> None:
     """
     Initialize LLM observability with reverse proxy architecture.
@@ -64,6 +68,18 @@ def observe(
         use_instrumentors: If True, use per-SDK instrumentors for other providers.
                           OpenAI and Pinecone ALWAYS use proxy (no monkey-patching).
                           Default: False (pure proxy mode).
+        enable_tool_wrapping: If True, make tool wrapping system available.
+                             Users must still call wrap_all_tools() explicitly.
+                             Default: True (tool wrapping available).
+        enable_llm_wrappers: If True, make LLM wrappers available (user must still call wrap_openai_client).
+                            For tool-calling workflows, extracts tool_calls metadata.
+                            Default: False (user opts in explicitly).
+        enable_http_fallback: If True, keep HTTP interceptors as fallback.
+                             Marks spans as "http_fallback" type.
+                             Default: True (HTTP fallback enabled).
+        auto_wrap_frameworks: If True, automatically patch common frameworks (LangChain, CrewAI, etc).
+                             This is experimental and may break with framework updates.
+                             Default: False (users call wrap_all_tools manually).
     
     Example:
         >>> import llmobserve
@@ -168,25 +184,49 @@ def observe(
         logger.debug("[llmobserve] Observability disabled, skipping instrumentation")
         return
     
-    # PRIMARY: Patch HTTP, gRPC, and WebSocket protocols for universal coverage
+    # TOOL WRAPPING: Enable tool wrapping system (if requested)
+    if enable_tool_wrapping:
+        logger.info("[llmobserve] ✓ Tool wrapping system enabled")
+        logger.info("[llmobserve]   → Use @agent('name') to mark agent entrypoints")
+        logger.info("[llmobserve]   → Use wrap_all_tools(tools) before passing to frameworks")
+        logger.info("[llmobserve]   → Use @tool('name') for custom tools")
+        
+        # Auto-patch frameworks if requested (experimental)
+        if auto_wrap_frameworks:
+            logger.info("[llmobserve] ⚙️  Auto-patching frameworks (experimental)")
+            try:
+                from llmobserve.framework_hooks import try_patch_frameworks
+                try_patch_frameworks()
+                logger.info("[llmobserve]   ✓ Framework auto-patching attempted")
+            except Exception as e:
+                logger.warning(f"[llmobserve]   ⚠️  Framework auto-patching failed: {e}")
+    
+    # LLM WRAPPERS: Enable LLM wrappers (if requested)
+    if enable_llm_wrappers:
+        logger.info("[llmobserve] ✓ LLM wrappers available for tool-calling workflows")
+        logger.info("[llmobserve]   → Use wrap_openai_client(client) for OpenAI")
+        logger.info("[llmobserve]   → Use wrap_anthropic_client(client) for Anthropic")
+    
+    # HTTP FALLBACK: Patch HTTP, gRPC, and WebSocket protocols for universal coverage
     # This ensures context propagates across all network calls
-    from llmobserve.http_interceptor import patch_all_protocols
-    protocol_results = patch_all_protocols()
+    if enable_http_fallback:
+        from llmobserve.http_interceptor import patch_all_protocols
+        protocol_results = patch_all_protocols()
+    else:
+        protocol_results = {}
     
     # Report patching results
     patched_protocols = [proto for proto, success in protocol_results.items() if success]
     failed_protocols = [proto for proto, success in protocol_results.items() if not success]
     
-    if patched_protocols:
-        logger.info(f"[llmobserve] ✓ Protocols patched: {', '.join(patched_protocols).upper()}")
+    if enable_http_fallback and patched_protocols:
+        logger.info(f"[llmobserve] ✓ HTTP fallback enabled: {', '.join(patched_protocols).upper()}")
         if proxy_url:
-            logger.info(f"[llmobserve]   → Routing ALL API calls through proxy: {proxy_url}")
-            logger.info(f"[llmobserve]   → Universal coverage (no monkey-patching, SDK-agnostic)")
-            logger.info(f"[llmobserve]   → OpenAI, Pinecone, and all APIs tracked via proxy")
+            logger.info(f"[llmobserve]   → Routing API calls through proxy: {proxy_url}")
+            logger.info(f"[llmobserve]   → Universal coverage (SDK-agnostic)")
         else:
-            logger.warning("[llmobserve]   ⚠️  No proxy configured - API calls won't be tracked!")
-            logger.warning("[llmobserve]   💡 Proxy is required for cost tracking (no monkey-patching)")
-            logger.warning("[llmobserve]   💡 Set proxy_url or enable auto_start_proxy=True")
+            logger.info(f"[llmobserve]   → HTTP fallback active (no proxy)")
+            logger.info(f"[llmobserve]   → Tool/Agent spans take priority over HTTP fallback")
     
     if failed_protocols:
         logger.debug(f"[llmobserve]   Not available: {', '.join(failed_protocols).upper()} (libraries not installed)")

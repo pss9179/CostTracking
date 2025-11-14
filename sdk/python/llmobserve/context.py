@@ -13,6 +13,7 @@ _run_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("run_id", defa
 _customer_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("customer_id", default=None)
 _tenant_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("tenant_id", default=None)
 _section_stack_var: contextvars.ContextVar[List[Dict[str, Any]]] = contextvars.ContextVar("section_stack", default=None)
+_trace_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("trace_id", default=None)
 
 
 def _ensure_run_id() -> str:
@@ -22,6 +23,15 @@ def _ensure_run_id() -> str:
         run_id = str(uuid.uuid4())
         _run_id_var.set(run_id)
     return run_id
+
+
+def _ensure_trace_id() -> str:
+    """Ensure trace_id is initialized (generated at first span)."""
+    trace_id = _trace_id_var.get()
+    if trace_id is None:
+        trace_id = str(uuid.uuid4())
+        _trace_id_var.set(trace_id)
+    return trace_id
 
 
 def _get_section_stack() -> List[Dict[str, Any]]:
@@ -81,6 +91,21 @@ def set_tenant_id(tenant_id: Optional[str] = None) -> None:
         tenant_id: Tenant identifier (e.g., "acme", "real_user_test")
     """
     _tenant_id_var.set(tenant_id)
+
+
+def get_trace_id() -> str:
+    """Get the current trace ID (generated at first span if not set)."""
+    return _ensure_trace_id()
+
+
+def set_trace_id(trace_id: Optional[str] = None) -> None:
+    """
+    Set a custom trace ID for distributed tracing.
+    
+    Args:
+        trace_id: Trace identifier, or None to auto-generate a new one
+    """
+    _trace_id_var.set(trace_id if trace_id else str(uuid.uuid4()))
 
 
 def get_current_section() -> str:
@@ -249,9 +274,10 @@ def export() -> Dict[str, Any]:
     Export current context for serialization (e.g., for Celery/background workers).
     
     Returns:
-        Dictionary with run_id, customer_id, and section_stack
+        Dictionary with trace_id, run_id, customer_id, and section_stack
     """
     return {
+        "trace_id": _trace_id_var.get(),
         "run_id": _run_id_var.get(),
         "customer_id": _customer_id_var.get(),
         "section_stack": _section_stack_var.get() or [],
@@ -263,13 +289,16 @@ def import_context(data: Dict[str, Any]) -> None:
     Import context from dictionary (e.g., from Celery/background workers).
     
     Args:
-        data: Dictionary with run_id, customer_id, and section_stack
+        data: Dictionary with trace_id, run_id, customer_id, and section_stack
     
     Example:
         >>> context_data = context.export()
         >>> # In worker:
         >>> context.import_context(context_data)
     """
+    if "trace_id" in data and data["trace_id"]:
+        _trace_id_var.set(data["trace_id"])
+    
     if "run_id" in data and data["run_id"]:
         _run_id_var.set(data["run_id"])
     

@@ -26,9 +26,16 @@ from llmobserve.context import (
     get_run_id,
     set_customer_id,
     get_customer_id,
+    set_trace_id,
+    get_trace_id,
     export as export_context,
     import_context,
 )
+from llmobserve.agent_wrapper import agent
+from llmobserve.tool_wrapper import tool, wrap_tool
+from llmobserve.framework_hooks import wrap_all_tools, try_patch_frameworks
+from llmobserve.distributed import export_context as export_distributed_context, import_context as import_distributed_context
+from llmobserve.llm_wrappers import wrap_openai_client, wrap_anthropic_client
 from llmobserve.instrumentation import auto_instrument, is_instrumented, is_initialized
 from llmobserve.decorators import trace
 from llmobserve.celery_support import (
@@ -61,13 +68,26 @@ __all__ = [
     "observe",
     "section",
     "trace",
+    # New tool wrapping system
+    "agent",
+    "tool",
+    "wrap_tool",
+    "wrap_all_tools",
+    # LLM wrappers for tool-calling workflows
+    "wrap_openai_client",
+    "wrap_anthropic_client",
     "set_run_id",
     "get_run_id",
     "set_customer_id",
     "get_customer_id",
+    "set_trace_id",
+    "get_trace_id",
     # Context export/import for workers
     "export_context",
     "import_context",
+    # Distributed tracing (for background workers)
+    "export_distributed_context",
+    "import_distributed_context",
     # New modular instrumentation API
     "auto_instrument",
     "is_instrumented",

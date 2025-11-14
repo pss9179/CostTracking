@@ -32,8 +32,16 @@ export default function AgentsPage() {
         setLoading(true);
         const runs = await fetchRuns(500);
         
-        // Aggregate by agent
+        // Aggregate by agent (including untracked)
         const agentMap = new Map<string, AgentStats>();
+        let untrackedStats: AgentStats = {
+          agent: "untracked",
+          calls: 0,
+          tokens: 0,
+          cost: 0,
+          avg_latency: 0,
+          errors: 0,
+        };
         
         for (const run of runs.slice(0, 50)) {
           try {
@@ -42,25 +50,35 @@ export default function AgentsPage() {
             
             events.forEach((event: any) => {
               const section = event.section_path || event.section;
-              if (!section || !section.startsWith("agent:")) return;
+              const isAgent = section?.startsWith("agent:");
               
-              const agentName = section.split("/")[0];
-              const existing = agentMap.get(agentName) || {
-                agent: agentName,
-                calls: 0,
-                tokens: 0,
-                cost: 0,
-                avg_latency: 0,
-                errors: 0,
-              };
-              
-              existing.calls++;
-              existing.tokens += (event.tokens_prompt || 0) + (event.tokens_completion || 0);
-              existing.cost += event.cost_usd || 0;
-              existing.avg_latency += event.latency_ms || 0;
-              if (event.error_message) existing.errors++;
-              
-              agentMap.set(agentName, existing);
+              if (isAgent) {
+                // Agent event
+                const agentName = section.split("/")[0];
+                const existing = agentMap.get(agentName) || {
+                  agent: agentName,
+                  calls: 0,
+                  tokens: 0,
+                  cost: 0,
+                  avg_latency: 0,
+                  errors: 0,
+                };
+                
+                existing.calls++;
+                existing.tokens += (event.tokens_prompt || 0) + (event.tokens_completion || 0);
+                existing.cost += event.cost_usd || 0;
+                existing.avg_latency += event.latency_ms || 0;
+                if (event.error_message) existing.errors++;
+                
+                agentMap.set(agentName, existing);
+              } else {
+                // Untracked event
+                untrackedStats.calls++;
+                untrackedStats.tokens += (event.tokens_prompt || 0) + (event.tokens_completion || 0);
+                untrackedStats.cost += event.cost_usd || 0;
+                untrackedStats.avg_latency += event.latency_ms || 0;
+                if (event.error_message) untrackedStats.errors++;
+              }
             });
           } catch (err) {
             // Skip failed fetches
@@ -72,6 +90,12 @@ export default function AgentsPage() {
           ...a,
           avg_latency: a.calls > 0 ? a.avg_latency / a.calls : 0,
         })).sort((a, b) => b.cost - a.cost);
+        
+        // Add untracked to the list if there are untracked costs
+        if (untrackedStats.cost > 0) {
+          untrackedStats.avg_latency = untrackedStats.calls > 0 ? untrackedStats.avg_latency / untrackedStats.calls : 0;
+          agentList.push(untrackedStats);
+        }
         
         setAgents(agentList);
       } catch (error) {
@@ -101,6 +125,16 @@ export default function AgentsPage() {
           <p className="text-muted-foreground mt-1">
             Hierarchical agent cost tracking and performance
           </p>
+          {agents.some(a => a.agent === "untracked") && (
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm">
+              <p className="text-amber-800">
+                <strong>⚠️ Note:</strong> Some costs appear as "untracked" because they were not wrapped with agents or tools.
+              </p>
+              <p className="text-amber-700 text-xs mt-1">
+                Use <code className="px-1 py-0.5 bg-amber-100 rounded">@agent("name")</code> and <code className="px-1 py-0.5 bg-amber-100 rounded">wrap_all_tools()</code> for accurate tracking.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Split Layout */}

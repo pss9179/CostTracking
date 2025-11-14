@@ -88,7 +88,7 @@ export default function DashboardPage() {
     console.log(`[Dashboard] Customer IDs in events:`, [...new Set(allEvents.map(e => e.customer_id).filter(Boolean))]);
   }
 
-  // Calculate stats from filtered events
+  // Calculate stats from filtered events (including untracked costs)
   const stats = (() => {
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -105,7 +105,13 @@ export default function DashboardPage() {
       return eventDate >= weekAgo && eventDate < yesterday;
     });
 
+    // Separate agent vs untracked costs
+    const agentEvents = recentEvents.filter(e => e.section?.startsWith("agent:") || e.section_path?.startsWith("agent:"));
+    const untrackedEvents = recentEvents.filter(e => !e.section?.startsWith("agent:") && !e.section_path?.startsWith("agent:"));
+
     const total_cost = recentEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
+    const agent_cost = agentEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
+    const untracked_cost = untrackedEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
     const total_calls = recentEvents.length;
     const week_cost = weekEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0) / 7;
 
@@ -117,8 +123,15 @@ export default function DashboardPage() {
     });
     const uniqueRuns = new Set(allRecentEvents.map(e => e.run_id));
 
+    // Calculate untracked percentage
+    const untracked_percentage = total_cost > 0 ? (untracked_cost / total_cost) * 100 : 0;
+
     return {
       total_cost_24h: total_cost,
+      agent_cost_24h: agent_cost,
+      untracked_cost_24h: untracked_cost,
+      untracked_calls_24h: untrackedEvents.length,
+      untracked_percentage,
       total_calls_24h: total_calls,
       avg_cost_per_call: total_calls > 0 ? total_cost / total_calls : 0,
       total_runs: uniqueRuns.size,
@@ -330,6 +343,46 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Untracked Costs Card (only show if there are untracked costs) */}
+      {stats.untracked_cost_24h > 0 && (
+        <Card className={`border ${stats.untracked_percentage > 20 ? "border-amber-300 bg-amber-50/50" : "border-gray-200"}`}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <span className="text-amber-600">⚠️</span>
+                Untracked / Non-Agent Costs (24h)
+              </CardTitle>
+              {stats.untracked_percentage > 20 && (
+                <Badge variant="destructive" className="bg-amber-600">
+                  {stats.untracked_percentage.toFixed(1)}% of total
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div>
+                <div className="text-sm text-gray-600 mb-1">Untracked Cost</div>
+                <div className="text-2xl font-bold text-gray-900">{formatCost(stats.untracked_cost_24h)}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-600 mb-1">Untracked Calls</div>
+                <div className="text-2xl font-bold text-gray-900">{stats.untracked_calls_24h.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-600 mb-1">% of Total</div>
+                <div className="text-2xl font-bold text-gray-900">{stats.untracked_percentage.toFixed(1)}%</div>
+              </div>
+            </div>
+            <div className="mt-4 text-xs text-gray-600 space-y-1">
+              <p>💡 <strong>Tip:</strong> Untracked costs occur when API calls are not wrapped with agents/tools.</p>
+              <p className="pl-5">Use <code className="px-1.5 py-0.5 bg-gray-100 rounded">@agent("name")</code> to mark agent entrypoints.</p>
+              <p className="pl-5">Use <code className="px-1.5 py-0.5 bg-gray-100 rounded">wrap_all_tools()</code> before passing tools to frameworks.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stacked Area Chart */}
       <ProviderCostChart 
