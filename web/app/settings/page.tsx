@@ -69,10 +69,10 @@ export default function SettingsPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            id: clerkUser.id,
-            email_addresses: clerkUser.emailAddresses.map(e => ({ email_address: e.emailAddress })),
-            first_name: clerkUser.firstName,
-            last_name: clerkUser.lastName,
+            id: clerkUser?.id || "",
+            email_addresses: clerkUser?.emailAddresses.map(e => ({ email_address: e.emailAddress })) || [],
+            first_name: clerkUser?.firstName || "",
+            last_name: clerkUser?.lastName || "",
           }),
         });
         
