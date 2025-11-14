@@ -38,34 +38,6 @@ export default function LLMsPage() {
         // For now, return empty stats since LLM data requires event-level details
         // TODO: Implement proper LLM aggregation by fetching run details
         setStats([]);
-        return;
-        
-        runs.forEach(run => {
-          if (!run.provider || run.provider === "internal") return; // Skip internal/agent events
-          
-          const key = `${run.provider}::${run.model_id || "unknown"}`;
-          const existing = aggregated.get(key) || {
-            provider: run.provider,
-            model_id: run.model_id || "unknown",
-            calls: 0,
-            tokens_prompt: 0,
-            tokens_completion: 0,
-            tokens_total: 0,
-            cost: 0,
-            avg_latency: 0,
-            errors: 0,
-          };
-
-          existing.calls++;
-          existing.tokens_prompt += run.tokens_prompt || 0;
-          existing.tokens_completion += run.tokens_completion || 0;
-          existing.tokens_total += (run.tokens_prompt || 0) + (run.tokens_completion || 0);
-          existing.cost += run.cost || 0;
-          existing.avg_latency += run.latency || 0;
-          if (run.error_message) existing.errors++;
-
-          aggregated.set(key, existing);
-        });
 
         // Calculate averages
         const result = Array.from(aggregated.values()).map(s => ({
