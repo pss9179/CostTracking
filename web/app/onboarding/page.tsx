@@ -37,6 +37,12 @@ export default function OnboardingPage() {
 
     // Sync user and get/create API key
     async function syncUserAndGetKey() {
+      if (!user) {
+        setError("User not found");
+        setLoading(false);
+        return;
+      }
+
       try {
         const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
         
