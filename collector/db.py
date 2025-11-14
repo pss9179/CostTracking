@@ -25,15 +25,8 @@ if DATABASE_URL.startswith("sqlite"):
     )
 else:
     # PostgreSQL/Supabase
-    # Add SSL mode for Supabase connections if not already specified
-    db_url = DATABASE_URL
-    if "supabase.co" in db_url and "sslmode" not in db_url:
-        # Supabase requires SSL - add it if not present
-        separator = "&" if "?" in db_url else "?"
-        db_url = f"{db_url}{separator}sslmode=require"
-    
     engine = create_engine(
-        db_url,
+        DATABASE_URL,
         echo=False,
         pool_pre_ping=True,  # Verify connections before using
     )
