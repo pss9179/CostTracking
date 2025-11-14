@@ -37,45 +37,9 @@ export default function InfrastructurePage() {
         // Aggregate by provider (excluding LLMs)
         const aggregated = new Map<string, InfraStats>();
         
-        runs.forEach(run => {
-          const provider = run.provider?.toLowerCase() || "unknown";
-          
-          // Skip internal and LLM providers
-          if (provider === "internal" || provider === "openai" || provider === "anthropic" || 
-              provider === "google" || provider === "cohere") {
-            return;
-          }
-          
-          const category = isVectorDB(provider) ? "vector_db" : "api";
-          const key = `${category}::${provider}`;
-          
-          const existing = aggregated.get(key) || {
-            category,
-            provider: run.provider || "unknown",
-            service: run.endpoint_path || provider,
-            calls: 0,
-            reads: 0,
-            writes: 0,
-            cost: 0,
-            avg_latency: 0,
-            errors: 0,
-          };
-
-          existing.calls++;
-          existing.cost += run.cost || 0;
-          existing.avg_latency += run.latency || 0;
-          if (run.error_message) existing.errors++;
-          
-          // Categorize as read/write based on endpoint
-          const endpoint = run.endpoint_path?.toLowerCase() || "";
-          if (endpoint.includes("query") || endpoint.includes("search") || endpoint.includes("get") || endpoint.includes("fetch")) {
-            existing.reads++;
-          } else if (endpoint.includes("insert") || endpoint.includes("upsert") || endpoint.includes("update") || endpoint.includes("delete") || endpoint.includes("create")) {
-            existing.writes++;
-          }
-
-          aggregated.set(key, existing);
-        });
+        // Note: Run type doesn't have provider info - would need to fetch RunDetail for each run
+        // For now, return empty stats since infrastructure data requires event-level details
+        // TODO: Implement proper infrastructure aggregation by fetching run details
 
         // Calculate averages
         const result = Array.from(aggregated.values()).map(s => ({
