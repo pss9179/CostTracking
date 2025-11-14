@@ -172,27 +172,28 @@ export default function CustomersPage() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <KPICard
-            title="Total Customers"
-            value={totalStats.total_customers}
-            icon={<Users className="h-4 w-4 text-muted-foreground" />}
-          />
-          <KPICard
-            title="Total Cost"
-            value={formatCost(totalStats.total_cost)}
-            icon={<DollarSign className="h-4 w-4 text-muted-foreground" />}
-          />
-          <KPICard
-            title="Total API Calls"
-            value={totalStats.total_calls.toLocaleString()}
-            icon={<Activity className="h-4 w-4 text-muted-foreground" />}
-          />
-          <KPICard
-            title="Avg Cost/Customer"
-            value={formatCost(totalStats.avg_cost_per_customer)}
-            icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}
-          />
+        <div className="rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-6">
+            <div className="flex-1 min-w-[120px]">
+              <div className="text-sm font-medium text-gray-600 mb-2">Total Customers</div>
+              <div className="text-3xl font-bold text-gray-900">{totalStats.total_customers}</div>
+            </div>
+            <div className="hidden md:block h-10 w-px bg-indigo-200" />
+            <div className="flex-1 min-w-[120px]">
+              <div className="text-sm font-medium text-gray-600 mb-2">Total Cost</div>
+              <div className="text-3xl font-bold text-gray-900">{formatCost(totalStats.total_cost)}</div>
+            </div>
+            <div className="hidden md:block h-10 w-px bg-indigo-200" />
+            <div className="flex-1 min-w-[120px]">
+              <div className="text-sm font-medium text-gray-600 mb-2">Total API Calls</div>
+              <div className="text-3xl font-bold text-gray-900">{totalStats.total_calls.toLocaleString()}</div>
+            </div>
+            <div className="hidden md:block h-10 w-px bg-indigo-200" />
+            <div className="flex-1 min-w-[120px]">
+              <div className="text-sm font-medium text-gray-600 mb-2">Avg Cost/Customer</div>
+              <div className="text-3xl font-bold text-gray-900">{formatCost(totalStats.avg_cost_per_customer)}</div>
+            </div>
+          </div>
         </div>
 
         {/* Customer Table */}

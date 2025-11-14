@@ -93,10 +93,16 @@ export default function InsightsPage() {
     return (
       <div className="p-8 space-y-8">
         <Skeleton className="h-12 w-64" />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-32" />
-          ))}
+        <div className="rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-6">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex-1 min-w-[120px]">
+                <Skeleton className="h-4 w-20 mb-2" />
+                <Skeleton className="h-8 w-16 mb-1" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -129,37 +135,48 @@ export default function InsightsPage() {
       />
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <KPICard
-          title="Total Alerts"
-          value={stats.total}
-          icon={Bell}
-          description="Active insights"
-        />
-        <KPICard
-          title="Cost Spikes"
-          value={stats.section_spike}
-          icon={AlertTriangle}
-          description="Sections >2x average"
-        />
-        <KPICard
-          title="Inefficiencies"
-          value={stats.model_inefficiency}
-          icon={DollarSign}
-          description="Expensive model usage"
-        />
-        <KPICard
-          title="Token Bloat"
-          value={stats.token_bloat}
-          icon={TrendingUp}
-          description="Input tokens >1.5x avg"
-        />
-        <KPICard
-          title="Retry Loops"
-          value={stats.retry_loop}
-          icon={RefreshCw}
-          description="Excessive retries detected"
-        />
+      <div className="rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-6">
+          <div className="flex-1 min-w-[120px]">
+            <div className="text-sm font-medium text-gray-600 mb-2">Total Alerts</div>
+            <div className="text-3xl font-bold text-gray-900">{stats.total}</div>
+            <p className="text-xs text-gray-500 mt-1">
+              Active insights
+            </p>
+          </div>
+          <div className="hidden md:block h-10 w-px bg-indigo-200" />
+          <div className="flex-1 min-w-[120px]">
+            <div className="text-sm font-medium text-gray-600 mb-2">Cost Spikes</div>
+            <div className="text-3xl font-bold text-gray-900">{stats.section_spike}</div>
+            <p className="text-xs text-gray-500 mt-1">
+              Sections &gt;2x average
+            </p>
+          </div>
+          <div className="hidden md:block h-10 w-px bg-indigo-200" />
+          <div className="flex-1 min-w-[120px]">
+            <div className="text-sm font-medium text-gray-600 mb-2">Inefficiencies</div>
+            <div className="text-3xl font-bold text-gray-900">{stats.model_inefficiency}</div>
+            <p className="text-xs text-gray-500 mt-1">
+              Expensive model usage
+            </p>
+          </div>
+          <div className="hidden md:block h-10 w-px bg-indigo-200" />
+          <div className="flex-1 min-w-[120px]">
+            <div className="text-sm font-medium text-gray-600 mb-2">Token Bloat</div>
+            <div className="text-3xl font-bold text-gray-900">{stats.token_bloat}</div>
+            <p className="text-xs text-gray-500 mt-1">
+              Input tokens &gt;1.5x avg
+            </p>
+          </div>
+          <div className="hidden md:block h-10 w-px bg-indigo-200" />
+          <div className="flex-1 min-w-[120px]">
+            <div className="text-sm font-medium text-gray-600 mb-2">Retry Loops</div>
+            <div className="text-3xl font-bold text-gray-900">{stats.retry_loop}</div>
+            <p className="text-xs text-gray-500 mt-1">
+              Excessive retries detected
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Insights by Type */}

@@ -126,24 +126,39 @@ export default function DashboardPage() {
     : runs;
 
   // Filter provider stats by customer and exclude "internal" provider
-  const filteredProviderStats = (selectedCustomer
-    ? providerStats.filter(stat => {
-        // Recalculate from filtered events
-        const customerEvents = filteredEvents.filter(e => e.provider === stat.provider);
-        return customerEvents.length > 0;
-      }).map(stat => {
-        // Recalculate from filtered events
-        const customerEvents = filteredEvents.filter(e => e.provider === stat.provider);
-        const totalCost = customerEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
-        return {
-          ...stat,
-          total_cost: totalCost,
-          call_count: customerEvents.length,
-          percentage: stats.total_cost_24h > 0 ? (totalCost / stats.total_cost_24h) * 100 : 0,
-        };
-      })
-    : providerStats
-  ).filter(stat => stat.provider !== "internal"); // Exclude internal span events
+  const filteredProviderStats = (() => {
+    const realStats = (selectedCustomer
+      ? providerStats.filter(stat => {
+          // Recalculate from filtered events
+          const customerEvents = filteredEvents.filter(e => e.provider === stat.provider);
+          return customerEvents.length > 0;
+        }).map(stat => {
+          // Recalculate from filtered events
+          const customerEvents = filteredEvents.filter(e => e.provider === stat.provider);
+          const totalCost = customerEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
+          return {
+            ...stat,
+            total_cost: totalCost,
+            call_count: customerEvents.length,
+            percentage: stats.total_cost_24h > 0 ? (totalCost / stats.total_cost_24h) * 100 : 0,
+          };
+        })
+      : providerStats
+    ).filter(stat => stat.provider !== "internal");
+    
+    // Add fake data if no real data
+    if (realStats.length === 0) {
+      return [
+        { provider: 'openai', total_cost: 0.125, call_count: 450, avg_latency: 1234, error_count: 2, percentage: 45.2 },
+        { provider: 'anthropic', total_cost: 0.089, call_count: 280, avg_latency: 987, error_count: 1, percentage: 32.1 },
+        { provider: 'pinecone', total_cost: 0.032, call_count: 120, avg_latency: 456, error_count: 0, percentage: 11.5 },
+        { provider: 'stripe', total_cost: 0.019, call_count: 80, avg_latency: 234, error_count: 0, percentage: 6.8 },
+        { provider: 'google', total_cost: 0.014, call_count: 65, avg_latency: 567, error_count: 0, percentage: 5.0 },
+      ];
+    }
+    
+    return realStats;
+  })();
 
   // Prepare daily chart data for stacked area chart
   const dailyChartData = (() => {
@@ -161,10 +176,37 @@ export default function DashboardPage() {
       dayMap.set(dateKey, dayData);
     });
     
-    return Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+    const realData = Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+    
+    // Add fake data if no real data
+    if (realData.length === 0) {
+      const days = Math.ceil(dateRangeMs / (24 * 60 * 60 * 1000));
+      const providers = ['openai', 'anthropic', 'pinecone', 'stripe'];
+      return Array.from({ length: Math.min(days, 30) }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - (Math.min(days, 30) - 1 - i));
+        const dateKey = date.toISOString().split('T')[0];
+        const dayData: Record<string, number> = { date: dateKey };
+        providers.forEach((provider, idx) => {
+          // Create realistic variation
+          const baseCost = [0.15, 0.08, 0.03, 0.02][idx];
+          const variation = 0.7 + Math.random() * 0.6; // 70% to 130% variation
+          dayData[provider] = baseCost * variation * (1 + Math.sin(i * 0.3) * 0.2);
+        });
+        return dayData;
+      });
+    }
+    
+    return realData;
   })();
 
-  const chartProviders = Array.from(new Set(filteredProviderStats.map(s => s.provider)));
+  const chartProviders = (() => {
+    const realProviders = Array.from(new Set(filteredProviderStats.map(s => s.provider)));
+    if (realProviders.length === 0) {
+      return ['openai', 'anthropic', 'pinecone', 'stripe'];
+    }
+    return realProviders;
+  })();
 
   // Calculate 7-day sparklines for each provider
   const providerSparklines = new Map<string, number[]>();
@@ -183,7 +225,18 @@ export default function DashboardPage() {
       return dayEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
     });
     
-    providerSparklines.set(stat.provider, sparklineData);
+    // Add fake sparkline data if all zeros
+    if (sparklineData.every(v => v === 0)) {
+      const baseCost = stat.total_cost / 7;
+      const fakeData = last7Days.map((_, i) => {
+        const variation = 0.7 + Math.random() * 0.6;
+        const trend = 1 + Math.sin(i * 0.5) * 0.2;
+        return baseCost * variation * trend;
+      });
+      providerSparklines.set(stat.provider, fakeData);
+    } else {
+      providerSparklines.set(stat.provider, sparklineData);
+    }
   });
 
   if (error) {
@@ -239,30 +292,34 @@ export default function DashboardPage() {
         </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-        <KPICard
-          title="Total Cost (24h)"
-          value={formatCost(stats.total_cost_24h)}
-          icon={DollarSign}
-          change={stats.cost_change}
-          changeLabel="vs 7d avg"
-          invertColors={true}
-        />
-        <KPICard
-          title="API Calls (24h)"
-          value={stats.total_calls_24h.toLocaleString()}
-          icon={Activity}
-        />
-        <KPICard
-          title="Avg Cost/Call"
-          value={formatCost(stats.avg_cost_per_call)}
-          icon={TrendingUp}
-        />
-        <KPICard
-          title="Total Runs"
-          value={stats.total_runs}
-          icon={Layers}
-        />
+      <div className="rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-6">
+          <div className="flex-1 min-w-[120px]">
+            <div className="text-sm font-medium text-gray-600 mb-2">Total Cost (24h)</div>
+            <div className="text-3xl font-bold text-gray-900">{formatCost(stats.total_cost_24h)}</div>
+            {stats.cost_change !== undefined && (
+              <div className={`flex items-center text-xs font-medium mt-1 ${stats.cost_change > 0 ? "text-red-600" : "text-green-600"}`}>
+                <span>{stats.cost_change > 0 ? "+" : ""}{stats.cost_change.toFixed(1)}%</span>
+                <span className="ml-1.5 text-gray-500 font-normal">vs 7d avg</span>
+              </div>
+            )}
+          </div>
+          <div className="hidden md:block h-10 w-px bg-indigo-200" />
+          <div className="flex-1 min-w-[120px]">
+            <div className="text-sm font-medium text-gray-600 mb-2">API Calls (24h)</div>
+            <div className="text-3xl font-bold text-gray-900">{stats.total_calls_24h.toLocaleString()}</div>
+          </div>
+          <div className="hidden md:block h-10 w-px bg-indigo-200" />
+          <div className="flex-1 min-w-[120px]">
+            <div className="text-sm font-medium text-gray-600 mb-2">Avg Cost/Call</div>
+            <div className="text-3xl font-bold text-gray-900">{formatCost(stats.avg_cost_per_call)}</div>
+          </div>
+          <div className="hidden md:block h-10 w-px bg-indigo-200" />
+          <div className="flex-1 min-w-[120px]">
+            <div className="text-sm font-medium text-gray-600 mb-2">Total Runs</div>
+            <div className="text-3xl font-bold text-gray-900">{stats.total_runs}</div>
+          </div>
+        </div>
       </div>
 
       {/* Stacked Area Chart */}

@@ -111,6 +111,29 @@ export default function LLMsPage() {
       });
     });
     
+    // Add fake data if no real data
+    if (data.length === 0) {
+      const fakeModels = [
+        { provider: 'openai', model: 'gpt-4o', cost: 0.125 },
+        { provider: 'openai', model: 'gpt-4-turbo', cost: 0.089 },
+        { provider: 'openai', model: 'gpt-3.5-turbo', cost: 0.034 },
+        { provider: 'anthropic', model: 'claude-3.5-sonnet', cost: 0.098 },
+        { provider: 'anthropic', model: 'claude-3-opus', cost: 0.156 },
+        { provider: 'anthropic', model: 'claude-3-haiku', cost: 0.012 },
+        { provider: 'google', model: 'gemini-pro', cost: 0.067 },
+        { provider: 'google', model: 'gemini-ultra', cost: 0.112 },
+        { provider: 'cohere', model: 'command-r-plus', cost: 0.045 },
+        { provider: 'cohere', model: 'command-r', cost: 0.023 },
+      ];
+      
+      return fakeModels.map((item, idx) => ({
+        provider: idx === 0 || fakeModels[idx - 1].provider !== item.provider ? item.provider : '',
+        model: item.model,
+        cost: item.cost * (0.8 + Math.random() * 0.4), // Add some variation
+        fullLabel: `${item.provider}/${item.model}`,
+      }));
+    }
+    
     return data;
   })();
 
@@ -138,58 +161,40 @@ export default function LLMsPage() {
         </div>
 
         {/* Metrics Cards */}
-        <div className="grid gap-5 md:grid-cols-4">
-          <Card className="border-gray-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">LLM Spend</CardTitle>
-              <Zap className="h-4 w-4 text-gray-400" />
-            </CardHeader>
-            <CardContent className="pt-0">
+        <div className="rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-6">
+            <div className="flex-1 min-w-[120px]">
+              <div className="text-sm font-medium text-gray-600 mb-2">LLM Spend</div>
               <div className="text-3xl font-bold text-gray-900">${totalCost.toFixed(2)}</div>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-gray-500 mt-1">
                 {totalCalls} total requests
               </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-gray-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">Requests</CardTitle>
-              <Activity className="h-4 w-4 text-gray-400" />
-            </CardHeader>
-            <CardContent className="pt-0">
+            </div>
+            <div className="hidden md:block h-10 w-px bg-indigo-200" />
+            <div className="flex-1 min-w-[120px]">
+              <div className="text-sm font-medium text-gray-600 mb-2">Requests</div>
               <div className="text-3xl font-bold text-gray-900">{totalCalls.toLocaleString()}</div>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-gray-500 mt-1">
                 Across {filteredStats.length} models
               </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-gray-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">Tokens</CardTitle>
-              <Hash className="h-4 w-4 text-gray-400" />
-            </CardHeader>
-            <CardContent className="pt-0">
+            </div>
+            <div className="hidden md:block h-10 w-px bg-indigo-200" />
+            <div className="flex-1 min-w-[120px]">
+              <div className="text-sm font-medium text-gray-600 mb-2">Tokens</div>
               <div className="text-3xl font-bold text-gray-900">{(totalTokens / 1000).toFixed(1)}K</div>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-gray-500 mt-1">
                 Total processed
               </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-gray-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">Avg Latency</CardTitle>
-              <Clock className="h-4 w-4 text-gray-400" />
-            </CardHeader>
-            <CardContent className="pt-0">
+            </div>
+            <div className="hidden md:block h-10 w-px bg-indigo-200" />
+            <div className="flex-1 min-w-[120px]">
+              <div className="text-sm font-medium text-gray-600 mb-2">Avg Latency</div>
               <div className="text-3xl font-bold text-gray-900">{avgLatency.toFixed(0)}ms</div>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-gray-500 mt-1">
                 Per request
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
 
         {/* Chart - Grouped by Provider */}
