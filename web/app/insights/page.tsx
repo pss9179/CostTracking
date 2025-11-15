@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,7 +36,7 @@ const INSIGHT_COLORS = {
   retry_loop: "text-red-600 bg-red-50 border-red-200",
 };
 
-export default function InsightsPage() {
+function InsightsPageContent() {
   const searchParams = useSearchParams();
   const [insights, setInsights] = useState<Insight[]>([]);
   const [loading, setLoading] = useState(true);
@@ -275,6 +275,14 @@ export default function InsightsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function InsightsPage() {
+  return (
+    <Suspense fallback={<div className="p-6"><Skeleton className="h-96 w-full" /></div>}>
+      <InsightsPageContent />
+    </Suspense>
   );
 }
 
