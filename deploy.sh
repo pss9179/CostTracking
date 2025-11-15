@@ -100,3 +100,4 @@ echo "1. Update ALLOWED_ORIGINS in Render with your Vercel URL"
 echo "2. Test your deployment"
 echo "3. Set up Clerk webhooks if needed"
 
+

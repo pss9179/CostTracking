@@ -58,12 +58,12 @@ function buildTree(events: TraceEvent[]): TreeNode[] {
       if (parent) {
         parent.children.push(node);
         // Bubble up cost to parent
-        let current = parent;
+        let current: TreeNode | null = parent;
         while (current) {
           current.totalCost += event.cost_usd;
           current.callCount += 1;
           // Find parent of current
-          const parentSpanId = current.event.parent_span_id;
+          const parentSpanId: string | null = current.event.parent_span_id;
           if (!parentSpanId) break;
           current = nodeMap.get(parentSpanId) || null;
         }

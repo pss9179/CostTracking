@@ -144,3 +144,4 @@ Paid Plans:
 5. Update ALLOWED_ORIGINS with Vercel URL
 6. Done! 🎉
 
+

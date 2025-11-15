@@ -231,7 +231,7 @@ export default function SettingsPage() {
       if (!session) return;
 
       const { fetchAlerts } = await import("@/lib/api");
-      const data = await fetchAlerts(session, 20);
+      const data = await fetchAlerts(20);
       setAlerts(data);
     } catch (err) {
       console.error("Failed to load alerts:", err);
@@ -250,12 +250,11 @@ export default function SettingsPage() {
         target_name: capType === "global" ? undefined : targetName,
         limit_amount: parseFloat(limitAmount),
         period,
-        enforcement,
         alert_threshold: parseFloat(alertThreshold) / 100,
         alert_email: alertEmail || user?.email,
       };
 
-      await createCap(session, capData);
+      await createCap(capData);
       await loadCaps();
       
       // Reset form
@@ -280,7 +279,7 @@ export default function SettingsPage() {
       if (!session) return;
 
       const { updateCap } = await import("@/lib/api");
-      await updateCap(session, capId, { enabled });
+      await updateCap(capId, { enabled });
       await loadCaps();
     } catch (err) {
       console.error("Failed to toggle cap:", err);
@@ -297,7 +296,7 @@ export default function SettingsPage() {
       if (!session) return;
 
       const { deleteCap } = await import("@/lib/api");
-      await deleteCap(session, capId);
+      await deleteCap(capId);
       await loadCaps();
     } catch (err) {
       console.error("Failed to delete cap:", err);
@@ -598,25 +597,6 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
-                    <Label>Enforcement Mode</Label>
-                    <Select value={enforcement} onValueChange={setEnforcement}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="alert">🟡 Alert Only (Email notification)</SelectItem>
-                        <SelectItem value="hard_block">🔴 Hard Block (Prevent requests)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {enforcement === "hard_block" 
-                        ? "Requests will be blocked when cap is exceeded"
-                        : "You'll receive email alerts, but requests won't be blocked"
-                      }
-                    </p>
-                  </div>
-
-                  <div>
                     <Label>Alert Threshold (%)</Label>
                     <Input
                       type="number"
@@ -682,12 +662,6 @@ export default function SettingsPage() {
                           {cap.target_name && (
                             <span className="text-sm font-medium">{cap.target_name}</span>
                           )}
-                          <Badge 
-                            variant={cap.enforcement === "hard_block" ? "destructive" : "outline"}
-                            className={cap.enforcement === "hard_block" ? "bg-red-600" : ""}
-                          >
-                            {cap.enforcement === "hard_block" ? "🔴 Hard Block" : "🟡 Alert Only"}
-                          </Badge>
                           <Badge variant={cap.enabled ? "default" : "outline"}>
                             {cap.enabled ? "Active" : "Disabled"}
                           </Badge>

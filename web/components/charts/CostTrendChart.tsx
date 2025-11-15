@@ -58,7 +58,7 @@ export function CostTrendChart({ data, height = 300 }: CostTrendChartProps) {
         />
         <Tooltip
           content={({ active, payload, label }) => {
-            if (!active || !payload?.length) return null;
+            if (!active || !payload?.length || !label) return null;
 
             return (
               <div className="bg-background border rounded-lg p-3 shadow-lg">

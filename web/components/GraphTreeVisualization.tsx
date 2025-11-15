@@ -260,7 +260,7 @@ export function GraphTreeVisualization({ events }: GraphTreeVisualizationProps) 
   const height = maxY - minY;
 
   const renderEdges = (nodes: TreeNode[]) => {
-    const edges: JSX.Element[] = [];
+    const edges: React.ReactElement[] = [];
     nodes.forEach((node) => {
       node.children.forEach((child) => {
         edges.push(
@@ -277,7 +277,7 @@ export function GraphTreeVisualization({ events }: GraphTreeVisualizationProps) 
   };
 
   const renderNodes = (nodes: TreeNode[]) => {
-    const nodeElements: JSX.Element[] = [];
+    const nodeElements: React.ReactElement[] = [];
     nodes.forEach((node) => {
       nodeElements.push(
         <GraphNode
