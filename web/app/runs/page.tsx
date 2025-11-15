@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -25,7 +25,7 @@ import { exportToCSV } from "@/lib/export";
 type SortField = "started_at" | "total_cost" | "call_count" | "top_section";
 type SortDirection = "asc" | "desc";
 
-export default function RunsPage() {
+function RunsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const parentRef = useRef<HTMLDivElement>(null);
@@ -301,5 +301,13 @@ export default function RunsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function RunsPage() {
+  return (
+    <Suspense fallback={<div className="p-6"><Skeleton className="h-96 w-full" /></div>}>
+      <RunsPageContent />
+    </Suspense>
   );
 }
