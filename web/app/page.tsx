@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Zap, BarChart3, Shield, Code, TrendingUp, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Zap, BarChart3, Shield, Code, TrendingUp, CheckCircle2, DollarSign } from "lucide-react";
 import Link from "next/link";
 
 export default function LandingPage() {
