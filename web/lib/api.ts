@@ -209,19 +209,21 @@ async function getClerkToken(): Promise<string | null> {
 }
 
 // Helper function to get auth headers for dashboard queries (uses Clerk token)
+// IMPORTANT: This function REQUIRES a token to be passed. It will NOT include Authorization
+// header if no token is provided. All callers must pass a token obtained via getToken({ template: "default" })
 export async function getDashboardAuthHeaders(token?: string): Promise<HeadersInit> {
   const headers: HeadersInit = {
     "Content-Type": "application/json",
   };
 
-  // Use provided token, or get from window (set by page components)
-  let clerkToken = token;
-  if (!clerkToken && typeof window !== "undefined") {
-    clerkToken = (window as any).__clerkToken;
-  }
-  
-  if (clerkToken) {
-    headers["Authorization"] = `Bearer ${clerkToken}`;
+  // Token MUST be provided - no fallback to window.__clerkToken for reliability
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  } else {
+    // Log warning if no token provided (but don't throw to avoid breaking existing code)
+    if (typeof window !== "undefined") {
+      console.warn("getDashboardAuthHeaders called without token - Authorization header will be missing");
+    }
   }
 
   return headers;

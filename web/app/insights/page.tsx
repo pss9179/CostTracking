@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,7 @@ const INSIGHT_COLORS = {
 
 function InsightsPageContent() {
   const searchParams = useSearchParams();
+  const { getToken } = useAuth();
   const [insights, setInsights] = useState<Insight[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +50,13 @@ function InsightsPageContent() {
   useEffect(() => {
     async function loadInsights() {
       try {
-        const data = await fetchInsights();
+        const token = await getToken({ template: "default" });
+        if (!token) {
+          setError("Not authenticated. Please sign in.");
+          setLoading(false);
+          return;
+        }
+        const data = await fetchInsights(null, token);
         setInsights(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load insights");
@@ -60,7 +68,7 @@ function InsightsPageContent() {
     loadInsights();
     const interval = setInterval(loadInsights, 60000); // Refresh every minute
     return () => clearInterval(interval);
-  }, []);
+  }, [getToken]);
 
   const toggleType = (type: string) => {
     const newExpanded = new Set(expandedTypes);
