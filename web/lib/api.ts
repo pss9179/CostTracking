@@ -207,17 +207,19 @@ async function getClerkToken(): Promise<string | null> {
 }
 
 // Helper function to get auth headers for dashboard queries (uses Clerk token)
-export async function getDashboardAuthHeaders(): Promise<HeadersInit> {
+export async function getDashboardAuthHeaders(token?: string): Promise<HeadersInit> {
   const headers: HeadersInit = {
     "Content-Type": "application/json",
   };
 
-  // Get Clerk token from window (set by page components)
-  if (typeof window !== "undefined") {
-    const clerkToken = (window as any).__clerkToken;
-    if (clerkToken) {
-      headers["Authorization"] = `Bearer ${clerkToken}`;
-    }
+  // Use provided token, or get from window (set by page components)
+  let clerkToken = token;
+  if (!clerkToken && typeof window !== "undefined") {
+    clerkToken = (window as any).__clerkToken;
+  }
+  
+  if (clerkToken) {
+    headers["Authorization"] = `Bearer ${clerkToken}`;
   }
 
   return headers;
@@ -241,8 +243,8 @@ async function getAuthHeaders(): Promise<HeadersInit> {
 }
 
 // API Functions
-export async function fetchRuns(limit: number = 50, tenantId?: string | null): Promise<Run[]> {
-  const headers = await getDashboardAuthHeaders();
+export async function fetchRuns(limit: number = 50, tenantId?: string | null, token?: string): Promise<Run[]> {
+  const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/runs/latest?limit=${limit}`;
   if (tenantId) {
     url += `&tenant_id=${encodeURIComponent(tenantId)}`;
@@ -252,14 +254,15 @@ export async function fetchRuns(limit: number = 50, tenantId?: string | null): P
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch runs: ${response.statusText}`);
+    const errorText = await response.text().catch(() => response.statusText);
+    throw new Error(`Failed to fetch runs (${response.status}): ${errorText}`);
   }
 
   return response.json();
 }
 
-export async function fetchRunDetail(runId: string, tenantId?: string | null): Promise<RunDetail> {
-  const headers = await getDashboardAuthHeaders();
+export async function fetchRunDetail(runId: string, tenantId?: string | null, token?: string): Promise<RunDetail> {
+  const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/runs/${runId}`;
   if (tenantId) {
     url += `?tenant_id=${encodeURIComponent(tenantId)}`;
@@ -269,14 +272,15 @@ export async function fetchRunDetail(runId: string, tenantId?: string | null): P
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch run detail: ${response.statusText}`);
+    const errorText = await response.text().catch(() => response.statusText);
+    throw new Error(`Failed to fetch run detail (${response.status}): ${errorText}`);
   }
 
   return response.json();
 }
 
-export async function fetchProviderStats(hours: number = 24, tenantId?: string | null): Promise<ProviderStats[]> {
-  const headers = await getDashboardAuthHeaders();
+export async function fetchProviderStats(hours: number = 24, tenantId?: string | null, token?: string): Promise<ProviderStats[]> {
+  const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/stats/by-provider?hours=${hours}`;
   if (tenantId) {
     url += `&tenant_id=${encodeURIComponent(tenantId)}`;
@@ -286,7 +290,8 @@ export async function fetchProviderStats(hours: number = 24, tenantId?: string |
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch provider stats: ${response.statusText}`);
+    const errorText = await response.text().catch(() => response.statusText);
+    throw new Error(`Failed to fetch provider stats (${response.status}): ${errorText}`);
   }
 
   return response.json();

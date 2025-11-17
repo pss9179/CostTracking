@@ -74,16 +74,21 @@ export default function DashboardPage() {
         // TODO: Enable tenant filtering once data is properly tagged with tenant_id
         // const tenantId = getTenantId(user.id);
         
+        // Make sure we have a token before making API calls
+        if (!token) {
+          throw new Error("Not authenticated. Please sign in again.");
+        }
+        
         const [runsData, providersData] = await Promise.all([
-          fetchRuns(1000),
-          fetchProviderStats(24)
+          fetchRuns(1000, null, token),
+          fetchProviderStats(24, null, token)
         ]);
         setRuns(runsData);
         setProviderStats(providersData);
 
         // Fetch events for customer filtering
         const eventPromises = runsData.slice(0, 50).map((run) => 
-          fetchRunDetail(run.run_id).then((detail) => detail.events).catch(() => [])
+          fetchRunDetail(run.run_id, null, token).then((detail) => detail.events).catch(() => [])
         );
         const eventsArrays = await Promise.all(eventPromises);
         const flatEvents = eventsArrays.flat();
