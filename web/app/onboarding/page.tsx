@@ -46,7 +46,12 @@ export default function OnboardingPage() {
       try {
         const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
         
-        // Sync user from Clerk
+        // Get user type from sessionStorage (set during signup)
+        const selectedUserType = typeof window !== "undefined" 
+          ? sessionStorage.getItem("selectedUserType") 
+          : null;
+        
+        // Sync user from Clerk with user type
         const syncResponse = await fetch(`${collectorUrl}/users/sync`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -55,8 +60,14 @@ export default function OnboardingPage() {
             email_addresses: user.emailAddresses.map(e => ({ email_address: e.emailAddress })),
             first_name: user.firstName,
             last_name: user.lastName,
+            user_type: selectedUserType || "solo_dev", // Default to solo_dev if not set
           }),
         });
+        
+        // Clear sessionStorage after use
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("selectedUserType");
+        }
 
         if (!syncResponse.ok) {
           throw new Error("Failed to sync user");

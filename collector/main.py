@@ -37,17 +37,19 @@ app = FastAPI(
 
 # CORS middleware - configure based on environment
 import os
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
-if ALLOWED_ORIGINS == ["*"]:
+ALLOWED_ORIGINS_ENV = os.getenv("ALLOWED_ORIGINS", "*")
+if ALLOWED_ORIGINS_ENV == "*":
     # Development: allow all
     allow_origins = ["*"]
 else:
-    # Production: specific domains
-    allow_origins = [origin.strip() for origin in ALLOWED_ORIGINS]
+    # Production: specific domains (comma-separated)
+    allow_origins = [origin.strip() for origin in ALLOWED_ORIGINS_ENV.split(",")]
+    # Always include localhost for local development
+    allow_origins.extend(["http://localhost:3000", "http://localhost:3001"])
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "*"],  # Explicitly allow localhost
+    allow_origins=allow_origins,  # Use calculated origins from env var
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,17 +57,32 @@ app.add_middleware(
 )
 
 # Add CORS headers to error responses
+def get_cors_headers(request: Request) -> dict:
+    """Get CORS headers based on request origin and allowed origins."""
+    origin = request.headers.get("origin")
+    headers = {
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Methods": "*",
+        "Access-Control-Allow-Headers": "*",
+    }
+    
+    # If allow_origins includes "*", allow any origin
+    if "*" in allow_origins:
+        headers["Access-Control-Allow-Origin"] = origin or "*"
+    elif origin and origin in allow_origins:
+        headers["Access-Control-Allow-Origin"] = origin
+    elif origin:
+        # Origin not in allowed list, but we'll allow it for error responses
+        headers["Access-Control-Allow-Origin"] = origin
+    
+    return headers
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     response = JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
-        headers={
-            "Access-Control-Allow-Origin": "http://localhost:3000",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Allow-Methods": "*",
-            "Access-Control-Allow-Headers": "*",
-        }
+        headers=get_cors_headers(request)
     )
     return response
 
@@ -75,12 +92,7 @@ async def general_exception_handler(request: Request, exc: Exception):
     response = JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
-        headers={
-            "Access-Control-Allow-Origin": "http://localhost:3000",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Allow-Methods": "*",
-            "Access-Control-Allow-Headers": "*",
-        }
+        headers=get_cors_headers(request)
     )
     return response
 

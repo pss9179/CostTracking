@@ -93,6 +93,7 @@ async def sync_user_from_clerk(
     email = clerk_user.get("email_addresses", [{}])[0].get("email_address")
     first_name = clerk_user.get("first_name", "")
     last_name = clerk_user.get("last_name", "")
+    user_type = clerk_user.get("user_type", "solo_dev")  # Default to solo_dev
     name = f"{first_name} {last_name}".strip() or None
     
     if not clerk_user_id or not email:
@@ -107,6 +108,9 @@ async def sync_user_from_clerk(
         existing_user.email = email
         if name:
             existing_user.name = name
+        # Only update user_type if it's provided and different
+        if user_type and user_type != existing_user.user_type:
+            existing_user.user_type = user_type
         session.add(existing_user)
         session.commit()
         session.refresh(existing_user)
@@ -114,6 +118,7 @@ async def sync_user_from_clerk(
         return {
             "message": "User updated successfully",
             "user_id": str(existing_user.id),
+            "user_type": existing_user.user_type,
             "created": False,
         }
     
@@ -122,6 +127,7 @@ async def sync_user_from_clerk(
         clerk_user_id=clerk_user_id,
         email=email,
         name=name,
+        user_type=user_type,  # Set user type from signup
     )
     session.add(user)
     session.commit()
@@ -145,6 +151,7 @@ async def sync_user_from_clerk(
     return {
         "message": "User created successfully",
         "user_id": str(user.id),
+        "user_type": user.user_type,
         "api_key": api_key,  # Return first key for onboarding
         "api_key_prefix": key_prefix,
         "created": True,

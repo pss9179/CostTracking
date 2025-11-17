@@ -8,6 +8,7 @@ from sqlmodel import Session, select, func, text
 from models import TraceEvent
 from db import get_session, IS_POSTGRESQL
 from auth import get_current_user_id
+from clerk_auth import get_current_clerk_user
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -35,20 +36,20 @@ def extract_top_level_section(section_path: str) -> str:
 
 
 @router.get("/latest")
-def get_latest_runs(
+async def get_latest_runs(
     limit: int = 50,
-    user_id: Optional[UUID] = None,  # Made optional for MVP
     tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user)  # Require Clerk authentication
 ) -> List[Dict[str, Any]]:
     """
-    Get latest runs with aggregated metrics.
+    Get latest runs with aggregated metrics for the authenticated user.
     
-    For MVP: Returns all runs if no user_id or tenant_id provided.
-    For production: Should require authentication.
+    Requires Clerk authentication. Returns only runs belonging to the authenticated user.
     
     Returns: List of runs with total_cost, call_count, sections, etc.
     """
+    user_id = current_user.id
     # Group by run_id and aggregate
     # Use string_agg for PostgreSQL, group_concat for SQLite
     if IS_POSTGRESQL:
@@ -189,18 +190,18 @@ def get_top_sections(
 
 
 @router.get("/{run_id}")
-def get_run_detail(
+async def get_run_detail(
     run_id: str,
-    user_id: Optional[UUID] = None,  # Made optional for MVP
     tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user)  # Require Clerk authentication
 ) -> Dict[str, Any]:
     """
-    Get detailed breakdown for a specific run.
+    Get detailed breakdown for a specific run belonging to the authenticated user.
     
-    For MVP: Returns run data without authentication.
-    Returns breakdown by section, provider, and model with percentages.
+    Requires Clerk authentication. Returns breakdown by section, provider, and model with percentages.
     """
+    user_id = current_user.id
     # Check if run exists
     statement = select(TraceEvent).where(TraceEvent.run_id == run_id)
     # Filter by tenant_id (preferred) or user_id

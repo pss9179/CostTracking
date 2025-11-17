@@ -191,7 +191,39 @@ export interface Alert {
   created_at: string;
 }
 
-// Helper function to get auth headers
+// Helper function to get Clerk token (for dashboard queries)
+async function getClerkToken(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  
+  // Dynamic import to avoid SSR issues
+  try {
+    const { getToken } = await import("@clerk/nextjs/server");
+    // For client-side, we need to use the client-side getToken
+    // This is a workaround - in production, pass token from page components
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Helper function to get auth headers for dashboard queries (uses Clerk token)
+export async function getDashboardAuthHeaders(): Promise<HeadersInit> {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+
+  // Get Clerk token from window (set by page components)
+  if (typeof window !== "undefined") {
+    const clerkToken = (window as any).__clerkToken;
+    if (clerkToken) {
+      headers["Authorization"] = `Bearer ${clerkToken}`;
+    }
+  }
+
+  return headers;
+}
+
+// Helper function to get auth headers for SDK calls (uses API key)
 async function getAuthHeaders(): Promise<HeadersInit> {
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -210,7 +242,7 @@ async function getAuthHeaders(): Promise<HeadersInit> {
 
 // API Functions
 export async function fetchRuns(limit: number = 50, tenantId?: string | null): Promise<Run[]> {
-  const headers = await getAuthHeaders();
+  const headers = await getDashboardAuthHeaders();
   let url = `${COLLECTOR_URL}/runs/latest?limit=${limit}`;
   if (tenantId) {
     url += `&tenant_id=${encodeURIComponent(tenantId)}`;
@@ -227,7 +259,7 @@ export async function fetchRuns(limit: number = 50, tenantId?: string | null): P
 }
 
 export async function fetchRunDetail(runId: string, tenantId?: string | null): Promise<RunDetail> {
-  const headers = await getAuthHeaders();
+  const headers = await getDashboardAuthHeaders();
   let url = `${COLLECTOR_URL}/runs/${runId}`;
   if (tenantId) {
     url += `?tenant_id=${encodeURIComponent(tenantId)}`;
@@ -244,7 +276,7 @@ export async function fetchRunDetail(runId: string, tenantId?: string | null): P
 }
 
 export async function fetchProviderStats(hours: number = 24, tenantId?: string | null): Promise<ProviderStats[]> {
-  const headers = await getAuthHeaders();
+  const headers = await getDashboardAuthHeaders();
   let url = `${COLLECTOR_URL}/stats/by-provider?hours=${hours}`;
   if (tenantId) {
     url += `&tenant_id=${encodeURIComponent(tenantId)}`;

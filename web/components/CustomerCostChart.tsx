@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -29,6 +30,7 @@ interface CustomerStats {
 const COLORS = ["#3b82f6", "#a855f7", "#f97316", "#10b981", "#6366f1", "#ec4899", "#f59e0b"];
 
 export function CustomerCostChart() {
+  const { getToken } = useAuth();
   const [customers, setCustomers] = useState<CustomerStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,9 +39,22 @@ export function CustomerCostChart() {
   useEffect(() => {
     async function loadCustomers() {
       try {
+        // Get Clerk token for authentication
+        const token = await getToken();
+        if (!token) {
+          setError("Not authenticated");
+          setLoading(false);
+          return;
+        }
+        
         // Fetch customer stats from collector API
         const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
-        const response = await fetch(`${collectorUrl}/stats/by-customer?hours=720`); // 30 days
+        const response = await fetch(`${collectorUrl}/stats/by-customer?hours=720`, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }); // 30 days
         if (!response.ok) throw new Error("Failed to fetch customer data");
         const data = await response.json();
         

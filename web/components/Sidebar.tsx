@@ -18,7 +18,7 @@ import { UserButton, useUser } from "@clerk/nextjs";
 import { useState } from "react";
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Runs", href: "/runs", icon: List },
   { name: "Agents", href: "/agents", icon: Bot },
   { name: "LLMs", href: "/llms", icon: Zap },

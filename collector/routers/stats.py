@@ -9,23 +9,24 @@ from sqlmodel import Session, select, func, and_
 from models import TraceEvent
 from db import get_session
 from auth import get_current_user_id
+from clerk_auth import get_current_clerk_user
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
 
 @router.get("/by-provider")
-def get_costs_by_provider(
+async def get_costs_by_provider(
     hours: int = 24,
-    user_id: Optional[UUID] = None,  # Made optional for MVP
     tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user)  # Require Clerk authentication
 ) -> List[Dict[str, Any]]:
     """
-    Get costs aggregated by provider for the last N hours.
+    Get costs aggregated by provider for the authenticated user for the last N hours.
     
-    For MVP: Returns all data if no user_id or tenant_id provided.
-    Returns breakdown with total cost, call count, and percentage.
+    Requires Clerk authentication. Returns breakdown with total cost, call count, and percentage.
     """
+    user_id = current_user.id
     # Calculate time window
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
@@ -66,17 +67,18 @@ def get_costs_by_provider(
 
 
 @router.get("/by-customer")
-def get_costs_by_customer(
+async def get_costs_by_customer(
     hours: int = Query(720, description="Time window in hours (default 30 days)"),
-    user_id: Optional[UUID] = None,
     tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user)  # Require Clerk authentication
 ) -> List[Dict[str, Any]]:
     """
-    Get costs aggregated by customer_id for the last N hours.
+    Get costs aggregated by customer_id for the authenticated user for the last N hours.
     
-    Returns breakdown with total cost, call count, and average latency.
+    Requires Clerk authentication. Returns breakdown with total cost, call count, and average latency.
     """
+    user_id = current_user.id
     # Calculate time window
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     

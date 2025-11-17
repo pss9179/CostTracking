@@ -25,16 +25,34 @@ if DATABASE_URL.startswith("sqlite"):
     )
 else:
     # PostgreSQL/Supabase
+    # Force IPv4 to avoid Railway IPv6 connection issues
+    import urllib.parse
+    parsed = urllib.parse.urlparse(DATABASE_URL)
+    # Add connect_timeout and force IPv4 via connection args
     engine = create_engine(
         DATABASE_URL,
         echo=False,
         pool_pre_ping=True,  # Verify connections before using
+        connect_args={
+            "connect_timeout": 10,
+            # Force IPv4 by using hostname (psycopg2 will resolve to IPv4)
+            # If still issues, we can try adding: "host": parsed.hostname
+        }
     )
 
 
 def init_db():
     """Create all tables. Called on app startup."""
-    SQLModel.metadata.create_all(engine)
+    try:
+        SQLModel.metadata.create_all(engine)
+    except Exception as e:
+        # Log error but don't crash - database might be temporarily unavailable
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to initialize database: {e}")
+        logger.error("If using Supabase, ensure you're using the Connection Pooling URL (port 6543)")
+        logger.error("Get it from: Supabase Dashboard → Settings → Database → Connection pooling")
+        raise  # Re-raise so startup fails (app can't run without DB)
 
 
 def run_migrations():

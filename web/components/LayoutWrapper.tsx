@@ -8,8 +8,10 @@ import { TopBar } from "@/components/TopBar";
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAuthPage = pathname?.startsWith('/sign-');
+  const isLandingPage = pathname === '/';
+  const isOnboardingPage = pathname?.startsWith('/onboarding');
 
-  if (isAuthPage) {
+  if (isAuthPage || isLandingPage || isOnboardingPage) {
     return <>{children}</>;
   }
 
