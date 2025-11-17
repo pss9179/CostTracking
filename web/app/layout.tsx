@@ -26,7 +26,6 @@ export default function RootLayout({
       signUpUrl="/sign-up"
       afterSignInUrl="/dashboard"
       afterSignUpUrl="/onboarding"
-      fallbackUrl="/"
     >
       <html lang="en">
         <body className={`${dmSans.className} min-h-screen bg-background antialiased`}>
