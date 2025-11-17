@@ -274,7 +274,7 @@ export default function DashboardPage() {
           <CardContent className="pt-6">
             <p className="text-red-600">{error}</p>
             <p className="text-sm text-muted-foreground mt-2">
-              Make sure the collector API is running on http://localhost:8000
+              Make sure the collector API is running on {process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000"}
             </p>
           </CardContent>
         </Card>

@@ -28,7 +28,8 @@ export default function AdminPage() {
     setCreated(null);
 
     try {
-      const response = await fetch("http://localhost:8000/auth/tenants", {
+      const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
+      const response = await fetch(`${collectorUrl}/auth/tenants`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

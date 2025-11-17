@@ -109,7 +109,8 @@ export default function SettingsPage() {
         return;
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/clerk/api-keys/me`, {
+      const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
+      const response = await fetch(`${collectorUrl}/clerk/api-keys/me`, {
         headers: {
           "Authorization": `Bearer ${session}`,
           "Content-Type": "application/json",
@@ -153,7 +154,8 @@ export default function SettingsPage() {
 
       console.log("Creating API key with token:", session.substring(0, 20) + "...");
       
-      const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/clerk/api-keys?name=${encodeURIComponent(newKeyName)}`;
+      const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
+      const url = `${collectorUrl}/clerk/api-keys?name=${encodeURIComponent(newKeyName)}`;
       console.log("POST to:", url);
 
       const response = await fetch(url, {
@@ -193,8 +195,9 @@ export default function SettingsPage() {
       const session = await getToken();
       if (!session) return;
 
+      const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/clerk/api-keys/${keyId}`,
+        `${collectorUrl}/clerk/api-keys/${keyId}`,
         {
           method: "DELETE",
           headers: {

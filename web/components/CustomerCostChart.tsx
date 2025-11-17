@@ -38,7 +38,8 @@ export function CustomerCostChart() {
     async function loadCustomers() {
       try {
         // Fetch customer stats from collector API
-        const response = await fetch('http://localhost:8000/stats/by-customer?hours=720'); // 30 days
+        const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
+        const response = await fetch(`${collectorUrl}/stats/by-customer?hours=720`); // 30 days
         if (!response.ok) throw new Error("Failed to fetch customer data");
         const data = await response.json();
         
