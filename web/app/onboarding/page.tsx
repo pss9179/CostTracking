@@ -53,7 +53,7 @@ export default function OnboardingPage() {
           : null;
         
         // Get Clerk token for authentication
-        const token = await getToken();
+        const token = await getToken({ template: "default" });
         
         // Sync user from Clerk with user type
         const headers: HeadersInit = {

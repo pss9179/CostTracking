@@ -138,7 +138,7 @@ export default function CostsPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const token = await getToken();
+        const token = await getToken({ template: "default" });
         if (!token) {
           console.error("No Clerk token available");
           return;

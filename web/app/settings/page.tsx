@@ -64,7 +64,7 @@ export default function SettingsPage() {
     // Sync user to database first if needed
     async function syncUserIfNeeded() {
       try {
-        const session = await getToken();
+        const session = await getToken({ template: "default" });
         if (!session) {
           console.error("No Clerk session token for sync");
           return;

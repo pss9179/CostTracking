@@ -31,7 +31,7 @@ export default function LLMsPage() {
     async function loadData() {
       try {
         setLoading(true);
-        const token = await getToken();
+        const token = await getToken({ template: "default" });
         if (!token) {
           console.error("No Clerk token available");
           return;
