@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,6 +22,7 @@ interface LLMStats {
 }
 
 export default function LLMsPage() {
+  const { getToken } = useAuth();
   const [stats, setStats] = useState<LLMStats[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("all");
   const [loading, setLoading] = useState(true);
@@ -29,7 +31,12 @@ export default function LLMsPage() {
     async function loadData() {
       try {
         setLoading(true);
-        const runs = await fetchRuns(1000);
+        const token = await getToken();
+        if (!token) {
+          console.error("No Clerk token available");
+          return;
+        }
+        const runs = await fetchRuns(1000, null, token);
         
         // Aggregate by provider + model
         const aggregated = new Map<string, LLMStats>();

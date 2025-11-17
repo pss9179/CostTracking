@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -21,6 +22,7 @@ import { WaterfallChart } from "@/components/charts/WaterfallChart";
 
 export default function RunDetailPage() {
   const params = useParams();
+  const { getToken } = useAuth();
   const runId = params.runId as string;
   
   const [detail, setDetail] = useState<RunDetail | null>(null);
@@ -36,7 +38,12 @@ export default function RunDetailPage() {
 
     async function loadDetail() {
       try {
-        const data = await fetchRunDetail(runId);
+        const token = await getToken();
+        if (!token) {
+          console.error("No Clerk token available");
+          return;
+        }
+        const data = await fetchRunDetail(runId, null, token);
         setDetail(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load run detail");

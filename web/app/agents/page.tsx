@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchRuns, fetchRunDetail } from "@/lib/api";
@@ -21,6 +22,7 @@ interface AgentStats {
 const AGENT_COLORS = ["#64748b", "#475569", "#334155", "#1e293b", "#0f172a"];
 
 export default function AgentsPage() {
+  const { getToken } = useAuth();
   const [agents, setAgents] = useState<AgentStats[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [treeData, setTreeData] = useState<any[]>([]);
@@ -30,7 +32,13 @@ export default function AgentsPage() {
     async function loadData() {
       try {
         setLoading(true);
-        const runs = await fetchRuns(500);
+        const token = await getToken();
+        if (!token) {
+          console.error("No Clerk token available");
+          return;
+        }
+        
+        const runs = await fetchRuns(500, null, token);
         
         // Aggregate by agent (including untracked)
         const agentMap = new Map<string, AgentStats>();
@@ -45,7 +53,7 @@ export default function AgentsPage() {
         
         for (const run of runs.slice(0, 50)) {
           try {
-            const detail = await fetchRunDetail(run.run_id);
+            const detail = await fetchRunDetail(run.run_id, null, token);
             const events = detail.events || [];
             
             events.forEach((event: any) => {

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -125,6 +126,7 @@ function groupModelsByProvider(events: any[]): ProviderGroup[] {
 
 export default function CostsPage() {
   const router = useRouter();
+  const { getToken } = useAuth();
   const [runs, setRuns] = useState<Run[]>([]);
   const [allEvents, setAllEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,13 +138,19 @@ export default function CostsPage() {
   useEffect(() => {
     async function loadData() {
       try {
+        const token = await getToken();
+        if (!token) {
+          console.error("No Clerk token available");
+          return;
+        }
+        
         // Fetch all runs
-        const runsData = await fetchRuns(1000);
+        const runsData = await fetchRuns(1000, null, token);
         setRuns(runsData);
 
         // Fetch events for each run (simplified - in production you'd have a better API)
         const eventPromises = runsData.slice(0, 20).map((run) => 
-          fetchRunDetail(run.run_id).then((detail) => detail.events)
+          fetchRunDetail(run.run_id, null, token).then((detail) => detail.events)
         );
         const eventsArrays = await Promise.all(eventPromises);
         const flatEvents = eventsArrays.flat();

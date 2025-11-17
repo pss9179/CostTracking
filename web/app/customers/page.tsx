@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -32,6 +33,7 @@ interface CustomerStats {
 
 export default function CustomersPage() {
   const router = useRouter();
+  const { getToken } = useAuth();
   const [user, setUser] = useState<any>(null);
   const [customers, setCustomers] = useState<CustomerStats[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,15 +54,20 @@ export default function CustomersPage() {
     async function loadCustomerData() {
       try {
         setLoading(true);
+        const token = await getToken();
+        if (!token) {
+          console.error("No Clerk token available");
+          return;
+        }
         
         // Fetch all runs
-        const runs = await fetchRuns(1000);
+        const runs = await fetchRuns(1000, null, token);
         
         // Fetch events for each run
         const allEvents: any[] = [];
         for (const run of runs.slice(0, 100)) { // Limit to prevent overload
           try {
-            const detail = await fetchRunDetail(run.run_id);
+            const detail = await fetchRunDetail(run.run_id, null, token);
             allEvents.push(...detail.events);
           } catch (err) {
             // Skip failed runs

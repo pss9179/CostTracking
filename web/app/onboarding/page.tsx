@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ interface APIKeyInfo {
 
 export default function OnboardingPage() {
   const { user, isLoaded } = useUser();
+  const { getToken } = useAuth();
   const router = useRouter();
   const [apiKey, setApiKey] = useState<APIKeyInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,10 +52,20 @@ export default function OnboardingPage() {
           ? sessionStorage.getItem("selectedUserType") 
           : null;
         
+        // Get Clerk token for authentication
+        const token = await getToken();
+        
         // Sync user from Clerk with user type
+        const headers: HeadersInit = {
+          "Content-Type": "application/json",
+        };
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+        
         const syncResponse = await fetch(`${collectorUrl}/users/sync`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             id: user.id,
             email_addresses: user.emailAddresses.map(e => ({ email_address: e.emailAddress })),

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +29,7 @@ type SortDirection = "asc" | "desc";
 function RunsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { getToken } = useAuth();
   const parentRef = useRef<HTMLDivElement>(null);
 
   const [runs, setRuns] = useState<Run[]>([]);
@@ -40,7 +42,12 @@ function RunsPageContent() {
   useEffect(() => {
     async function loadRuns() {
       try {
-        const data = await fetchRuns(5000); // Load many runs for virtualization demo
+        const token = await getToken();
+        if (!token) {
+          console.error("No Clerk token available");
+          return;
+        }
+        const data = await fetchRuns(5000, null, token); // Load many runs for virtualization demo
         setRuns(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load runs");

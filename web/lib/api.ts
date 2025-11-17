@@ -122,8 +122,8 @@ export interface ProviderTier {
   updated_at: string;
 }
 
-export async function fetchProviderTiers(tenantId?: string | null): Promise<ProviderTier[]> {
-  const headers = await getAuthHeaders();
+export async function fetchProviderTiers(tenantId?: string | null, token?: string): Promise<ProviderTier[]> {
+  const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/provider-tiers/`;
   if (tenantId) {
     url += `?tenant_id=${encodeURIComponent(tenantId)}`;
@@ -139,9 +139,10 @@ export async function setProviderTier(
   provider: string,
   tier: string,
   planName?: string,
-  tenantId?: string | null
+  tenantId?: string | null,
+  token?: string
 ): Promise<ProviderTier> {
-  const headers = await getAuthHeaders();
+  const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/provider-tiers/?provider=${encodeURIComponent(provider)}&tier=${encodeURIComponent(tier)}`;
   if (planName) {
     url += `&plan_name=${encodeURIComponent(planName)}`;
@@ -161,9 +162,10 @@ export async function setProviderTier(
 
 export async function deleteProviderTier(
   provider: string,
-  tenantId?: string | null
+  tenantId?: string | null,
+  token?: string
 ): Promise<void> {
-  const headers = await getAuthHeaders();
+  const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/provider-tiers/${encodeURIComponent(provider)}`;
   if (tenantId) {
     url += `?tenant_id=${encodeURIComponent(tenantId)}`;
@@ -297,8 +299,8 @@ export async function fetchProviderStats(hours: number = 24, tenantId?: string |
   return response.json();
 }
 
-export async function fetchInsights(tenantId?: string | null): Promise<Insight[]> {
-  const headers = await getAuthHeaders();
+export async function fetchInsights(tenantId?: string | null, token?: string): Promise<Insight[]> {
+  const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/insights/daily`;
   if (tenantId) {
     url += `?tenant_id=${encodeURIComponent(tenantId)}`;
@@ -314,8 +316,8 @@ export async function fetchInsights(tenantId?: string | null): Promise<Insight[]
   return response.json();
 }
 
-export async function fetchCaps(): Promise<Cap[]> {
-  const headers = await getAuthHeaders();
+export async function fetchCaps(token?: string): Promise<Cap[]> {
+  const headers = await getDashboardAuthHeaders(token);
   const response = await fetch(`${COLLECTOR_URL}/caps/`, {
     headers,
   });
@@ -327,8 +329,8 @@ export async function fetchCaps(): Promise<Cap[]> {
   return response.json();
 }
 
-export async function fetchAlerts(limit: number = 50): Promise<Alert[]> {
-  const headers = await getAuthHeaders();
+export async function fetchAlerts(limit: number = 50, token?: string): Promise<Alert[]> {
+  const headers = await getDashboardAuthHeaders(token);
   const response = await fetch(`${COLLECTOR_URL}/caps/alerts/?limit=${limit}`, {
     headers,
   });
@@ -340,8 +342,8 @@ export async function fetchAlerts(limit: number = 50): Promise<Alert[]> {
   return response.json();
 }
 
-export async function createCap(cap: CapCreate): Promise<Cap> {
-  const headers = await getAuthHeaders();
+export async function createCap(cap: CapCreate, token?: string): Promise<Cap> {
+  const headers = await getDashboardAuthHeaders(token);
   const response = await fetch(`${COLLECTOR_URL}/caps/`, {
     method: "POST",
     headers,
@@ -356,8 +358,8 @@ export async function createCap(cap: CapCreate): Promise<Cap> {
   return response.json();
 }
 
-export async function updateCap(capId: string, cap: CapUpdate): Promise<Cap> {
-  const headers = await getAuthHeaders();
+export async function updateCap(capId: string, cap: CapUpdate, token?: string): Promise<Cap> {
+  const headers = await getDashboardAuthHeaders(token);
   const response = await fetch(`${COLLECTOR_URL}/caps/${capId}`, {
     method: "PATCH",
     headers,
@@ -372,8 +374,8 @@ export async function updateCap(capId: string, cap: CapUpdate): Promise<Cap> {
   return response.json();
 }
 
-export async function deleteCap(capId: string): Promise<void> {
-  const headers = await getAuthHeaders();
+export async function deleteCap(capId: string, token?: string): Promise<void> {
+  const headers = await getDashboardAuthHeaders(token);
   const response = await fetch(`${COLLECTOR_URL}/caps/${capId}`, {
     method: "DELETE",
     headers,

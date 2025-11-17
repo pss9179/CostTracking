@@ -64,10 +64,19 @@ export default function SettingsPage() {
     // Sync user to database first if needed
     async function syncUserIfNeeded() {
       try {
+        const session = await getToken();
+        if (!session) {
+          console.error("No Clerk session token for sync");
+          return;
+        }
+        
         const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
         const syncResponse = await fetch(`${collectorUrl}/users/sync`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Authorization": `Bearer ${session}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             id: clerkUser?.id || "",
             email_addresses: clerkUser?.emailAddresses.map(e => ({ email_address: e.emailAddress })) || [],
@@ -221,7 +230,7 @@ export default function SettingsPage() {
       if (!session) return;
 
       const { fetchCaps } = await import("@/lib/api");
-      const data = await fetchCaps();
+      const data = await fetchCaps(session);
       setCaps(data);
     } catch (err) {
       console.error("Failed to load caps:", err);
@@ -234,7 +243,7 @@ export default function SettingsPage() {
       if (!session) return;
 
       const { fetchAlerts } = await import("@/lib/api");
-      const data = await fetchAlerts(20);
+      const data = await fetchAlerts(20, session);
       setAlerts(data);
     } catch (err) {
       console.error("Failed to load alerts:", err);
@@ -257,7 +266,7 @@ export default function SettingsPage() {
         alert_email: alertEmail || user?.email,
       };
 
-      await createCap(capData);
+      await createCap(capData, session);
       await loadCaps();
       
       // Reset form
@@ -282,7 +291,7 @@ export default function SettingsPage() {
       if (!session) return;
 
       const { updateCap } = await import("@/lib/api");
-      await updateCap(capId, { enabled });
+      await updateCap(capId, { enabled }, session);
       await loadCaps();
     } catch (err) {
       console.error("Failed to toggle cap:", err);
@@ -299,7 +308,7 @@ export default function SettingsPage() {
       if (!session) return;
 
       const { deleteCap } = await import("@/lib/api");
-      await deleteCap(capId);
+      await deleteCap(capId, session);
       await loadCaps();
     } catch (err) {
       console.error("Failed to delete cap:", err);
@@ -319,7 +328,7 @@ export default function SettingsPage() {
       if (!session) return;
       
       const tenantId = clerkUser?.id;
-      const tiers = await fetchProviderTiers(tenantId);
+      const tiers = await fetchProviderTiers(tenantId, session);
       setProviderTiers(tiers);
     } catch (err) {
       console.error("Failed to load provider tiers:", err);
@@ -334,7 +343,7 @@ export default function SettingsPage() {
       if (!session) return;
       
       const tenantId = clerkUser?.id;
-      await setProviderTier(provider, tier, planName, tenantId);
+      await setProviderTier(provider, tier, planName, tenantId, session);
       await loadProviderTiers(); // Reload
     } catch (err) {
       console.error("Failed to set provider tier:", err);

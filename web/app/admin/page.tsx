@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ interface TenantCreated {
 }
 
 export default function AdminPage() {
+  const { getToken } = useAuth();
   const [tenantId, setTenantId] = useState("");
   const [tenantName, setTenantName] = useState("");
   const [creating, setCreating] = useState(false);
@@ -28,10 +30,18 @@ export default function AdminPage() {
     setCreated(null);
 
     try {
+      const token = await getToken();
+      if (!token) {
+        setError("Not authenticated. Please sign in.");
+        setCreating(false);
+        return;
+      }
+      
       const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
       const response = await fetch(`${collectorUrl}/auth/tenants`, {
         method: "POST",
         headers: {
+          "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({

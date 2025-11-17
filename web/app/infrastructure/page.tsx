@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Server, Database, Zap, Clock } from "lucide-react";
@@ -25,6 +26,7 @@ const isVectorDB = (provider: string) =>
   VECTOR_DB_PROVIDERS.some(vdb => provider.toLowerCase().includes(vdb));
 
 export default function InfrastructurePage() {
+  const { getToken } = useAuth();
   const [stats, setStats] = useState<InfraStats[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -32,7 +34,12 @@ export default function InfrastructurePage() {
     async function loadData() {
       try {
         setLoading(true);
-        const runs = await fetchRuns(1000);
+        const token = await getToken();
+        if (!token) {
+          console.error("No Clerk token available");
+          return;
+        }
+        const runs = await fetchRuns(1000, null, token);
         
         // Aggregate by provider (excluding LLMs)
         const aggregated = new Map<string, InfraStats>();
