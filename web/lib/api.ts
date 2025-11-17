@@ -193,21 +193,6 @@ export interface Alert {
   created_at: string;
 }
 
-// Helper function to get Clerk token (for dashboard queries)
-async function getClerkToken(): Promise<string | null> {
-  if (typeof window === "undefined") return null;
-  
-  // Dynamic import to avoid SSR issues
-  try {
-    const { getToken } = await import("@clerk/nextjs/server");
-    // For client-side, we need to use the client-side getToken
-    // This is a workaround - in production, pass token from page components
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 // Helper function to get auth headers for dashboard queries (uses Clerk token)
 // IMPORTANT: This function REQUIRES a token to be passed. It will NOT include Authorization
 // header if no token is provided. All callers must pass a token obtained via getToken({ template: "default" })
