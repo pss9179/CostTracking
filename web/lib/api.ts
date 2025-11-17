@@ -1,3 +1,5 @@
+"use client";
+
 const COLLECTOR_URL = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
 
 // Helper function to get tenant_id from Clerk user
