@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   // Disable Turbopack - it doesn't support boolean false in resolveAlias
   // Use webpack instead, which supports false aliases to exclude modules
+  // This fixes: "boolean values are invalid in exports field entries"
   experimental: {
     turbo: false, // Disable Turbopack, use webpack
   },
