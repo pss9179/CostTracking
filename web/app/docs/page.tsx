@@ -20,7 +20,8 @@ import {
   Check,
   Terminal,
   FileCode,
-  BarChart3
+  BarChart3,
+  HelpCircle
 } from "lucide-react";
 
 export default function DocsPage() {
