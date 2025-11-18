@@ -42,14 +42,19 @@ function RunsPageContent() {
   useEffect(() => {
     async function loadRuns() {
       try {
+        setLoading(true);
+        setError(null);
+        
         const token = await getToken();
         if (!token) {
-          console.error("No Clerk token available");
+          setError("Not authenticated. Please sign in.");
+          setLoading(false);
           return;
         }
         const data = await fetchRuns(5000, null, token); // Load many runs for virtualization demo
         setRuns(data);
       } catch (err) {
+        console.error("[Runs] Error loading runs:", err);
         setError(err instanceof Error ? err.message : "Failed to load runs");
       } finally {
         setLoading(false);
@@ -57,7 +62,7 @@ function RunsPageContent() {
     }
 
     loadRuns();
-  }, []);
+  }, [getToken]);
 
   // Filter and sort runs
   const filteredAndSortedRuns = useMemo(() => {
