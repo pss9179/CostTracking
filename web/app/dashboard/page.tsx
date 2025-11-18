@@ -129,6 +129,42 @@ export default function DashboardPage() {
     console.log(`[Dashboard] Customer IDs in events:`, [...new Set(allEvents.map(e => e.customer_id).filter(Boolean))]);
   }
 
+  // Filter provider stats by customer and exclude "internal" provider
+  // Calculate this FIRST before stats to avoid circular dependency
+  const filteredProviderStats = (() => {
+    const realStats = (selectedCustomer
+      ? providerStats.filter(stat => {
+          // Recalculate from filtered events
+          const customerEvents = filteredEvents.filter(e => e.provider === stat.provider);
+          return customerEvents.length > 0;
+        }).map(stat => {
+          // Recalculate from filtered events
+          const customerEvents = filteredEvents.filter(e => e.provider === stat.provider);
+          const totalCost = customerEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
+          const callCount = customerEvents.length;
+          return {
+            ...stat,
+            total_cost: totalCost,
+            call_count: callCount,
+            // Percentage will be calculated after total_cost_24h is known
+            percentage: 0,
+          };
+        })
+      : providerStats
+    ).filter(stat => stat.provider !== "internal" && stat.provider !== "unknown"); // Hide "unknown" provider
+    
+    // Return empty array if no real data - NO FAKE DATA
+    return realStats;
+  })();
+
+  // Calculate total cost from filtered provider stats (needed for percentage calculation)
+  const total_cost_24h_from_providers = filteredProviderStats.reduce((sum, stat) => sum + (stat.total_cost || 0), 0);
+
+  // Update percentages in filteredProviderStats now that we have total
+  filteredProviderStats.forEach(stat => {
+    stat.percentage = total_cost_24h_from_providers > 0 ? (stat.total_cost / total_cost_24h_from_providers) * 100 : 0;
+  });
+
   // Calculate stats from provider stats (more accurate than events)
   const stats = (() => {
     const now = new Date();
@@ -136,7 +172,7 @@ export default function DashboardPage() {
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     
     // Use provider stats for total cost (24h window from backend)
-    const total_cost = filteredProviderStats.reduce((sum, stat) => sum + (stat.total_cost || 0), 0);
+    const total_cost = total_cost_24h_from_providers;
     const total_calls = filteredProviderStats.reduce((sum, stat) => sum + (stat.call_count || 0), 0);
     
     // Filter events by time window for untracked/agent calculations
@@ -189,31 +225,6 @@ export default function DashboardPage() {
         return allEvents.some(e => e.run_id === run.run_id && e.customer_id === selectedCustomer);
       })
     : runs;
-
-  // Filter provider stats by customer and exclude "internal" provider
-  const filteredProviderStats = (() => {
-    const realStats = (selectedCustomer
-      ? providerStats.filter(stat => {
-          // Recalculate from filtered events
-          const customerEvents = filteredEvents.filter(e => e.provider === stat.provider);
-          return customerEvents.length > 0;
-        }).map(stat => {
-          // Recalculate from filtered events
-          const customerEvents = filteredEvents.filter(e => e.provider === stat.provider);
-          const totalCost = customerEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
-          return {
-            ...stat,
-            total_cost: totalCost,
-            call_count: customerEvents.length,
-            percentage: stats.total_cost_24h > 0 ? (totalCost / stats.total_cost_24h) * 100 : 0,
-          };
-        })
-      : providerStats
-    ).filter(stat => stat.provider !== "internal" && stat.provider !== "unknown"); // Hide "unknown" provider
-    
-    // Return empty array if no real data - NO FAKE DATA
-    return realStats;
-  })();
 
   // Prepare daily chart data for stacked area chart
   const dailyChartData: Array<{ date: string; [provider: string]: string | number }> = (() => {
