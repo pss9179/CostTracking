@@ -81,14 +81,19 @@ async def sync_user_from_clerk(
     session: Session = Depends(get_session),
 ):
     """
-    Manually sync a user from Clerk (for testing/onboarding).
+    Manually sync a user from Clerk (called during onboarding).
+    This is the PRIMARY way users are created - webhook is backup.
     Updates existing user or creates new one.
     
     Request body should include:
     - id: Clerk user ID
     - email_addresses: [{ email_address: "..." }]
     - first_name, last_name (optional)
+    - user_type: "solo_dev" or "saas_founder" (optional)
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     clerk_user_id = clerk_user.get("id")
     email = clerk_user.get("email_addresses", [{}])[0].get("email_address")
     first_name = clerk_user.get("first_name", "")
@@ -97,7 +102,8 @@ async def sync_user_from_clerk(
     name = f"{first_name} {last_name}".strip() or None
     
     if not clerk_user_id or not email:
-        raise HTTPException(status_code=400, detail="Missing required user data")
+        logger.error(f"[Users/Sync] Missing required data: clerk_user_id={clerk_user_id}, email={email}")
+        raise HTTPException(status_code=400, detail="Missing required user data: id and email_addresses required")
     
     # Check if user already exists
     statement = select(User).where(User.clerk_user_id == clerk_user_id)

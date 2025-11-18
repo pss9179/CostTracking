@@ -81,7 +81,9 @@ export default function OnboardingPage() {
         }
 
         if (!syncResponse.ok) {
-          throw new Error("Failed to sync user");
+          const errorText = await syncResponse.text();
+          console.error("[Onboarding] Sync failed:", errorText);
+          throw new Error(`Failed to sync user: ${errorText}`);
         }
 
         const syncData = await syncResponse.json();

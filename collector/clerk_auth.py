@@ -150,8 +150,13 @@ async def get_current_clerk_user(
         user = session.exec(statement).first()
         
         if not user:
-            logger.info(f"[Clerk Auth] User not found in DB for Clerk ID: {clerk_user_id}, creating...")
-            # Auto-create user from Clerk data (lazy provisioning)
+            # WARNING: User should have been created via webhook or /users/sync
+            # This is a fallback - log as warning so we know webhook/sync failed
+            logger.warning(f"[Clerk Auth] ⚠️ User not found in DB for Clerk ID: {clerk_user_id}")
+            logger.warning(f"[Clerk Auth] ⚠️ This should have been created via webhook or /users/sync")
+            logger.warning(f"[Clerk Auth] ⚠️ Auto-creating as fallback - check webhook configuration!")
+            
+            # Auto-create user from Clerk data (fallback only)
             # Ensure email is set (fallback if not extracted from token)
             if not email:
                 email = f"user_{clerk_user_id[:8]}@clerk.local"
@@ -160,13 +165,13 @@ async def get_current_clerk_user(
                 clerk_user_id=clerk_user_id,
                 email=email,
                 name=name,
-                user_type="solo_dev",  # Default, can be updated later
+                user_type="solo_dev",  # Default, can be updated later via /users/sync
             )
             session.add(user)
             session.commit()
             session.refresh(user)
             
-            logger.info(f"[Clerk Auth] Auto-created user: {user.email} (ID: {user.id})")
+            logger.warning(f"[Clerk Auth] ⚠️ Auto-created user: {user.email} (ID: {user.id}) - webhook may have failed")
         else:
             logger.info(f"[Clerk Auth] User found: {user.email} (ID: {user.id})")
         
