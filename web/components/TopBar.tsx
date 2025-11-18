@@ -17,8 +17,14 @@ export function TopBar() {
   }
 
   const handleSignOut = async () => {
-    await signOut();
-    router.push('/');
+    try {
+      await signOut({ redirectUrl: '/' });
+      router.push('/');
+    } catch (error) {
+      console.error('Sign out error:', error);
+      // Force redirect even if signOut fails
+      router.push('/');
+    }
   };
 
   return (

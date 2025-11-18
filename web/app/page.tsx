@@ -57,15 +57,15 @@ export default function LandingPage() {
           {/* Main Headline */}
           <div className="text-center max-w-4xl mx-auto mb-12">
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
-              Observability for your AI agents in just{" "}
+              Track LLM costs in just{" "}
               <span className="text-indigo-600">10 lines of code</span>
           </h1>
             <p className="text-xl md:text-2xl text-gray-600 mb-8">
-              See exactly what your AI agents are doing, and fix them when they break.
+              Monitor spending across all your AI providers. Track costs by customer, agent, or model. Set spending caps and never go over budget.
             </p>
 
             {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-4">
+            <div className="flex justify-center items-center mb-4">
               <Button
                 size="lg"
                 onClick={() => router.push("/sign-up")}
@@ -74,17 +74,10 @@ export default function LandingPage() {
                 Start for free
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-2 border-gray-300 text-gray-900 hover:bg-gray-50 text-lg px-8 py-6 h-auto"
-              >
-                Book a Demo
-              </Button>
             </div>
             <div className="flex gap-8 justify-center text-sm text-gray-500">
               <span>For individual developers</span>
-              <span>For teams & companies</span>
+              <span>For SaaS founders tracking customer costs</span>
             </div>
           </div>
 
@@ -98,78 +91,68 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Info Banner */}
-      <section className="bg-indigo-600 py-4 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <p className="text-white text-center text-sm md:text-base">
-            ► New local-first + open-source observability tool for AI SDK on Next.js
-          </p>
-        </div>
-      </section>
-
       {/* Problem Section */}
       <section className="py-24 px-4 sm:px-6 lg:px-8 bg-gray-50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-              Your AI agents are failing silently
+              Stop guessing your LLM costs
             </h2>
             <p className="text-xl text-gray-600">
-              Standard monitoring misses the failures that matter most. We catch them all.
+              Track spending across OpenAI, Anthropic, Google, and 40+ providers. See costs by customer, agent, or model.
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {/* Bad Tool Calls */}
+            {/* Cost Tracking */}
             <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Bad Tool Calls</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Real-time Cost Tracking</h3>
               <div className="bg-gray-50 rounded-lg p-4 mb-4 font-mono text-sm">
-                <div className="text-gray-600">get_weather</div>
+                <div className="text-gray-600">OpenAI: $0.45</div>
                 <div className="mt-2 space-y-1">
-                  <div>location: "tomorrow at 3pm"</div>
-                  <div>time: "San Francisco"</div>
+                  <div>Anthropic: $0.32</div>
+                  <div>Pinecone: $0.12</div>
                 </div>
-                <div className="mt-3 bg-red-50 border border-red-200 rounded px-3 py-2 text-red-700 text-xs flex items-center gap-2">
-                  <span>!</span>
-                  <span>Arguments are swapped</span>
+                <div className="mt-3 bg-green-50 border border-green-200 rounded px-3 py-2 text-green-700 text-xs flex items-center gap-2">
+                  <span>✓</span>
+                  <span>All costs tracked automatically</span>
                 </div>
               </div>
               <p className="text-gray-600 text-sm">
-                Wrong arguments, wrong timing, wrong results. Know when your agent calls the wrong tool or passes invalid data.
+                Every API call is tracked with accurate cost calculation. See exactly where your money is going.
               </p>
             </div>
 
-            {/* Infinite Loops */}
+            {/* Customer Cost Tracking */}
             <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Infinite Loops</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Track Customer Costs</h3>
               <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2">
-                <div className="font-mono text-sm bg-white rounded p-2">search_database 0.234s</div>
-                <div className="font-mono text-sm bg-white rounded p-2">search_database 0.241s</div>
-                <div className="font-mono text-sm bg-white rounded p-2">search_database 0.238s</div>
-                <div className="bg-yellow-50 border border-yellow-200 rounded px-3 py-2 text-yellow-700 text-xs flex items-center gap-2 mt-2">
-                  <span>!</span>
-                  <span>Same call repeated 47 times</span>
+                <div className="font-mono text-sm bg-white rounded p-2">Customer A: $0.89</div>
+                <div className="font-mono text-sm bg-white rounded p-2">Customer B: $0.45</div>
+                <div className="font-mono text-sm bg-white rounded p-2">Customer C: $0.23</div>
+                <div className="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-blue-700 text-xs flex items-center gap-2 mt-2">
+                  <span>📊</span>
+                  <span>Per-customer breakdown</span>
                 </div>
               </div>
               <p className="text-gray-600 text-sm">
-                Same call, over and over, burning tokens. Detect when your agent gets stuck in repetitive patterns.
+                Perfect for SaaS founders. Track costs per customer to understand profitability and set pricing.
               </p>
             </div>
 
-            {/* Hallucinations */}
+            {/* Spending Caps */}
             <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Hallucinations</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Spending Caps & Alerts</h3>
               <div className="bg-gray-50 rounded-lg p-4 mb-4 font-mono text-sm">
-                <div className="text-gray-600">get_order_status</div>
-                <div className="mt-2">tracking: "TK9274..."</div>
-                <div className="mt-3 bg-white rounded p-2">Output: "It is 79°F in Tampa, FL"</div>
-                <div className="mt-3 bg-orange-50 border border-orange-200 rounded px-3 py-2 text-orange-700 text-xs flex items-center gap-2">
-                  <span>!</span>
-                  <span>Tool returned unrelated data</span>
+                <div className="text-gray-600">Daily cap: $100</div>
+                <div className="mt-2">Current spend: $87.50</div>
+                <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded px-3 py-2 text-yellow-700 text-xs flex items-center gap-2">
+                  <span>⚠</span>
+                  <span>87.5% of daily cap</span>
                 </div>
               </div>
               <p className="text-gray-600 text-sm">
-                Made-up data that looks legitimate. Track when your LLM invents information instead of using real data.
+                Set budget limits with email alerts. Never go over budget again with automatic spending caps.
               </p>
             </div>
           </div>
@@ -181,10 +164,10 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-              Tokens, latency, costs – tracked automatically
+              Automatic cost tracking for all your LLM calls
             </h2>
             <p className="text-xl text-gray-600">
-              Stop calculating costs in spreadsheets. We do it for you.
+              Stop calculating costs in spreadsheets. We track every API call and calculate costs automatically.
             </p>
           </div>
 
@@ -193,9 +176,9 @@ export default function LandingPage() {
               <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <BarChart3 className="w-8 h-8 text-indigo-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Real-time Tracking</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Real-time Cost Tracking</h3>
               <p className="text-gray-600">
-                Monitor every LLM call, tool invocation, and API request in real-time with detailed traces.
+                Monitor every LLM call and API request. See costs update in real-time as your agents make calls.
               </p>
             </div>
 
@@ -203,9 +186,9 @@ export default function LandingPage() {
               <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <DollarSign className="w-8 h-8 text-indigo-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Cost Analytics</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Customer Cost Tracking</h3>
               <p className="text-gray-600">
-                Automatic cost calculation across 40+ LLM providers and vector databases with spending caps.
+                Track costs per customer for your SaaS. See which customers are most expensive and optimize pricing.
               </p>
             </div>
 
@@ -227,10 +210,10 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-              10 Lines of Code to Production
+              10 Lines of Code to Start Tracking
             </h2>
             <p className="text-xl text-gray-600">
-              Ship observability in minutes, not days
+              Start tracking costs in minutes, not days
             </p>
           </div>
 
@@ -267,10 +250,10 @@ observe(
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                    Works directly with your agent framework
+                    Works with all major LLM providers
                   </h3>
                   <p className="text-gray-600">
-                    Seamlessly integrates with OpenAI, Anthropic, LangChain, Vercel AI SDK, and more
+                    Seamlessly integrates with OpenAI, Anthropic, Google, Cohere, and 40+ providers
                   </p>
                 </div>
               </div>
@@ -281,10 +264,10 @@ observe(
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                    Zero code changes to your agent
+                    Zero code changes required
                   </h3>
                   <p className="text-gray-600">
-                    Drop-in observability without modifying your agent logic
+                    Drop-in cost tracking without modifying your application code
                   </p>
                 </div>
               </div>
@@ -295,10 +278,10 @@ observe(
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                    Start seeing traces in &lt; 1 minute
+                    Start seeing costs in &lt; 1 minute
                   </h3>
                   <p className="text-gray-600">
-                    Instant insights into your agent's behavior and performance
+                    Instant cost tracking and analytics for all your LLM calls
                   </p>
                 </div>
               </div>
@@ -311,9 +294,9 @@ observe(
       <section className="py-24 px-4 sm:px-6 lg:px-8 bg-indigo-600">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-            Start shipping reliable agents today
+            Start tracking your LLM costs today
           </h2>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex justify-center">
             <Button
               size="lg"
               onClick={() => router.push("/sign-up")}
@@ -321,16 +304,9 @@ observe(
             >
               Start for free
             </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-2 border-white text-white hover:bg-white/10 text-lg px-8 py-6 h-auto"
-            >
-              Book a Demo
-            </Button>
           </div>
           <p className="text-indigo-100 mt-4 text-sm">
-            For individual developers • For teams & companies
+            For individual developers • For SaaS founders tracking customer costs
           </p>
         </div>
       </section>
