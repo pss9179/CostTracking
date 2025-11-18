@@ -232,9 +232,14 @@ print(response.choices[0].message.content)`;
               </p>
             </Alert>
 
-            <Button onClick={() => setCurrentStep(2)} className="w-full">
-              Next: Install SDK <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
+              <div className="space-y-2">
+                <Button onClick={() => setCurrentStep(2)} className="w-full">
+                  I've saved my API key - Continue <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+                <p className="text-xs text-gray-500 text-center">
+                  💡 Tip: Copy the key above and save it to your .env file
+                </p>
+              </div>
           </CardContent>
         </Card>
 
@@ -266,9 +271,14 @@ print(response.choices[0].message.content)`;
                 <code className="text-sm font-mono">{installCode}</code>
               </div>
 
-              <Button onClick={() => setCurrentStep(3)} className="w-full">
-                Next: Add to Your Code <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+              <div className="space-y-2">
+                <Button onClick={() => setCurrentStep(3)} className="w-full">
+                  I've installed the SDK - Continue <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+                <p className="text-xs text-gray-500 text-center">
+                  💡 Tip: Run this command in your project directory
+                </p>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -315,13 +325,26 @@ print(response.choices[0].message.content)`;
                 </div>
               </div>
 
-              <Button 
-                onClick={() => router.push("/")} 
-                className="w-full"
-                size="lg"
-              >
-                Go to Dashboard 🚀
-              </Button>
+              <div className="space-y-3">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-sm text-green-900 font-medium mb-2">
+                    ✅ Setup Complete!
+                  </p>
+                  <p className="text-xs text-green-700">
+                    Once you make your first LLM API call, data will appear in your dashboard within 10-30 seconds.
+                  </p>
+                </div>
+                <Button 
+                  onClick={() => router.push("/dashboard")} 
+                  className="w-full"
+                  size="lg"
+                >
+                  Go to Dashboard 🚀
+                </Button>
+                <p className="text-xs text-gray-500 text-center">
+                  Need help? Check out our <Link href="/docs" className="text-indigo-600 hover:underline">documentation</Link>
+                </p>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -336,7 +359,7 @@ print(response.choices[0].message.content)`;
                   Check out our documentation or contact support if you run into any issues.
                 </p>
               </div>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => router.push("/docs")}>
                 View Docs
               </Button>
             </div>
