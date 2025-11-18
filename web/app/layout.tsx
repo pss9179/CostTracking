@@ -24,8 +24,7 @@ export default function RootLayout({
     <ClerkProvider
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
-      afterSignInUrl="/dashboard"
-      afterSignUpUrl="/onboarding"
+      fallbackRedirectUrl="/dashboard"
     >
       <html lang="en">
         <body className={`${dmSans.className} min-h-screen bg-background antialiased`}>

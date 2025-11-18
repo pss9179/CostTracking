@@ -127,7 +127,7 @@ export default function SignUpPage() {
         }}
         routing="path"
         path="/sign-up"
-        afterSignUpUrl="/onboarding"
+        fallbackRedirectUrl="/onboarding"
       />
     </div>
   );
