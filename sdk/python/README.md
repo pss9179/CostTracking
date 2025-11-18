@@ -62,6 +62,22 @@ That's it! 🎉 View your costs and metrics at [app.llmobserve.com](https://app.
 
 ### Track Agents & Workflows
 
+**Automatic Tracking (Zero Config):**
+```python
+from llmobserve import observe
+from langchain.agents import AgentExecutor
+
+observe(
+    collector_url="https://api.llmobserve.com",
+    api_key="llmo_sk_your_key_here"
+)
+
+# Agent tracking happens automatically - no manual labeling needed!
+agent = AgentExecutor(...)
+result = agent.run("query")  # Automatically tracked as agent
+```
+
+**Manual Labeling (Optional, for Better UX):**
 ```python
 from llmobserve import observe, section
 
@@ -70,7 +86,7 @@ observe(
     api_key="llmo_sk_your_key_here"
 )
 
-# Hierarchical tracking
+# Hierarchical tracking (optional - improves dashboard UX)
 with section("agent:research_assistant"):
     with section("tool:web_search"):
         # Your search logic
@@ -81,11 +97,18 @@ with section("agent:research_assistant"):
         summary = summarize(results)
 ```
 
-Dashboard shows a beautiful tree view:
+**Key Points:**
+- ✅ **Costs are always tracked** via HTTP interception (works everywhere)
+- ✅ **Framework agents auto-tracked** (LangChain, CrewAI, AutoGen, LlamaIndex)
+- ✅ **Manual labeling is optional** (improves dashboard UX but not required)
+- ✅ **Untracked costs still shown** (labeled as "untracked" in dashboard)
+
+Dashboard shows:
 ```
-agent:research_assistant
-├─ tool:web_search       $0.002  [ok]
-└─ tool:summarize        $0.001  [ok]
+agent:research_assistant    $0.50  (10 calls)
+├─ tool:web_search          $0.002  [ok]
+└─ tool:summarize           $0.001  [ok]
+untracked                   $0.10   (5 calls)  ← Costs without agent labels
 ```
 
 ### Track Costs Per Customer
@@ -289,6 +312,7 @@ MIT License - see [LICENSE](https://github.com/yourusername/llmobserve/blob/main
 ---
 
 Made with ❤️ by the LLM Observe team
+
 
 
 

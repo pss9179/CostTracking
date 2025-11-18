@@ -24,7 +24,7 @@ def observe(
     enable_tool_wrapping: bool = True,
     enable_llm_wrappers: bool = False,
     enable_http_fallback: bool = True,
-    auto_wrap_frameworks: bool = False
+    auto_wrap_frameworks: bool = True
 ) -> None:
     """
     Initialize LLM observability with reverse proxy architecture.
@@ -195,6 +195,14 @@ def observe(
         if auto_wrap_frameworks:
             logger.info("[llmobserve] ⚙️  Auto-patching frameworks (experimental)")
             try:
+                # Try new import-time patching (more reliable)
+                from llmobserve.framework_auto_patch import auto_patch_frameworks
+                patch_results = auto_patch_frameworks()
+                successful = [name for name, success in patch_results.items() if success]
+                if successful:
+                    logger.info(f"[llmobserve]   ✓ Auto-patched frameworks: {', '.join(successful)}")
+                
+                # Fall back to constructor patching for frameworks not covered
                 from llmobserve.framework_hooks import try_patch_frameworks
                 try_patch_frameworks()
                 logger.info("[llmobserve]   ✓ Framework auto-patching attempted")

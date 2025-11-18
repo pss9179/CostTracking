@@ -51,8 +51,8 @@ export async function POST(request: NextRequest) {
         },
       ],
       mode: "subscription",
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/settings?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/settings?canceled=true`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://llmobserve.com"}/settings?success=true`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://llmobserve.com"}/settings?canceled=true`,
       client_reference_id: userId,
       metadata: {
         clerk_user_id: userId,

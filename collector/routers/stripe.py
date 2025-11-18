@@ -24,12 +24,22 @@ async def stripe_webhook(
     stripe_subscription_id = payload.get("stripe_subscription_id")
     subscription_status = payload.get("subscription_status", "free")
     
-    if not clerk_user_id:
-        raise HTTPException(status_code=400, detail="Missing clerk_user_id")
+    user = None
     
-    # Find user by clerk_user_id
-    statement = select(User).where(User.clerk_user_id == clerk_user_id)
-    user = session.exec(statement).first()
+    # Try to find user by clerk_user_id first
+    if clerk_user_id:
+        statement = select(User).where(User.clerk_user_id == clerk_user_id)
+        user = session.exec(statement).first()
+    
+    # If not found and we have subscription_id, try finding by subscription_id
+    if not user and stripe_subscription_id:
+        statement = select(User).where(User.stripe_subscription_id == stripe_subscription_id)
+        user = session.exec(statement).first()
+    
+    # If still not found and we have customer_id, try finding by customer_id
+    if not user and stripe_customer_id:
+        statement = select(User).where(User.stripe_customer_id == stripe_customer_id)
+        user = session.exec(statement).first()
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -42,6 +52,8 @@ async def stripe_webhook(
     user.subscription_status = subscription_status
     if subscription_status == "active":
         user.subscription_tier = "pro"
+    elif subscription_status == "canceled":
+        user.subscription_tier = "free"
     
     session.add(user)
     session.commit()

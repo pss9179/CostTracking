@@ -510,19 +510,33 @@ export default function DashboardPage() {
               </TableHeader>
               <TableBody>
                 {(() => {
-                  // Aggregate filtered events by section (only agent: sections)
+                  // Aggregate filtered events by section (agent: sections + untracked)
                   const agentStats = new Map<string, { cost: number; calls: number }>();
+                  let untrackedCost = 0;
+                  let untrackedCalls = 0;
                   
                   filteredEvents.forEach(event => {
                     const section = event.section_path || event.section;
-                    if (!section || !section.startsWith("agent:")) return;
+                    const cost = event.cost_usd || 0;
                     
-                    const agentName = section.split("/")[0];
-                    const existing = agentStats.get(agentName) || { cost: 0, calls: 0 };
-                    existing.cost += event.cost_usd || 0;
-                    existing.calls += 1;
-                    agentStats.set(agentName, existing);
+                    // If agent-labeled, track as agent
+                    if (section && section.startsWith("agent:")) {
+                      const agentName = section.split("/")[0];
+                      const existing = agentStats.get(agentName) || { cost: 0, calls: 0 };
+                      existing.cost += cost;
+                      existing.calls += 1;
+                      agentStats.set(agentName, existing);
+                    } else if (cost > 0) {
+                      // Track untracked costs (still show them!)
+                      untrackedCost += cost;
+                      untrackedCalls += 1;
+                    }
                   });
+                  
+                  // Add untracked as a row if there are untracked costs
+                  if (untrackedCost > 0) {
+                    agentStats.set("untracked", { cost: untrackedCost, calls: untrackedCalls });
+                  }
                   
                   const sortedAgents = Array.from(agentStats.entries())
                     .sort((a, b) => b[1].cost - a[1].cost)
@@ -542,6 +556,10 @@ export default function DashboardPage() {
                     // Find the most expensive run for this agent
                     const agentEvents = filteredEvents.filter((e) => {
                       const section = e.section_path || e.section;
+                      if (agent === "untracked") {
+                        // For untracked, match events without agent: prefix
+                        return !section || !section.startsWith("agent:");
+                      }
                       return section && section.startsWith(agent);
                     });
                     
@@ -570,7 +588,12 @@ export default function DashboardPage() {
                         }}
                       >
                         <TableCell className="px-4 py-3">
-                          <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-gray-200">{agent}</Badge>
+                          <Badge 
+                            variant={agent === "untracked" ? "outline" : "secondary"} 
+                            className={agent === "untracked" ? "bg-yellow-50 text-yellow-700 border-yellow-200" : "bg-gray-100 text-gray-700 border-gray-200"}
+                          >
+                            {agent === "untracked" ? "Untracked" : agent}
+                          </Badge>
                         </TableCell>
                         <TableCell className="px-4 py-3 text-right font-semibold text-gray-900">
                           {formatCost(stats.cost)}

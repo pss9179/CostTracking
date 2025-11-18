@@ -51,13 +51,22 @@ export async function POST(request: NextRequest) {
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
         
+        // Determine status based on subscription state
+        let subscriptionStatus = "canceled";
+        if (subscription.status === "active" || subscription.status === "trialing") {
+          subscriptionStatus = "active";
+        } else if (subscription.status === "past_due" || subscription.status === "unpaid") {
+          subscriptionStatus = "past_due";
+        }
+        
         // Find user by subscription ID and update status
         await fetch(`${collectorUrl}/users/stripe/webhook`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            stripe_customer_id: subscription.customer as string,
             stripe_subscription_id: subscription.id,
-            subscription_status: subscription.status === "active" ? "active" : "canceled",
+            subscription_status: subscriptionStatus,
           }),
         });
         break;

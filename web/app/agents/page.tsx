@@ -59,6 +59,7 @@ export default function AgentsPage() {
             events.forEach((event: any) => {
               const section = event.section_path || event.section;
               const isAgent = section?.startsWith("agent:");
+              const cost = event.cost_usd || 0;
               
               if (isAgent) {
                 // Agent event
@@ -74,16 +75,16 @@ export default function AgentsPage() {
                 
                 existing.calls++;
                 existing.tokens += (event.tokens_prompt || 0) + (event.tokens_completion || 0);
-                existing.cost += event.cost_usd || 0;
+                existing.cost += cost;
                 existing.avg_latency += event.latency_ms || 0;
                 if (event.error_message) existing.errors++;
                 
                 agentMap.set(agentName, existing);
-              } else {
-                // Untracked event
+              } else if (cost > 0) {
+                // Untracked event (only if has cost - still show it!)
                 untrackedStats.calls++;
                 untrackedStats.tokens += (event.tokens_prompt || 0) + (event.tokens_completion || 0);
-                untrackedStats.cost += event.cost_usd || 0;
+                untrackedStats.cost += cost;
                 untrackedStats.avg_latency += event.latency_ms || 0;
                 if (event.error_message) untrackedStats.errors++;
               }
