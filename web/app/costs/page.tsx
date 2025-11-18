@@ -258,21 +258,7 @@ export default function CostsPage() {
         )
       : providerGroups.map((pg) => ({ name: pg.provider, cost: pg.totalCost }));
     
-    // Add fake data if no real data
-    if (realData.length === 0) {
-      return [
-        { name: 'OpenAI', cost: 0.125 },
-        { name: 'Anthropic', cost: 0.089 },
-        { name: 'Pinecone', cost: 0.045 },
-        { name: 'Stripe', cost: 0.032 },
-        { name: 'Google', cost: 0.028 },
-        { name: 'Cohere', cost: 0.019 },
-      ].map(item => ({
-        name: item.name,
-        cost: item.cost * (0.8 + Math.random() * 0.4),
-      }));
-    }
-    
+    // Return empty array if no real data - NO FAKE DATA
     return realData;
   })();
 

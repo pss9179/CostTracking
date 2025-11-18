@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
-import { loadAuth } from "@/lib/auth";
 import { fetchRuns, fetchRunDetail } from "@/lib/api";
 import { formatCost, formatDuration } from "@/lib/stats";
 import { Search, TrendingUp, DollarSign, Activity, Users } from "lucide-react";
@@ -34,22 +33,21 @@ interface CustomerStats {
 export default function CustomersPage() {
   const router = useRouter();
   const { getToken } = useAuth();
-  const [user, setUser] = useState<any>(null);
+  const { user, isLoaded } = useUser();
   const [customers, setCustomers] = useState<CustomerStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    const { user: loadedUser } = loadAuth();
-    if (!loadedUser) {
-      router.push("/login");
+    if (!isLoaded) return;
+    if (!user) {
+      router.push("/sign-in");
       return;
     }
-    setUser(loadedUser);
-  }, [router]);
+  }, [isLoaded, user, router]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!isLoaded || !user) return;
 
     async function loadCustomerData() {
       try {
