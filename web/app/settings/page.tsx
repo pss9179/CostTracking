@@ -384,7 +384,7 @@ export default function SettingsPage() {
             <div>
               <Label>Subscription</Label>
               <div className="mt-1 flex items-center gap-2">
-                <Badge>{user?.subscription_tier || "free"}</Badge>
+                <Badge>{user?.subscription_tier || "none"}</Badge>
                 <Link href="/settings/subscription">
                   <Button variant="outline" size="sm" className="ml-2">
                     <CreditCard className="w-4 h-4 mr-1" />

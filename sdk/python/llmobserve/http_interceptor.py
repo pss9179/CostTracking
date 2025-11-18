@@ -133,21 +133,9 @@ def patch_httpx():
                         request.headers["X-LLMObserve-Request-ID"] = request_id
                         parent_span = context.get_current_span_id()
                         request.headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
-                        # Get section from context, or auto-detect from call stack if missing
+                        # Get section from context
                         current_section = context.get_current_section()
                         section_path = context.get_section_path()
-                        
-                        # If no context, try to auto-detect agent from call stack
-                        if not current_section or current_section == "/":
-                            try:
-                                from llmobserve.agent_detector import detect_agent_from_stack
-                                detected_agent = detect_agent_from_stack(max_depth=15)
-                                if detected_agent:
-                                    current_section = detected_agent
-                                    section_path = detected_agent
-                                    logger.debug(f"[llmobserve] Auto-detected agent from stack: {detected_agent}")
-                            except Exception as e:
-                                logger.debug(f"[llmobserve] Auto-detection failed: {e}")
                         
                         request.headers["X-LLMObserve-Section"] = current_section or ""
                         request.headers["X-LLMObserve-Section-Path"] = section_path or ""
@@ -316,21 +304,9 @@ def patch_httpx():
                         request.headers["X-LLMObserve-Request-ID"] = request_id
                         parent_span = context.get_current_span_id()
                         request.headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
-                        # Get section from context, or auto-detect from call stack if missing
+                        # Get section from context
                         current_section = context.get_current_section()
                         section_path = context.get_section_path()
-                        
-                        # If no context, try to auto-detect agent from call stack
-                        if not current_section or current_section == "/":
-                            try:
-                                from llmobserve.agent_detector import detect_agent_from_stack
-                                detected_agent = detect_agent_from_stack(max_depth=15)
-                                if detected_agent:
-                                    current_section = detected_agent
-                                    section_path = detected_agent
-                                    logger.debug(f"[llmobserve] Auto-detected agent from stack: {detected_agent}")
-                            except Exception as e:
-                                logger.debug(f"[llmobserve] Auto-detection failed: {e}")
                         
                         request.headers["X-LLMObserve-Section"] = current_section or ""
                         request.headers["X-LLMObserve-Section-Path"] = section_path or ""
@@ -480,21 +456,9 @@ def patch_requests():
                         headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
                         parent_span = context.get_current_span_id()
                         headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
-                        # Get section from context, or auto-detect from call stack if missing
+                        # Get section from context
                         current_section = context.get_current_section()
                         section_path = context.get_section_path()
-                        
-                        # If no context, try to auto-detect agent from call stack
-                        if not current_section or current_section == "/":
-                            try:
-                                from llmobserve.agent_detector import detect_agent_from_stack
-                                detected_agent = detect_agent_from_stack(max_depth=15)
-                                if detected_agent:
-                                    current_section = detected_agent
-                                    section_path = detected_agent
-                                    logger.debug(f"[llmobserve] Auto-detected agent from stack: {detected_agent}")
-                            except Exception as e:
-                                logger.debug(f"[llmobserve] Auto-detection failed: {e}")
                         
                         headers["X-LLMObserve-Section"] = current_section or ""
                         headers["X-LLMObserve-Section-Path"] = section_path or ""
@@ -568,21 +532,9 @@ def patch_aiohttp():
                         headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
                         parent_span = context.get_current_span_id()
                         headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
-                        # Get section from context, or auto-detect from call stack if missing
+                        # Get section from context
                         current_section = context.get_current_section()
                         section_path = context.get_section_path()
-                        
-                        # If no context, try to auto-detect agent from call stack
-                        if not current_section or current_section == "/":
-                            try:
-                                from llmobserve.agent_detector import detect_agent_from_stack
-                                detected_agent = detect_agent_from_stack(max_depth=15)
-                                if detected_agent:
-                                    current_section = detected_agent
-                                    section_path = detected_agent
-                                    logger.debug(f"[llmobserve] Auto-detected agent from stack: {detected_agent}")
-                            except Exception as e:
-                                logger.debug(f"[llmobserve] Auto-detection failed: {e}")
                         
                         headers["X-LLMObserve-Section"] = current_section or ""
                         headers["X-LLMObserve-Section-Path"] = section_path or ""

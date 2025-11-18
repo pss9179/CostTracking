@@ -19,12 +19,12 @@ export async function POST(request: NextRequest) {
     const isFree = promoCode && validPromoCodes.includes(promoCode.toUpperCase());
 
     if (isFree) {
-      // For free promo codes, we'll handle it differently
-      // You can create a subscription with $0 price or just mark user as having free access
-      return NextResponse.json({ 
-        success: true, 
+      // For promo codes, we'll handle it differently
+      // You can create a subscription with $0 price or just mark user as having access
+      return NextResponse.json({
+        success: true,
         free: true,
-        message: "Promo code applied! You have free access." 
+        message: "Promo code applied! Your subscription is active."
       });
     }
 

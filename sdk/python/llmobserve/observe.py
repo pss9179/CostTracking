@@ -24,7 +24,7 @@ def observe(
     enable_tool_wrapping: bool = True,
     enable_llm_wrappers: bool = False,
     enable_http_fallback: bool = True,
-    auto_wrap_frameworks: bool = True
+    auto_wrap_frameworks: bool = False
 ) -> None:
     """
     Initialize LLM observability with reverse proxy architecture.
@@ -79,7 +79,7 @@ def observe(
                              Default: True (HTTP fallback enabled).
         auto_wrap_frameworks: If True, automatically patch common frameworks (LangChain, CrewAI, etc).
                              This is experimental and may break with framework updates.
-                             Default: False (users call wrap_all_tools manually).
+                             Default: False (opt-in, users should prefer manual wrapping).
     
     Example:
         >>> import llmobserve

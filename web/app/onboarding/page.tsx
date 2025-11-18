@@ -342,7 +342,7 @@ print(response.choices[0].message.content)`;
                     Subscribe Now - $8/month
                   </Button>
                   <p className="text-xs text-blue-600 text-center mt-2">
-                    Or use promo code: <code className="bg-blue-100 px-1 rounded">FREETEST</code> for free access
+                    Have a promo code? Enter it in Settings → Subscription
                   </p>
                 </div>
                 <Button 
@@ -351,7 +351,7 @@ print(response.choices[0].message.content)`;
                   className="w-full"
                   size="lg"
                 >
-                  Skip for Now (Free Trial)
+                  I'll Subscribe Later
                 </Button>
                 <p className="text-xs text-gray-500 text-center">
                   Need help? Check out our <Link href="/docs" className="text-indigo-600 hover:underline">documentation</Link>

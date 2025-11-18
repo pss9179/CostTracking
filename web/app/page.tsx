@@ -36,7 +36,7 @@ export default function LandingPage() {
                 onClick={() => router.push("/sign-up")}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
               >
-                Sign up for free
+                Get Started - $8/month
               </Button>
             </div>
           </div>
@@ -64,7 +64,7 @@ export default function LandingPage() {
                 onClick={() => router.push("/sign-up")}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-lg px-8 py-6 h-auto"
               >
-                Start for free
+                Get Started
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
             </div>
@@ -295,7 +295,7 @@ observe(
               onClick={() => router.push("/sign-up")}
               className="bg-white text-indigo-600 hover:bg-gray-100 text-lg px-8 py-6 h-auto"
             >
-              Start for free
+              Get Started
             </Button>
           </div>
           <p className="text-indigo-100 mt-4 text-sm">

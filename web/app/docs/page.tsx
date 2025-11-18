@@ -72,7 +72,7 @@ export default function DocsPage() {
                 onClick={() => router.push("/sign-up")}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
               >
-                Sign up for free
+                Get Started - $8/month
               </Button>
             </div>
           </div>
@@ -107,7 +107,7 @@ export default function DocsPage() {
                     <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
                     <h3 className="font-semibold">Sign Up</h3>
                   </div>
-                  <p className="text-sm text-gray-600">Create a free account and get your API key</p>
+                  <p className="text-sm text-gray-600">Create an account and get your API key ($8/month)</p>
                 </div>
                 <div className="bg-white rounded-lg p-4 border border-indigo-100">
                   <div className="flex items-center gap-2 mb-2">
@@ -532,7 +532,7 @@ observe(
             Get started in less than 2 minutes
           </p>
           <Button onClick={() => router.push("/sign-up")} size="lg" className="bg-indigo-600 hover:bg-indigo-700">
-            Sign Up for Free
+            Get Started - $8/month
           </Button>
         </section>
       </div>

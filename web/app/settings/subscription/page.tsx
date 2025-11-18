@@ -16,7 +16,7 @@ export default function SubscriptionPage() {
   const [loading, setLoading] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [promoError, setPromoError] = useState("");
-  const [subscriptionStatus, setSubscriptionStatus] = useState<"free" | "active" | "canceled">("free");
+  const [subscriptionStatus, setSubscriptionStatus] = useState<"inactive" | "active" | "canceled">("inactive");
 
   useEffect(() => {
     // Load subscription status
@@ -35,7 +35,7 @@ export default function SubscriptionPage() {
       
       if (response.ok) {
         const data = await response.json();
-        setSubscriptionStatus(data.user?.subscription_status || "free");
+        setSubscriptionStatus(data.user?.subscription_status || "inactive");
       }
     } catch (error) {
       console.error("Failed to load subscription status:", error);
@@ -54,7 +54,7 @@ export default function SubscriptionPage() {
       const data = await response.json();
 
       if (data.free) {
-        // Apply free promo code
+        // Apply promo code
         const token = await getToken();
         const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
         await fetch(`${collectorUrl}/users/promo-code`, {
@@ -66,7 +66,7 @@ export default function SubscriptionPage() {
           body: JSON.stringify({ promo_code: promoCode }),
         });
         setSubscriptionStatus("active");
-        alert("Promo code applied! You now have free access.");
+        alert("Promo code applied! Your subscription is active.");
       } else if (data.url) {
         // Redirect to Stripe checkout
         window.location.href = data.url;
@@ -149,7 +149,7 @@ export default function SubscriptionPage() {
                     ) : (
                       <>
                         <XCircle className="w-3 h-3 mr-1" />
-                        Free
+                        Inactive
                       </>
                     )}
                   </Badge>
@@ -164,7 +164,7 @@ export default function SubscriptionPage() {
           </CardContent>
         </Card>
 
-        {subscriptionStatus === "free" && (
+        {subscriptionStatus === "inactive" && (
           <>
             <Card>
               <CardHeader>
@@ -172,12 +172,13 @@ export default function SubscriptionPage() {
                   <Gift className="w-5 h-5" />
                   <CardTitle>Promo Code</CardTitle>
                 </div>
-                <CardDescription>Have a promo code? Enter it here for free access</CardDescription>
+                <CardDescription>Have a promo code? Enter it here</CardDescription>
+
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Enter promo code (e.g., FREETEST)"
+                    placeholder="Enter promo code"
                     value={promoCode}
                     onChange={(e) => {
                       setPromoCode(e.target.value);
@@ -195,7 +196,7 @@ export default function SubscriptionPage() {
                   </Alert>
                 )}
                 <p className="text-xs text-gray-500">
-                  Valid promo codes: FREETEST, TEST2024, BETA
+                  Enter your promo code to get access
                 </p>
               </CardContent>
             </Card>
