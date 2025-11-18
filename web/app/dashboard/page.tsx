@@ -44,10 +44,23 @@ export default function DashboardPage() {
   const [userType, setUserType] = useState<"solo_dev" | "saas_founder" | null>(null);
 
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    // If Clerk isn't loaded yet, wait
+    if (!isLoaded) {
+      return;
+    }
+
+    // If no user, redirect or show error
+    if (!user) {
+      setLoading(false);
+      setError("Not authenticated. Please sign in.");
+      return;
+    }
 
     async function loadData() {
       try {
+        setLoading(true);
+        setError(null);
+        
         // Get Clerk token and set it for API calls
         const token = await getToken();
         if (token && typeof window !== "undefined") {
@@ -104,6 +117,7 @@ export default function DashboardPage() {
           setAllEvents([]);
         }
       } catch (err) {
+        console.error("[Dashboard] Error loading data:", err);
         setError(err instanceof Error ? err.message : "Failed to load data");
       } finally {
         setLoading(false);
@@ -115,7 +129,7 @@ export default function DashboardPage() {
     // Refresh every 30 seconds
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
-  }, [isLoaded, user, selectedCustomer]);
+  }, [isLoaded, user, selectedCustomer, getToken]);
 
   // Filter events by customer if selected
   const filteredEvents = selectedCustomer
