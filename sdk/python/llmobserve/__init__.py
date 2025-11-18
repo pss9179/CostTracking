@@ -62,7 +62,7 @@ from llmobserve.multi_language_analyzer import (
     analyze_multi_language_code,
 )
 
-# AI-powered instrumentation (optional, requires anthropic package)
+# AI-powered instrumentation (uses LLMObserve backend)
 try:
     from llmobserve.ai_instrument import (
         AIInstrumenter,

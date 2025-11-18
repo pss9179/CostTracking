@@ -1,7 +1,7 @@
 """
 AI-powered automatic instrumentation for LLMObserve.
 
-Uses Claude API to analyze code and suggest/apply agent labels.
+Uses LLMObserve backend (Claude API) to analyze code and suggest/apply agent labels.
 """
 import os
 import re
@@ -14,36 +14,56 @@ import json
 logger = logging.getLogger("llmobserve")
 
 try:
-    import anthropic
-    ANTHROPIC_AVAILABLE = True
+    import requests
+    REQUESTS_AVAILABLE = True
 except ImportError:
-    ANTHROPIC_AVAILABLE = False
+    REQUESTS_AVAILABLE = False
 
 
 class AIInstrumenter:
-    """AI-powered code instrumenter using Claude."""
+    """AI-powered code instrumenter using LLMObserve backend."""
     
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(
+        self, 
+        collector_url: Optional[str] = None,
+        api_key: Optional[str] = None
+    ):
         """
         Initialize AI instrumenter.
         
         Args:
-            api_key: Anthropic API key. If None, reads from ANTHROPIC_API_KEY env var.
+            collector_url: LLMObserve collector URL (e.g., "https://llmobserve-production.up.railway.app")
+            api_key: Your LLMObserve API key
         """
-        if not ANTHROPIC_AVAILABLE:
+        if not REQUESTS_AVAILABLE:
             raise ImportError(
-                "anthropic package not installed. "
-                "Install with: pip install anthropic"
+                "requests package not installed. "
+                "Install with: pip install requests"
             )
         
-        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
+        self.collector_url = collector_url or os.getenv("LLMOBSERVE_COLLECTOR_URL")
+        self.api_key = api_key or os.getenv("LLMOBSERVE_API_KEY")
+        
+        if not self.collector_url:
+            raise ValueError(
+                "LLMObserve collector URL required. "
+                "Set LLMOBSERVE_COLLECTOR_URL env var or pass collector_url parameter."
+            )
+        
         if not self.api_key:
             raise ValueError(
-                "Anthropic API key required. "
-                "Set ANTHROPIC_API_KEY env var or pass api_key parameter."
+                "LLMObserve API key required. "
+                "Set LLMOBSERVE_API_KEY env var or pass api_key parameter. "
+                "Get your API key from https://llmobserve.com/settings"
             )
         
-        self.client = anthropic.Anthropic(api_key=self.api_key)
+        # Determine AI endpoint based on collector URL
+        if "railway.app" in self.collector_url or "localhost" in self.collector_url:
+            # Production or local backend
+            self.ai_endpoint = self.collector_url.replace(":8000", "").rstrip("/") + "/api/ai-instrument"
+        else:
+            # Default to web app endpoint
+            self.ai_endpoint = "https://llmobserve.com/api/ai-instrument"
     
     def analyze_file(self, file_path: str) -> Dict:
         """
@@ -69,7 +89,7 @@ class AIInstrumenter:
     
     def analyze_code(self, code: str, file_path: Optional[str] = None) -> Dict:
         """
-        Analyze Python code and suggest instrumentation.
+        Analyze Python code and suggest instrumentation using LLMObserve backend.
         
         Args:
             code: Python code to analyze
@@ -78,33 +98,43 @@ class AIInstrumenter:
         Returns:
             Dict with 'suggestions' (list of instrumentation suggestions)
         """
-        prompt = self._build_analysis_prompt(code, file_path)
-        
         try:
-            response = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=4000,
-                temperature=0,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+            # Call LLMObserve backend API
+            response = requests.post(
+                self.ai_endpoint,
+                json={
+                    "code": code,
+                    "file_path": file_path
+                },
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                },
+                timeout=60  # AI analysis can take a bit
             )
             
-            # Extract text from response
-            response_text = response.content[0].text
+            if response.status_code == 401:
+                raise ValueError(
+                    "Invalid API key. Get your API key from https://llmobserve.com/settings"
+                )
             
-            # Parse JSON response
-            suggestions = self._parse_response(response_text)
+            if not response.ok:
+                error_data = response.json() if response.headers.get("content-type") == "application/json" else {}
+                raise RuntimeError(
+                    f"Backend API error: {response.status_code} - {error_data.get('error', response.text)}"
+                )
+            
+            data = response.json()
             
             return {
                 "file_path": file_path,
-                "suggestions": suggestions,
-                "response_text": response_text
+                "suggestions": data.get("suggestions", []),
+                "response_text": data.get("response_text", "")
             }
             
+        except requests.exceptions.RequestException as e:
+            logger.error(f"[ai_instrument] Network error: {e}")
+            raise RuntimeError(f"Failed to connect to LLMObserve backend: {e}")
         except Exception as e:
             logger.error(f"[ai_instrument] Analysis failed: {e}")
             raise
@@ -171,99 +201,6 @@ class AIInstrumenter:
             "message": f"Applied {len(analysis['suggestions'])} changes"
         }
     
-    def _build_analysis_prompt(self, code: str, file_path: Optional[str] = None) -> str:
-        """Build prompt for Claude to analyze code."""
-        return f"""You are an expert Python developer helping instrument code for LLMObserve cost tracking.
-
-LLMObserve tracks LLM API costs using these labeling methods:
-
-1. **@agent decorator** - Mark agent entry points:
-```python
-from llmobserve import agent
-
-@agent("researcher")
-def research_agent(query):
-    # All API calls here auto-labeled as "agent:researcher"
-    return result
-```
-
-2. **section() context manager** - Label code blocks:
-```python
-from llmobserve import section
-
-with section("agent:researcher"):
-    # All API calls here auto-labeled
-    response = openai_call()
-```
-
-3. **wrap_all_tools()** - Wrap tool lists for frameworks:
-```python
-from llmobserve import wrap_all_tools
-
-tools = [web_search, calculator]
-wrapped_tools = wrap_all_tools(tools)
-agent = Agent(tools=wrapped_tools)  # LangChain, CrewAI, etc.
-```
-
-**Your task:**
-Analyze this Python code and suggest where to add LLMObserve instrumentation.
-
-**Focus on:**
-- Functions that orchestrate LLM calls (likely agents)
-- Framework usage (LangChain, CrewAI, AutoGen, LlamaIndex)
-- Tool definitions
-- Multi-step workflows
-
-**Output format:**
-Return ONLY valid JSON with this structure:
-```json
-{{
-  "suggestions": [
-    {{
-      "type": "decorator" | "context_manager" | "wrap_tools",
-      "line_number": <int>,
-      "function_name": "<name>",
-      "suggested_label": "<label>",
-      "code_before": "<original line>",
-      "code_after": "<modified line>",
-      "reason": "<why this needs instrumentation>"
-    }}
-  ]
-}}
-```
-
-**File:** {file_path or "N/A"}
-
-**Code to analyze:**
-```python
-{code}
-```
-
-**Important:**
-- Return ONLY JSON, no markdown or explanations
-- Suggest agent names based on function purpose (e.g., "researcher", "writer", "analyzer")
-- For LangChain agents, suggest wrap_all_tools() on the tools list
-- Don't suggest instrumentation for non-LLM code
-- Be conservative - only suggest where it clearly makes sense"""
-
-    def _parse_response(self, response_text: str) -> List[Dict]:
-        """Parse Claude's JSON response."""
-        try:
-            # Try to extract JSON from response
-            # Sometimes Claude wraps it in markdown
-            json_match = re.search(r'```json\s*\n(.*?)\n```', response_text, re.DOTALL)
-            if json_match:
-                json_text = json_match.group(1)
-            else:
-                # Try without markdown
-                json_text = response_text.strip()
-            
-            data = json.loads(json_text)
-            return data.get("suggestions", [])
-        except json.JSONDecodeError as e:
-            logger.error(f"[ai_instrument] Failed to parse response: {e}")
-            logger.debug(f"[ai_instrument] Response text: {response_text}")
-            return []
     
     def _apply_suggestions(self, code: str, suggestions: List[Dict]) -> str:
         """Apply instrumentation suggestions to code."""
@@ -343,15 +280,20 @@ Return ONLY valid JSON with this structure:
         return '\n'.join(lines)
 
 
-def preview_instrumentation(file_path: str, api_key: Optional[str] = None) -> None:
+def preview_instrumentation(
+    file_path: str, 
+    collector_url: Optional[str] = None,
+    api_key: Optional[str] = None
+) -> None:
     """
     Preview AI-suggested instrumentation without applying.
     
     Args:
         file_path: Path to Python file
-        api_key: Optional Anthropic API key
+        collector_url: LLMObserve collector URL
+        api_key: Your LLMObserve API key
     """
-    instrumenter = AIInstrumenter(api_key=api_key)
+    instrumenter = AIInstrumenter(collector_url=collector_url, api_key=api_key)
     result = instrumenter.analyze_file(file_path)
     
     print(f"\n🔍 Analysis of {file_path}\n")
@@ -378,6 +320,7 @@ def preview_instrumentation(file_path: str, api_key: Optional[str] = None) -> No
 def auto_instrument(
     file_path: str, 
     auto_apply: bool = False,
+    collector_url: Optional[str] = None,
     api_key: Optional[str] = None
 ) -> Dict:
     """
@@ -386,12 +329,13 @@ def auto_instrument(
     Args:
         file_path: Path to Python file
         auto_apply: If True, automatically apply changes
-        api_key: Optional Anthropic API key
+        collector_url: LLMObserve collector URL
+        api_key: Your LLMObserve API key
         
     Returns:
         Dict with analysis and instrumentation results
     """
-    instrumenter = AIInstrumenter(api_key=api_key)
+    instrumenter = AIInstrumenter(collector_url=collector_url, api_key=api_key)
     result = instrumenter.instrument_file(file_path, auto_apply=auto_apply)
     
     if result['applied']:

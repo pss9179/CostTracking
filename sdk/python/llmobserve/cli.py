@@ -31,7 +31,11 @@ def main():
     )
     instrument_parser.add_argument(
         '--api-key',
-        help='Anthropic API key (or set ANTHROPIC_API_KEY env var)'
+        help='Your LLMObserve API key (or set LLMOBSERVE_API_KEY env var)'
+    )
+    instrument_parser.add_argument(
+        '--collector-url',
+        help='LLMObserve collector URL (or set LLMOBSERVE_COLLECTOR_URL env var)'
     )
     instrument_parser.add_argument(
         '--verbose',
@@ -50,7 +54,11 @@ def main():
     )
     preview_parser.add_argument(
         '--api-key',
-        help='Anthropic API key (or set ANTHROPIC_API_KEY env var)'
+        help='Your LLMObserve API key (or set LLMOBSERVE_API_KEY env var)'
+    )
+    preview_parser.add_argument(
+        '--collector-url',
+        help='LLMObserve collector URL (or set LLMOBSERVE_COLLECTOR_URL env var)'
     )
     preview_parser.add_argument(
         '--verbose',
@@ -75,6 +83,7 @@ def main():
             result = auto_instrument(
                 args.file,
                 auto_apply=args.auto_apply,
+                collector_url=args.collector_url,
                 api_key=args.api_key
             )
             
@@ -96,7 +105,11 @@ def main():
         from llmobserve.ai_instrument import preview_instrumentation
         
         try:
-            preview_instrumentation(args.file, api_key=args.api_key)
+            preview_instrumentation(
+                args.file, 
+                collector_url=args.collector_url,
+                api_key=args.api_key
+            )
             sys.exit(0)
         except Exception as e:
             print(f"\n❌ Error: {e}", file=sys.stderr)

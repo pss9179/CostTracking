@@ -48,9 +48,6 @@ setup(
             "black>=23.0.0",
             "mypy>=1.0.0",
         ],
-        "ai": [
-            "anthropic>=0.40.0",
-        ],
     },
     entry_points={
         "console_scripts": [

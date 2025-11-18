@@ -371,12 +371,16 @@ agent = AgentExecutor(
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                <p className="text-sm text-gray-600 mb-4">
+                  ✨ <strong>Included with your subscription!</strong> No extra API keys needed.
+                </p>
                 <CodeBlock 
-                  code={`# Install with AI support
-pip install 'llmobserve[ai]'
+                  code={`# Install LLMObserve SDK
+pip install llmobserve
 
-# Set your Anthropic API key
-export ANTHROPIC_API_KEY="sk-ant-..."`}
+# Set your LLMObserve credentials (from dashboard)
+export LLMOBSERVE_COLLECTOR_URL="https://llmobserve-production.up.railway.app"
+export LLMOBSERVE_API_KEY="your-api-key-here"`}
                   id="ai-install"
                 />
               </CardContent>
@@ -443,12 +447,12 @@ llmobserve instrument my_agent.py --auto-apply
               <CardContent className="pt-6">
                 <div className="space-y-3 text-sm text-gray-700">
                   <div className="flex items-start gap-2">
-                    <span>💰</span>
-                    <p><strong>Cost:</strong> Uses Claude API (~$0.01 per file analyzed). We don&apos;t charge extra.</p>
+                    <span>✨</span>
+                    <p><strong>Included:</strong> AI instrumentation is included with your $8/month subscription. No extra costs.</p>
                   </div>
                   <div className="flex items-start gap-2">
                     <span>🔒</span>
-                    <p><strong>Privacy:</strong> Your code is sent to Anthropic&apos;s API for analysis. Not stored by us.</p>
+                    <p><strong>Privacy:</strong> Code is sent to our backend (Anthropic Claude API) for analysis. Not stored permanently.</p>
                   </div>
                   <div className="flex items-start gap-2">
                     <span>📝</span>
@@ -457,6 +461,10 @@ llmobserve instrument my_agent.py --auto-apply
                   <div className="flex items-start gap-2">
                     <span>🎯</span>
                     <p><strong>Accuracy:</strong> AI is conservative - only suggests where it clearly makes sense.</p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span>⚡</span>
+                    <p><strong>Simple:</strong> Uses your existing LLMObserve API key. No extra setup required.</p>
                   </div>
                 </div>
               </CardContent>
