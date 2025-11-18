@@ -166,7 +166,7 @@ function parseResponse(responseText: string): any[] {
   try {
     // Try to extract JSON from response
     // Sometimes Claude wraps it in markdown
-    const jsonMatch = responseText.match(/```json\s*\n(.*?)\n```/s);
+    const jsonMatch = responseText.match(/```json\s*\n([\s\S]*?)\n```/);
     const jsonText = jsonMatch ? jsonMatch[1] : responseText.trim();
     
     const data = JSON.parse(jsonText);
