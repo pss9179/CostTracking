@@ -128,7 +128,8 @@ async def sync_user_from_clerk(
             "created": False,
         }
     
-    # Create new user
+    # Create new user (PRIMARY creation method - called during onboarding)
+    logger.info(f"[Users/Sync] Creating new user: {email} (Clerk ID: {clerk_user_id}, Type: {user_type})")
     user = User(
         clerk_user_id=clerk_user_id,
         email=email,
@@ -138,6 +139,8 @@ async def sync_user_from_clerk(
     session.add(user)
     session.commit()
     session.refresh(user)
+    
+    logger.info(f"[Users/Sync] User created: {user.email} (ID: {user.id})")
     
     # Auto-generate first API key for new users
     api_key = generate_api_key()
@@ -153,6 +156,8 @@ async def sync_user_from_clerk(
     session.add(first_key)
     session.commit()
     session.refresh(first_key)
+    
+    logger.info(f"[Users/Sync] API key created for user {user.email}: {key_prefix}...")
     
     return {
         "message": "User created successfully",
