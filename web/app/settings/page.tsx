@@ -18,7 +18,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
-import { Copy, Check, Trash2, Plus, Key, Settings as SettingsIcon, Bell, DollarSign, AlertTriangle } from "lucide-react";
+import { Copy, Check, Trash2, Plus, Key, Settings as SettingsIcon, Bell, DollarSign, AlertTriangle, CreditCard } from "lucide-react";
+import Link from "next/link";
 import type { Cap, CapCreate, Alert as AlertType, ProviderTier } from "@/lib/api";
 import { fetchProviderTiers, setProviderTier, deleteProviderTier } from "@/lib/api";
 
@@ -382,8 +383,14 @@ export default function SettingsPage() {
             </div>
             <div>
               <Label>Subscription</Label>
-              <div className="mt-1">
+              <div className="mt-1 flex items-center gap-2">
                 <Badge>{user?.subscription_tier || "free"}</Badge>
+                <Link href="/settings/subscription">
+                  <Button variant="outline" size="sm" className="ml-2">
+                    <CreditCard className="w-4 h-4 mr-1" />
+                    Manage Subscription
+                  </Button>
+                </Link>
               </div>
             </div>
             <div>

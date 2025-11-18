@@ -13,6 +13,7 @@ from . import (
     clerk_webhook,
     clerk_api_keys,
     caps,
+    stripe,
 )
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "clerk_webhook",
     "clerk_api_keys",
     "caps",
+    "stripe",
 ]

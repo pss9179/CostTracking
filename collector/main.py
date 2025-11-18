@@ -23,6 +23,7 @@ from routers import (
     clerk_api_keys,
     caps,
     provider_tiers,
+    stripe,
 )
 from cap_monitor import run_cap_monitor
 
@@ -148,6 +149,7 @@ app.include_router(auth_simple.router)  # Simple email/password auth (legacy)
 app.include_router(users.router)  # User management
 app.include_router(api_keys.router)  # API key management
 app.include_router(caps.router)  # Spending caps & alerts
+app.include_router(stripe.router)  # Stripe subscription management
 app.include_router(dashboard.router)
 app.include_router(events.router)
 app.include_router(runs.router)

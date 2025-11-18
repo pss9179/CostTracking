@@ -19,6 +19,10 @@ class User(SQLModel, table=True):
     user_type: str = Field(default="solo_dev", description="User type: solo_dev or saas_founder")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Account creation time")
     subscription_tier: str = Field(default="free", description="Subscription tier: free, pro, enterprise")
+    stripe_customer_id: Optional[str] = Field(default=None, index=True, description="Stripe customer ID")
+    stripe_subscription_id: Optional[str] = Field(default=None, index=True, description="Stripe subscription ID")
+    subscription_status: str = Field(default="free", description="Subscription status: free, active, canceled, past_due")
+    promo_code: Optional[str] = Field(default=None, description="Promo code used for free access")
     
     class Config:
         indexes = [
