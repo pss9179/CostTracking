@@ -117,19 +117,31 @@ async def get_current_clerk_user(
         logger.error(f"[Clerk Auth] Exception in verify_clerk_token: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=401, detail=f"Token verification error: {str(e)}")
     
-    # Look up user in local DB
+    # Look up user in local DB, create if doesn't exist (lazy user creation)
     try:
         statement = select(User).where(User.clerk_user_id == clerk_user_id)
         user = session.exec(statement).first()
         
         if not user:
-            logger.warning(f"[Clerk Auth] User not found in DB for Clerk ID: {clerk_user_id}")
-            raise HTTPException(
-                status_code=404,
-                detail=f"User not found. Clerk ID: {clerk_user_id}. Please contact support."
+            logger.info(f"[Clerk Auth] User not found in DB for Clerk ID: {clerk_user_id}, creating...")
+            # Auto-create user from Clerk data (lazy provisioning)
+            # Extract email from token if available, otherwise use a placeholder
+            email = token_data.get("email") or f"user_{clerk_user_id[:8]}@clerk.local"
+            
+            user = User(
+                clerk_user_id=clerk_user_id,
+                email=email,
+                name=token_data.get("name") or None,
+                user_type="solo_dev",  # Default, can be updated later
             )
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            
+            logger.info(f"[Clerk Auth] Auto-created user: {user.email} (ID: {user.id})")
+        else:
+            logger.info(f"[Clerk Auth] User found: {user.email} (ID: {user.id})")
         
-        logger.info(f"[Clerk Auth] User found: {user.email} (ID: {user.id})")
         return user
     except HTTPException:
         raise
