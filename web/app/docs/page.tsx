@@ -571,6 +571,157 @@ observe(
           </div>
         </section>
 
+        {/* FAQ Section */}
+        <section className="mb-16">
+          <div className="flex items-center gap-3 mb-6">
+            <HelpCircle className="w-8 h-8 text-indigo-600" />
+            <h2 className="text-3xl font-bold text-gray-900">Frequently Asked Questions</h2>
+          </div>
+
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">How accurate is the cost tracking?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  We track token usage in real-time and calculate costs using official provider pricing tables. 
+                  Our costs typically match provider bills within 1-2% accuracy. We update pricing daily to reflect 
+                  any provider changes.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Which LLM providers are supported?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 mb-2">
+                  We support 40+ providers including:
+                </p>
+                <p className="text-gray-700 font-medium">
+                  OpenAI (GPT-4, GPT-3.5, o1, o3), Anthropic (Claude), Google (Gemini), Cohere, 
+                  Together AI, Replicate, Hugging Face, Perplexity, Groq, Mistral, DeepSeek, Fireworks, 
+                  Anyscale, and many more.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Do you support agent frameworks like LangChain and CrewAI?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Yes! We support all major agent frameworks including LangChain, CrewAI, AutoGen, and LlamaIndex. 
+                  Use our <code className="bg-gray-100 px-1 py-0.5 rounded text-sm">@agent</code> decorator or <code className="bg-gray-100 px-1 py-0.5 rounded text-sm">wrap_all_tools()</code> function 
+                  to track agent costs automatically.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Can I track costs by customer for my SaaS?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Absolutely! Pass a <code className="bg-gray-100 px-1 py-0.5 rounded text-sm">customer_id</code> when calling <code className="bg-gray-100 px-1 py-0.5 rounded text-sm">observe()</code> or 
+                  use <code className="bg-gray-100 px-1 py-0.5 rounded text-sm">set_customer_id()</code> dynamically. Your dashboard will show a breakdown of costs 
+                  by customer, helping you understand profitability.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">How do spending caps work?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Set a monthly spending limit in Settings → Spending Caps. You'll receive email alerts at 80% and 95% of your cap. 
+                  You can optionally block API calls when the cap is reached to prevent overages.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Can I export my data?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Yes! Export your cost data, runs, and traces to CSV or JSON format from any page. 
+                  Perfect for creating custom reports or importing into your own analytics tools.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Does this work with streaming responses?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Yes! We automatically track streaming responses from OpenAI, Anthropic, and other providers. 
+                  Token usage and costs are calculated once the stream completes.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">What if I see costs as "untracked" in my dashboard?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  "Untracked" means LLM calls were made without an explicit agent or section label. To fix this, 
+                  use the <code className="bg-gray-100 px-1 py-0.5 rounded text-sm">@agent</code> decorator, <code className="bg-gray-100 px-1 py-0.5 rounded text-sm">section()</code> context manager, 
+                  or <code className="bg-gray-100 px-1 py-0.5 rounded text-sm">wrap_all_tools()</code> to label your workflows.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Do you store my API keys?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  No! We never see or store your LLM provider API keys. All API calls go directly from your code 
+                  to the provider. We only track metadata (tokens, costs, latency) via HTTP headers.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Can I self-host the collector?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  The collector is currently hosted only. For enterprise self-hosting options, 
+                  email us at enterprise@llmobserve.com.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">What if costs aren't showing up?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Check that: (1) You've called <code className="bg-gray-100 px-1 py-0.5 rounded text-sm">observe()</code> before making LLM calls, 
+                  (2) Your API key is correct, (3) You're using httpx, requests, or aiohttp for HTTP calls. 
+                  If issues persist, check the Troubleshooting section above or email support@llmobserve.com.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
         {/* CTA */}
         <section className="text-center py-12 bg-indigo-50 rounded-xl">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">Ready to start tracking?</h2>
