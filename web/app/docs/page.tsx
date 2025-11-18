@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-// Docs page for LLM Observe cost tracking
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
