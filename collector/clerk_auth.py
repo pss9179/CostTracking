@@ -100,7 +100,7 @@ async def get_current_clerk_user(
     logger.info(f"[Clerk Auth] Received token (first 50 chars): {token[:50]}...")
     logger.info(f"[Clerk Auth] Token length: {len(token)}")
     
-    # Verify token with Clerk
+    # Verify token with Clerk and decode to get user info
     try:
         logger.info("[Clerk Auth] Calling verify_clerk_token...")
         clerk_data = await verify_clerk_token(token)
@@ -111,6 +111,25 @@ async def get_current_clerk_user(
         
         clerk_user_id = clerk_data["clerk_user_id"]
         logger.info(f"[Clerk Auth] Token verified, Clerk user ID: {clerk_user_id}")
+        
+        # Decode token again to get email/name from payload
+        token_parts = token.split('.')
+        if len(token_parts) == 3:
+            payload = token_parts[1]
+            padding = len(payload) % 4
+            if padding:
+                payload += '=' * (4 - padding)
+            try:
+                decoded_payload = base64.urlsafe_b64decode(payload)
+                token_payload = json.loads(decoded_payload)
+                email = token_payload.get("email") or f"user_{clerk_user_id[:8]}@clerk.local"
+                name = token_payload.get("name") or None
+            except Exception:
+                email = f"user_{clerk_user_id[:8]}@clerk.local"
+                name = None
+        else:
+            email = f"user_{clerk_user_id[:8]}@clerk.local"
+            name = None
     except HTTPException:
         raise
     except Exception as e:
@@ -125,13 +144,10 @@ async def get_current_clerk_user(
         if not user:
             logger.info(f"[Clerk Auth] User not found in DB for Clerk ID: {clerk_user_id}, creating...")
             # Auto-create user from Clerk data (lazy provisioning)
-            # Extract email from token if available, otherwise use a placeholder
-            email = token_data.get("email") or f"user_{clerk_user_id[:8]}@clerk.local"
-            
             user = User(
                 clerk_user_id=clerk_user_id,
                 email=email,
-                name=token_data.get("name") or None,
+                name=name,
                 user_type="solo_dev",  # Default, can be updated later
             )
             session.add(user)
