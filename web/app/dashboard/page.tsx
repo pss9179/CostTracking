@@ -49,7 +49,7 @@ export default function DashboardPage() {
     async function loadData() {
       try {
         // Get Clerk token and set it for API calls
-        const token = await getToken({ template: "default" });
+        const token = await getToken();
         if (token && typeof window !== "undefined") {
           (window as any).__clerkToken = token;
         }

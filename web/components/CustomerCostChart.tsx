@@ -40,7 +40,7 @@ export function CustomerCostChart() {
     async function loadCustomers() {
       try {
         // Get Clerk token for authentication
-        const token = await getToken({ template: "default" });
+        const token = await getToken();
         if (!token) {
           setError("Not authenticated");
           setLoading(false);

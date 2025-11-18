@@ -30,7 +30,7 @@ export default function AdminPage() {
     setCreated(null);
 
     try {
-      const token = await getToken({ template: "default" });
+      const token = await getToken();
       if (!token) {
         setError("Not authenticated. Please sign in.");
         setCreating(false);

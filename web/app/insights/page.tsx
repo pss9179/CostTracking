@@ -50,7 +50,7 @@ function InsightsPageContent() {
   useEffect(() => {
     async function loadInsights() {
       try {
-        const token = await getToken({ template: "default" });
+        const token = await getToken();
         if (!token) {
           setError("Not authenticated. Please sign in.");
           setLoading(false);

@@ -38,7 +38,7 @@ export default function RunDetailPage() {
 
     async function loadDetail() {
       try {
-        const token = await getToken({ template: "default" });
+        const token = await getToken();
         if (!token) {
           console.error("No Clerk token available");
           return;

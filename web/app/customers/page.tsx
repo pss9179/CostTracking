@@ -54,7 +54,7 @@ export default function CustomersPage() {
     async function loadCustomerData() {
       try {
         setLoading(true);
-        const token = await getToken({ template: "default" });
+        const token = await getToken();
         if (!token) {
           console.error("No Clerk token available");
           return;

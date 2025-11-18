@@ -9,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { getToken } = await auth();
-    const token = await getToken({ template: "default" });
+    const token = await getToken();
     
     if (!token) {
       return NextResponse.json(

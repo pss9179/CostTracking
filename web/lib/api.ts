@@ -197,7 +197,7 @@ export interface Alert {
 
 // Helper function to get auth headers for dashboard queries (uses Clerk token)
 // IMPORTANT: This function REQUIRES a token to be passed. It will NOT include Authorization
-// header if no token is provided. All callers must pass a token obtained via getToken({ template: "default" })
+// header if no token is provided. All callers must pass a token obtained via getToken()
 export async function getDashboardAuthHeaders(token?: string): Promise<HeadersInit> {
   const headers: HeadersInit = {
     "Content-Type": "application/json",
