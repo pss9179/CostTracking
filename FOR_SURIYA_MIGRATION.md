@@ -37,9 +37,15 @@ CREATE INDEX IF NOT EXISTS idx_users_stripe_subscription_id ON users(stripe_subs
 
 ```bash
 cd collector
+railway login  # Login if not already
 railway service  # Select the service if prompted
 railway run python migrate_add_stripe_columns.py
 ```
+
+**Or share your Railway token:**
+1. Go to https://railway.app/account/tokens
+2. Create/copy a token
+3. Share it with Pranav so he can run: `railway login --token <your-token>`
 
 ## That's it!
 
