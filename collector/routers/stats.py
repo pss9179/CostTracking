@@ -38,10 +38,16 @@ async def get_costs_by_provider(
     ).where(TraceEvent.created_at >= cutoff)
     
     # Filter by tenant_id (preferred) or user_id
+    # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
     if tenant_id:
         statement = statement.where(TraceEvent.tenant_id == tenant_id)
     elif user_id:
-        statement = statement.where(TraceEvent.user_id == user_id)
+        statement = statement.where(
+            and_(
+                TraceEvent.user_id == user_id,
+                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+            )
+        )
     
     # Exclude "internal" provider from stats
     statement = statement.where(TraceEvent.provider != "internal")
@@ -91,10 +97,16 @@ async def get_costs_by_customer(
     ).where(TraceEvent.created_at >= cutoff)
     
     # Filter by tenant_id (preferred) or user_id
+    # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
     if tenant_id:
         statement = statement.where(TraceEvent.tenant_id == tenant_id)
     elif user_id:
-        statement = statement.where(TraceEvent.user_id == user_id)
+        statement = statement.where(
+            and_(
+                TraceEvent.user_id == user_id,
+                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+            )
+        )
     
     # Exclude "internal" provider and null customer_ids
     statement = statement.where(

@@ -119,13 +119,17 @@ export default function DashboardPage() {
     console.log(`[Dashboard] Customer IDs in events:`, [...new Set(allEvents.map(e => e.customer_id).filter(Boolean))]);
   }
 
-  // Calculate stats from filtered events (including untracked costs)
+  // Calculate stats from provider stats (more accurate than events)
   const stats = (() => {
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     
-    // Filter events by time window
+    // Use provider stats for total cost (24h window from backend)
+    const total_cost = filteredProviderStats.reduce((sum, stat) => sum + (stat.total_cost || 0), 0);
+    const total_calls = filteredProviderStats.reduce((sum, stat) => sum + (stat.call_count || 0), 0);
+    
+    // Filter events by time window for untracked/agent calculations
     const recentEvents = filteredEvents.filter(e => {
       const eventDate = new Date(e.created_at);
       return eventDate >= yesterday;
@@ -140,10 +144,8 @@ export default function DashboardPage() {
     const agentEvents = recentEvents.filter(e => e.section?.startsWith("agent:") || e.section_path?.startsWith("agent:"));
     const untrackedEvents = recentEvents.filter(e => !e.section?.startsWith("agent:") && !e.section_path?.startsWith("agent:"));
 
-    const total_cost = recentEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
     const agent_cost = agentEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
     const untracked_cost = untrackedEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
-    const total_calls = recentEvents.length;
     const week_cost = weekEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0) / 7;
 
     // Get unique run IDs from ALL events (not just filtered by customer)
