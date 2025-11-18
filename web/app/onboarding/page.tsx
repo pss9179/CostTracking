@@ -327,20 +327,31 @@ print(response.choices[0].message.content)`;
               </div>
 
               <div className="space-y-3">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="text-sm text-green-900 font-medium mb-2">
-                    ✅ Setup Complete!
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-900 font-medium mb-2">
+                    💳 Subscribe to Continue
                   </p>
-                  <p className="text-xs text-green-700">
-                    Once you make your first LLM API call, data will appear in your dashboard within 10-30 seconds.
+                  <p className="text-xs text-blue-700 mb-3">
+                    LLM Observe Pro is $8/month. Subscribe now to start tracking your costs!
+                  </p>
+                  <Button 
+                    onClick={() => router.push("/settings/subscription")} 
+                    className="w-full bg-indigo-600 hover:bg-indigo-700"
+                    size="lg"
+                  >
+                    Subscribe Now - $8/month
+                  </Button>
+                  <p className="text-xs text-blue-600 text-center mt-2">
+                    Or use promo code: <code className="bg-blue-100 px-1 rounded">FREETEST</code> for free access
                   </p>
                 </div>
                 <Button 
                   onClick={() => router.push("/dashboard")} 
+                  variant="outline"
                   className="w-full"
                   size="lg"
                 >
-                  Go to Dashboard 🚀
+                  Skip for Now (Free Trial)
                 </Button>
                 <p className="text-xs text-gray-500 text-center">
                   Need help? Check out our <Link href="/docs" className="text-indigo-600 hover:underline">documentation</Link>
