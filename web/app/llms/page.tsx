@@ -96,29 +96,7 @@ export default function LLMsPage() {
       });
     });
     
-    // Add fake data if no real data
-    if (data.length === 0) {
-      const fakeModels = [
-        { provider: 'openai', model: 'gpt-4o', cost: 0.125 },
-        { provider: 'openai', model: 'gpt-4-turbo', cost: 0.089 },
-        { provider: 'openai', model: 'gpt-3.5-turbo', cost: 0.034 },
-        { provider: 'anthropic', model: 'claude-3.5-sonnet', cost: 0.098 },
-        { provider: 'anthropic', model: 'claude-3-opus', cost: 0.156 },
-        { provider: 'anthropic', model: 'claude-3-haiku', cost: 0.012 },
-        { provider: 'google', model: 'gemini-pro', cost: 0.067 },
-        { provider: 'google', model: 'gemini-ultra', cost: 0.112 },
-        { provider: 'cohere', model: 'command-r-plus', cost: 0.045 },
-        { provider: 'cohere', model: 'command-r', cost: 0.023 },
-      ];
-      
-      return fakeModels.map((item, idx) => ({
-        provider: idx === 0 || fakeModels[idx - 1].provider !== item.provider ? item.provider : '',
-        model: item.model,
-        cost: item.cost * (0.8 + Math.random() * 0.4), // Add some variation
-        fullLabel: `${item.provider}/${item.model}`,
-      }));
-    }
-    
+    // Return empty array if no real data - NO FAKE DATA
     return data;
   })();
 

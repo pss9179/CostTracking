@@ -65,31 +65,11 @@ export default function InfrastructurePage() {
   const totalReads = stats.reduce((sum, s) => sum + s.reads, 0);
   const totalWrites = stats.reduce((sum, s) => sum + s.writes, 0);
 
-  // Chart data
-  const chartData = (() => {
-    const realData = stats.slice(0, 10).map(s => ({
-      name: s.provider,
-      cost: parseFloat(s.cost.toFixed(4)),
-    }));
-    
-    // Add fake data if no real data
-    if (realData.length === 0) {
-      return [
-        { name: 'Pinecone', cost: 0.045 },
-        { name: 'Weaviate', cost: 0.032 },
-        { name: 'Qdrant', cost: 0.028 },
-        { name: 'Stripe', cost: 0.019 },
-        { name: 'Twilio', cost: 0.014 },
-        { name: 'ElevenLabs', cost: 0.011 },
-        { name: 'Milvus', cost: 0.008 },
-      ].map(item => ({
-        name: item.name,
-        cost: item.cost * (0.8 + Math.random() * 0.4), // Add some variation
-      }));
-    }
-    
-    return realData;
-  })();
+  // Chart data - NO FAKE DATA
+  const chartData = stats.slice(0, 10).map(s => ({
+    name: s.provider,
+    cost: parseFloat(s.cost.toFixed(4)),
+  }));
 
   return (
     <ProtectedLayout>

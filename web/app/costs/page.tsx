@@ -234,40 +234,9 @@ export default function CostsPage() {
 
   // Aggregate data (using filtered events)
   const byProvider = aggregateByProvider(filteredEvents);
-  const byAgent = (() => {
-    const realData = aggregateByAgent(filteredEvents);
-    if (realData.length === 0) {
-      return [
-        { agent: 'agent:research', cost: 0.089, calls: 450, percentage: 0 },
-        { agent: 'agent:planner', cost: 0.067, calls: 320, percentage: 0 },
-        { agent: 'agent:executor', cost: 0.045, calls: 280, percentage: 0 },
-        { agent: 'agent:analyzer', cost: 0.034, calls: 190, percentage: 0 },
-        { agent: 'agent:synthesizer', cost: 0.028, calls: 150, percentage: 0 },
-      ].map(item => ({
-        agent: item.agent,
-        cost: item.cost * (0.8 + Math.random() * 0.4),
-        calls: item.calls,
-        percentage: item.percentage,
-      }));
-    }
-    return realData;
-  })();
+  const byAgent = aggregateByAgent(filteredEvents);
   const providerGroups = groupModelsByProvider(filteredEvents);
-  const byDay = (() => {
-    const realData = aggregateByDay(filteredEvents);
-    if (realData.length === 0) {
-      const days = 7;
-      return Array.from({ length: days }, (_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() - (days - 1 - i));
-        return {
-          date: date.toISOString().split('T')[0],
-          cost: (0.15 + Math.random() * 0.1) * (1 + Math.sin(i * 0.5) * 0.2),
-        };
-      });
-    }
-    return realData;
-  })();
+  const byDay = aggregateByDay(filteredEvents);
 
   const totalCost = filteredEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
 
