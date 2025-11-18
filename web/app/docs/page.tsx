@@ -279,6 +279,52 @@ observe(
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-indigo-600" />
+                  <CardTitle>Agent & Workflow Tracking</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 mb-4">
+                  Track costs for individual agents and complex workflows. See which agents cost the most.
+                </p>
+                <CodeBlock 
+                  code={`from llmobserve import observe, section
+
+observe(collector_url="...", api_key="...")
+
+# Method 1: Use @agent decorator
+from llmobserve import agent
+
+@agent("research_agent")
+def research_workflow():
+    # All LLM calls here are tracked under "agent:research_agent"
+    response = client.chat.completions.create(...)
+    return response
+
+# Method 2: Use section context manager
+with section("agent:data_analyst"):
+    # All calls in this block tracked under this agent
+    response = client.chat.completions.create(...)
+    
+# Method 3: Wrap tools (for LangChain/CrewAI)
+from llmobserve import wrap_all_tools
+
+tools = [search_tool, calculator_tool]
+wrapped_tools = wrap_all_tools(tools)
+
+# Pass wrapped tools to your agent framework
+agent = Agent(tools=wrapped_tools, ...)`}
+                  id="agents"
+                />
+                <p className="text-sm text-gray-600 mt-4">
+                  <strong>Dashboard view:</strong> Your dashboard will show a breakdown of costs by agent, including total spend and number of calls per agent. Untracked calls are grouped under "untracked".
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
                   <Shield className="w-5 h-5 text-indigo-600" />
                   <CardTitle>Spending Caps</CardTitle>
                 </div>

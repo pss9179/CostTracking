@@ -316,7 +316,7 @@ observe(
             </div>
             <div className="flex gap-6 text-sm text-gray-600">
               <Link href="/docs" className="hover:text-gray-900">Docs</Link>
-              <Link href="#" className="hover:text-gray-900">Pricing</Link>
+              <Link href="/pricing" className="hover:text-gray-900">Pricing</Link>
               <Link href="#" className="hover:text-gray-900">Support</Link>
             </div>
           </div>
