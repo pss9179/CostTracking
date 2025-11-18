@@ -101,6 +101,10 @@ async def get_current_clerk_user(
     logger.info(f"[Clerk Auth] Token length: {len(token)}")
     
     # Verify token with Clerk and decode to get user info
+    clerk_user_id = None
+    email = None
+    name = None
+    
     try:
         logger.info("[Clerk Auth] Calling verify_clerk_token...")
         clerk_data = await verify_clerk_token(token)
@@ -124,7 +128,8 @@ async def get_current_clerk_user(
                 token_payload = json.loads(decoded_payload)
                 email = token_payload.get("email") or f"user_{clerk_user_id[:8]}@clerk.local"
                 name = token_payload.get("name") or None
-            except Exception:
+            except Exception as decode_error:
+                logger.warning(f"[Clerk Auth] Failed to decode token payload: {decode_error}")
                 email = f"user_{clerk_user_id[:8]}@clerk.local"
                 name = None
         else:
@@ -136,6 +141,9 @@ async def get_current_clerk_user(
         logger.error(f"[Clerk Auth] Exception in verify_clerk_token: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(status_code=401, detail=f"Token verification error: {str(e)}")
     
+    if not clerk_user_id:
+        raise HTTPException(status_code=401, detail="Could not extract user ID from token")
+    
     # Look up user in local DB, create if doesn't exist (lazy user creation)
     try:
         statement = select(User).where(User.clerk_user_id == clerk_user_id)
@@ -144,6 +152,10 @@ async def get_current_clerk_user(
         if not user:
             logger.info(f"[Clerk Auth] User not found in DB for Clerk ID: {clerk_user_id}, creating...")
             # Auto-create user from Clerk data (lazy provisioning)
+            # Ensure email is set (fallback if not extracted from token)
+            if not email:
+                email = f"user_{clerk_user_id[:8]}@clerk.local"
+            
             user = User(
                 clerk_user_id=clerk_user_id,
                 email=email,
@@ -163,6 +175,8 @@ async def get_current_clerk_user(
         raise
     except Exception as e:
         logger.error(f"[Clerk Auth] Exception looking up user: {type(e).__name__}: {e}", exc_info=True)
+        import traceback
+        logger.error(f"[Clerk Auth] Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
