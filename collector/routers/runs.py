@@ -4,7 +4,7 @@ Runs router - provides run-level aggregations and details.
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select, func, text
+from sqlmodel import Session, select, func, text, and_
 from models import TraceEvent
 from db import get_session, IS_POSTGRESQL
 from auth import get_current_user_id
