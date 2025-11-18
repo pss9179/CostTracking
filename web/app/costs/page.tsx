@@ -138,9 +138,13 @@ export default function CostsPage() {
   useEffect(() => {
     async function loadData() {
       try {
+        setLoading(true);
+        setError(null);
+        
         const token = await getToken();
         if (!token) {
-          console.error("No Clerk token available");
+          setError("Not authenticated. Please sign in.");
+          setLoading(false);
           return;
         }
         
@@ -150,12 +154,13 @@ export default function CostsPage() {
 
         // Fetch events for each run (simplified - in production you'd have a better API)
         const eventPromises = runsData.slice(0, 20).map((run) => 
-          fetchRunDetail(run.run_id, null, token).then((detail) => detail.events)
+          fetchRunDetail(run.run_id, null, token).then((detail) => detail.events).catch(() => [])
         );
         const eventsArrays = await Promise.all(eventPromises);
         const flatEvents = eventsArrays.flat();
         setAllEvents(flatEvents);
       } catch (err) {
+        console.error("[Costs] Error loading data:", err);
         setError(err instanceof Error ? err.message : "Failed to load data");
       } finally {
         setLoading(false);
@@ -163,7 +168,7 @@ export default function CostsPage() {
     }
 
     loadData();
-  }, []);
+  }, [getToken]);
 
   const toggleProvider = (provider: string) => {
     const newExpanded = new Set(expandedProviders);

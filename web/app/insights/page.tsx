@@ -50,6 +50,9 @@ function InsightsPageContent() {
   useEffect(() => {
     async function loadInsights() {
       try {
+        setLoading(true);
+        setError(null);
+        
         const token = await getToken();
         if (!token) {
           setError("Not authenticated. Please sign in.");
@@ -59,6 +62,7 @@ function InsightsPageContent() {
         const data = await fetchInsights(null, token);
         setInsights(data);
       } catch (err) {
+        console.error("[Insights] Error loading insights:", err);
         setError(err instanceof Error ? err.message : "Failed to load insights");
       } finally {
         setLoading(false);
