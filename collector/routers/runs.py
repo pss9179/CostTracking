@@ -93,7 +93,12 @@ async def get_latest_runs(
         if tenant_id:
             section_path_statement = section_path_statement.where(TraceEvent.tenant_id == tenant_id)
         elif user_id:
-            section_path_statement = section_path_statement.where(TraceEvent.user_id == user_id)
+            section_path_statement = section_path_statement.where(
+                and_(
+                    TraceEvent.user_id == user_id,
+                    TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+                )
+            )
         section_path_statement = section_path_statement.limit(1)
         section_path_result = session.exec(section_path_statement).first()
         
@@ -112,7 +117,12 @@ async def get_latest_runs(
             if tenant_id:
                 section_statement = section_statement.where(TraceEvent.tenant_id == tenant_id)
             elif user_id:
-                section_statement = section_statement.where(TraceEvent.user_id == user_id)
+                section_statement = section_statement.where(
+                    and_(
+                        TraceEvent.user_id == user_id,
+                        TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+                    )
+                )
             section_statement = section_statement.limit(1)
             section_result = session.exec(section_statement).first()
             top_section = section_result if section_result else "unknown"
@@ -233,7 +243,12 @@ async def get_run_detail(
     if tenant_id:
         total_statement = total_statement.where(TraceEvent.tenant_id == tenant_id)
     elif user_id:
-        total_statement = total_statement.where(TraceEvent.user_id == user_id)
+        total_statement = total_statement.where(
+            and_(
+                TraceEvent.user_id == user_id,
+                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+            )
+        )
     total_cost = session.exec(total_statement).one() or 0.0
     
     # Breakdown by section
@@ -245,7 +260,12 @@ async def get_run_detail(
     if tenant_id:
         section_statement = section_statement.where(TraceEvent.tenant_id == tenant_id)
     elif user_id:
-        section_statement = section_statement.where(TraceEvent.user_id == user_id)
+        section_statement = section_statement.where(
+            and_(
+                TraceEvent.user_id == user_id,
+                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+            )
+        )
     section_statement = section_statement.group_by(TraceEvent.section).order_by(func.sum(TraceEvent.cost_usd).desc())
     section_results = session.exec(section_statement).all()
     
@@ -268,7 +288,12 @@ async def get_run_detail(
     if tenant_id:
         provider_statement = provider_statement.where(TraceEvent.tenant_id == tenant_id)
     elif user_id:
-        provider_statement = provider_statement.where(TraceEvent.user_id == user_id)
+        provider_statement = provider_statement.where(
+            and_(
+                TraceEvent.user_id == user_id,
+                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+            )
+        )
     provider_statement = provider_statement.group_by(TraceEvent.provider).order_by(func.sum(TraceEvent.cost_usd).desc())
     provider_results = session.exec(provider_statement).all()
     
@@ -291,7 +316,12 @@ async def get_run_detail(
     if tenant_id:
         model_statement = model_statement.where(TraceEvent.tenant_id == tenant_id)
     elif user_id:
-        model_statement = model_statement.where(TraceEvent.user_id == user_id)
+        model_statement = model_statement.where(
+            and_(
+                TraceEvent.user_id == user_id,
+                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+            )
+        )
     model_statement = model_statement.group_by(TraceEvent.model).order_by(func.sum(TraceEvent.cost_usd).desc())
     model_results = session.exec(model_statement).all()
     
@@ -310,7 +340,12 @@ async def get_run_detail(
     if tenant_id:
         events_statement = events_statement.where(TraceEvent.tenant_id == tenant_id)
     elif user_id:
-        events_statement = events_statement.where(TraceEvent.user_id == user_id)
+        events_statement = events_statement.where(
+            and_(
+                TraceEvent.user_id == user_id,
+                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+            )
+        )
     events_statement = events_statement.order_by(TraceEvent.created_at.desc()).limit(50)
     events = session.exec(events_statement).all()
     
