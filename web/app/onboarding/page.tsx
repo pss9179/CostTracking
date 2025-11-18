@@ -237,9 +237,13 @@ print(response.choices[0].message.content)`;
                 <Button onClick={() => setCurrentStep(2)} className="w-full">
                   I've saved my API key - Continue <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
-                <p className="text-xs text-gray-500 text-center">
-                  💡 Tip: Copy the key above and save it to your .env file
-                </p>
+                <div className="text-xs text-gray-600 space-y-1">
+                  <p className="text-center">💡 Tip: Save these to your .env file:</p>
+                  <div className="bg-gray-50 p-2 rounded text-left font-mono">
+                    <div>LLMOBSERVE_API_KEY={apiKey.key || "your-key-here"}</div>
+                    <div>LLMOBSERVE_COLLECTOR_URL=https://llmobserve-production.up.railway.app</div>
+                  </div>
+                </div>
               </div>
           </CardContent>
         </Card>

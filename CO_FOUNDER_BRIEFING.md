@@ -46,11 +46,13 @@ Browser
    - Agent breakdown, trends, exports
    - Stripe integration ($8/month)
 
-4. **AI Auto-Instrument** (NEW)
-   - Backend endpoint calls Claude API
-   - Analyzes user's code
-   - Suggests where to add labels
-   - CLI applies changes automatically
+4. **AI Auto-Instrument** (NEW - KILLER FEATURE)
+   - Backend `/api/ai-instrument` endpoint
+   - Uses OUR Anthropic API key (included in subscription)
+   - Claude analyzes Python code, suggests labels
+   - CLI: `llmobserve preview` and `llmobserve instrument --auto-apply`
+   - Creates .bak backup before changes
+   - Works for ANY agent pattern (not framework-specific)
 
 ---
 
@@ -232,6 +234,15 @@ AI analyzes their code and adds labels automatically.
 - User doesn't need extra setup
 - Cost per analysis: ~$0.01 (negligible)
 - Works for ANY agent code (not just frameworks)
+- **Killer UX:** Dashboard shows "Untracked costs" → button → one command → organized
+
+### **User Flow:**
+1. User sees "Untracked: $50" on dashboard
+2. Clicks "✨ AI Auto-Instrument" button
+3. Goes to docs, sees it's included
+4. Runs: `llmobserve preview my_agent.py`
+5. Sees suggestions, applies with `--auto-apply`
+6. Dashboard now shows: "researcher: $30, writer: $20"
 
 ### **How AI Detects Agents:**
 Claude is trained on millions of Python codebases. It recognizes:
