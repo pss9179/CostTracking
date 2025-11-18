@@ -1,195 +1,343 @@
-# LLM Cost Observability Stack
+# LLMObserve - Automatic LLM Cost Tracking
 
-An MVP observability stack for tracking LLM and API costs with automatic instrumentation.
+**Track every LLM API call. Know exactly what you're spending. Optimize what matters.**
 
-## Architecture
+> Zero-config cost tracking for OpenAI, Anthropic, Google, and 40+ LLM providers.  
+> AI-powered instrumentation included. $8/month.
 
-```
-┌─────────────────┐
-│   Your App      │
-│  + llmobserve   │  ← Auto-instruments OpenAI & Pinecone
-│     SDK         │
-└────────┬────────┘
-         │ POST /events
-         ↓
-┌─────────────────┐
-│  Collector API  │  ← FastAPI + SQLite
-│   (port 8000)   │  ← Computes insights
-└────────┬────────┘
-         │ GET /runs, /insights
-         ↓
-┌─────────────────┐
-│   Dashboard     │  ← Next.js + shadcn/ui
-│   (port 3000)   │  ← Shows costs, anomalies
-└─────────────────┘
-```
+---
 
-## Components
-
-- **`/collector`** - FastAPI backend with SQLite for event storage and insights
-- **`/sdk/python`** - Python SDK (`llmobserve`) with auto-instrumentation
-- **`/web`** - Next.js dashboard for visualizing costs and runs
-- **`/scripts`** - Test scripts for generating sample data
-- **`/shared`** - Shared schemas and types
-
-## Quick Start
-
-### 1. Install Dependencies
-
-```bash
-# Install all components
-make install
-
-# Or install individually:
-make install-api    # Collector API
-make install-sdk    # Python SDK
-make install-web    # Next.js dashboard
-```
-
-### 2. Start the Collector API
-
-```bash
-make dev-api
-```
-
-The API will start on `http://localhost:8000`. Database auto-migrates on startup.
-
-### 3. Generate Test Data
-
-```bash
-make seed
-```
-
-This runs a test script that simulates LLM calls with varying patterns to trigger insights.
-
-### 4. Start the Dashboard
-
-```bash
-make dev-web
-```
-
-Open `http://localhost:3000` to view the dashboard.
-
-## Using the SDK
-
-### Basic Usage
+## 🚀 Quick Start (2 lines of code)
 
 ```python
-from llmobserve import observe, section
+import llmobserve
+
+llmobserve.observe(
+    collector_url="https://llmobserve-production.up.railway.app",
+    api_key="your-api-key-here"  # Get from llmobserve.com/settings
+)
+
+# That's it! All your LLM calls are now tracked automatically.
+```
+
+**Get your API key:** https://llmobserve.com/settings
+
+---
+
+## ✨ What You Get
+
+### 1. **Automatic Cost Tracking**
+- Every LLM API call is tracked automatically
+- Real-time cost calculation with up-to-date pricing
+- Works with ANY HTTP-based API (LLMs, vector DBs, custom APIs)
+
+### 2. **AI-Powered Instrumentation** (NEW)
+- One command labels all your agents automatically
+- No manual wrapping needed
+- Creates `.bak` backup before changes
+- **Included in subscription - no extra cost**
+
+```bash
+llmobserve preview my_agent.py         # See suggestions
+llmobserve instrument --auto-apply     # Apply changes
+```
+
+### 3. **Beautiful Dashboard**
+- See costs by agent, provider, customer, time
+- Real-time updates every 30 seconds
+- Export to CSV/JSON
+- "Untracked" bucket shows unlabeled costs (nothing hidden)
+
+### 4. **Multi-Tenant Support**
+- Track costs per customer (perfect for SaaS)
+- Isolated data views
+- Customer-level analytics
+
+---
+
+## 📦 Installation
+
+```bash
+pip install llmobserve
+```
+
+**Set credentials:**
+```bash
+export LLMOBSERVE_COLLECTOR_URL="https://llmobserve-production.up.railway.app"
+export LLMOBSERVE_API_KEY="your-api-key-here"
+```
+
+---
+
+## 🎯 How It Works
+
+### **Zero-Config Tracking**
+We patch Python HTTP clients (`httpx`, `requests`, `aiohttp`, `urllib3`) to inject tracking headers. No SDK-specific code. Works with ANY API.
+
+```python
+import llmobserve
 from openai import OpenAI
 
-# Initialize observability (pure header-based, no monkey-patching)
-observe(
-    collector_url="http://localhost:8000",
-    proxy_url="http://localhost:9000"  # Required for tracking
-)
+llmobserve.observe(collector_url="...", api_key="...")
 
-# OR with instrumentors for lower latency (optional optimization)
-observe(
-    collector_url="http://localhost:8000",
-    proxy_url="http://localhost:9000",
-    use_instrumentors=True  # Enables monkey-patching for OpenAI/Pinecone
-)
-
-# Use sections to label different parts of your flow
-with section("retrieval"):
-    # Your Pinecone queries here
-    pass
-
-with section("reasoning"):
-    client = OpenAI()
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": "Hello!"}]
-    )
-    # Automatically tracked!
+client = OpenAI()
+response = client.chat.completions.create(...)  # ← Automatically tracked!
 ```
 
-### Hierarchical Tracing (Optional)
-
-**NEW:** Track nested agent, tool, and step calls with semantic labels:
+### **Optional Labeling (Organize Costs)**
+Add labels to see which agents/tools cost the most:
 
 ```python
-from llmobserve import observe, section, trace
+from llmobserve import agent, section
 
-observe("http://localhost:8000")
+@agent("researcher")
+def research_agent(query):
+    # All API calls here labeled as "agent:researcher"
+    return openai_call()
 
-# Nested sections with semantic labels
-with section("agent:researcher"):
-    with section("tool:web_search"):
-        # OpenAI call for search
-        client.chat.completions.create(...)
-    
-    with section("step:analyze_results"):
-        # OpenAI call for analysis
-        client.chat.completions.create(...)
-
-# Or use the @trace decorator
-@trace(agent="researcher")
-async def research_agent(query: str):
-    result = await search_web(query)
-    return await analyze(result)
+# Or use context manager
+with section("agent:writer"):
+    response = openai_call()
 ```
 
-**Dashboard displays interactive tree:**
-```
-agent:researcher (expand/collapse)
-├─ tool:web_search       $0.002  [ok]
-└─ step:analyze_results  $0.001  [ok]
-```
-
-**Learn more:** See [`docs/semantic_sections.md`](./docs/semantic_sections.md) for complete guide.
-
-## API Endpoints
-
-### Collector API (port 8000)
-
-- `GET /health` - Health check
-- `POST /events` - Ingest trace events (batch)
-- `GET /runs/latest` - List recent runs with totals
-- `GET /runs/{run_id}` - Detailed breakdown for a run
-- `GET /insights/daily` - Auto-generated insights for last 24h
-- `GET /pricing` - Current pricing registry
-- `PUT /pricing` - Update pricing registry
-
-## Data Model
-
-Events are stored with these key fields:
-
-- `run_id` - Groups all calls in one user request
-- `section` - Label (e.g., "retrieval", "reasoning")
-- `span_type` - One of: llm, vector_db, api, other
-- `provider` - e.g., openai, pinecone
-- `model` - e.g., gpt-4o, text-embedding-3-small
-- `input_tokens`, `output_tokens`, `cost_usd`, `latency_ms`
-
-## Insights
-
-The collector automatically detects:
-
-1. **Section Spike** - Section cost > 2× vs 7-day average
-2. **Model Inefficiency** - Expensive model used where cheaper works
-3. **Token Bloat** - Input tokens ↑ > 1.5× vs 7-day average
-4. **Retry/Loop** - Same endpoint called > 3× per run (p95)
-
-## Environment Variables
-
-Copy `.env.example` to `.env` and configure:
+### **AI Auto-Instrumentation**
+Let AI add labels for you:
 
 ```bash
-OPENAI_API_KEY=sk-...          # Optional - test script mocks if missing
-PINECONE_API_KEY=...           # Optional - test script mocks if missing
-COLLECTOR_URL=http://localhost:8000
-LLMOBSERVE_DISABLED=1          # Set to disable instrumentation
+llmobserve preview my_code.py           # Preview suggestions
+llmobserve instrument --auto-apply      # Apply automatically
 ```
 
-## Development
+---
 
-All Python code uses type hints. TypeScript uses strict mode.
+## 🏗️ Architecture
 
-To modify pricing, edit `collector/pricing/registry.json` or use `PUT /pricing`.
+```
+┌──────────────────────────────────────────────────────┐
+│ Your Code + llmobserve SDK                           │
+│  → Patches HTTP clients (httpx, requests, aiohttp)  │
+│  → Injects tracking headers                          │
+└─────────────────┬────────────────────────────────────┘
+                  │
+                  ↓ POST /events (batch, every 500ms)
+┌──────────────────────────────────────────────────────┐
+│ Collector API (Railway)                              │
+│  → Calculates costs (pricing database)              │
+│  → Stores events (PostgreSQL)                        │
+│  → Serves analytics endpoints                        │
+└─────────────────┬────────────────────────────────────┘
+                  │
+                  ↓ GET /runs, /events, /stats
+┌──────────────────────────────────────────────────────┐
+│ Dashboard (Next.js on Vercel)                        │
+│  → Shows costs, trends, breakdowns                   │
+│  → Real-time updates (30s polling)                   │
+│  → Export to CSV/JSON                                │
+└──────────────────────────────────────────────────────┘
+```
 
-## License
+**Key Design:**
+- **HTTP Interception:** Universal, SDK-agnostic, stable
+- **No Monkey-Patching:** Works when SDKs update
+- **Fail-Open:** If tracking breaks, your app continues
 
-MIT
+---
 
+## 📊 What We Track
+
+### ✅ **Automatically Tracked**
+- **LLM Providers:** OpenAI, Anthropic, Google, Cohere, Together, Hugging Face, Perplexity, Groq, Mistral, etc.
+- **Vector DBs:** Pinecone, Weaviate, Qdrant, Chroma (any HTTP-based)
+- **Custom APIs:** Any HTTP API your code calls
+- **Protocols:** HTTP/HTTPS, gRPC, WebSockets
+
+### 📈 **Metrics Collected**
+- Cost (USD with real-time pricing)
+- Token usage (input + output)
+- Latency (ms)
+- Provider, model, endpoint
+- Status (success/error/rate-limited)
+- Customer ID (multi-tenant)
+- Agent/tool labels (optional)
+
+---
+
+## 🎨 Features
+
+### **Cost Tracking**
+- Real-time cost calculation
+- Per-call, per-agent, per-customer breakdown
+- 40+ LLM providers supported
+- Automatic pricing updates
+
+### **Agent Tracking**
+- Label agents with `@agent("name")` or `section("agent:name")`
+- Hierarchical tracking (agent → tool → step)
+- "Untracked" bucket for unlabeled costs
+- AI can auto-label your code
+
+### **Multi-Tenancy**
+- Track costs per end-customer
+- Isolated data views
+- Perfect for SaaS businesses
+
+### **Spending Caps**
+- Set per-customer, per-agent, or global caps
+- Proactive blocking before overspend
+- Configurable limits
+
+### **Analytics**
+- Daily/weekly/monthly trends
+- Provider cost breakdown
+- Model usage analysis
+- Export to CSV/JSON
+
+---
+
+## 🛠️ Advanced Usage
+
+### **Customer Tracking (SaaS)**
+```python
+from llmobserve import set_customer_id
+
+set_customer_id("customer_123")  # Track this customer's costs
+```
+
+### **Spending Caps**
+Set in dashboard → Settings → Spending Caps
+
+### **Hierarchical Tracing**
+```python
+with section("agent:researcher"):
+    with section("tool:web_search"):
+        # Tracked as "agent:researcher/tool:web_search"
+        search_results = api_call()
+    
+    with section("tool:summarize"):
+        summary = llm_call()
+```
+
+### **Framework Integration**
+```python
+from llmobserve import wrap_all_tools
+
+# LangChain, CrewAI, AutoGen, etc.
+tools = [search_tool, calculator]
+wrapped_tools = wrap_all_tools(tools)
+agent = Agent(tools=wrapped_tools)
+```
+
+---
+
+## 🔧 Development
+
+### **Project Structure**
+- `/web` - Next.js dashboard (Vercel)
+- `/collector` - FastAPI backend (Railway)
+- `/sdk/python` - Python SDK package
+- `/docs` - Documentation
+
+### **Local Development**
+```bash
+# Run collector locally
+cd collector
+python -m uvicorn main:app --reload
+
+# Run web dashboard
+cd web
+npm install
+npm run dev
+```
+
+### **Environment Variables**
+```bash
+# SDK
+LLMOBSERVE_COLLECTOR_URL=https://llmobserve-production.up.railway.app
+LLMOBSERVE_API_KEY=your-api-key
+
+# Backend (Railway)
+DATABASE_URL=postgresql://...
+CLERK_SECRET_KEY=sk_...
+ANTHROPIC_API_KEY=sk-ant-...  # For AI instrumentation
+
+# Frontend (Vercel)
+NEXT_PUBLIC_COLLECTOR_URL=https://llmobserve-production.up.railway.app
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
+CLERK_SECRET_KEY=sk_...
+ANTHROPIC_API_KEY=sk-ant-...  # For AI instrumentation
+```
+
+---
+
+## 📚 Documentation
+
+- **Full Docs:** https://llmobserve.com/docs
+- **API Reference:** https://llmobserve.com/docs#api-reference
+- **How It Works:** See `HOW_TRACKING_WORKS.md`
+- **Example Flow:** See `EXAMPLE_USER_FLOW.md`
+
+---
+
+## 💰 Pricing
+
+**$8/month** - Unlimited tracking, all features included:
+- ✅ Unlimited API calls tracked
+- ✅ All providers (40+)
+- ✅ Multi-tenant support
+- ✅ AI auto-instrumentation
+- ✅ Spending caps
+- ✅ Export to CSV/JSON
+- ✅ Priority support
+
+**Try it:** https://llmobserve.com
+
+---
+
+## 🤝 Support
+
+- **Email:** support@llmobserve.com
+- **Docs:** https://llmobserve.com/docs
+- **Issues:** GitHub Issues
+
+---
+
+## 📄 License
+
+MIT License - see LICENSE file for details
+
+---
+
+## 🎯 Why LLMObserve?
+
+### **vs. Manual Tracking**
+❌ Manual logging everywhere  
+❌ Outdated pricing  
+❌ No dashboard  
+✅ **LLMObserve: 2 lines of code, automatic tracking, beautiful UI**
+
+### **vs. Competitors**
+❌ Complex setup  
+❌ Framework-specific  
+❌ Expensive ($50-500/month)  
+✅ **LLMObserve: Zero-config, any framework, $8/month**
+
+### **The Difference**
+- **HTTP Interception:** Works with ANY API, not just specific SDKs
+- **AI Labeling:** One command auto-instruments your code
+- **Transparent:** "Untracked" bucket shows all costs (nothing hidden)
+- **Simple:** 2 lines to start, optional labeling for organization
+
+---
+
+**Get started in 60 seconds:** https://llmobserve.com
+
+```python
+import llmobserve
+
+llmobserve.observe(
+    collector_url="https://llmobserve-production.up.railway.app",
+    api_key="your-api-key"
+)
+
+# You're done. Start building.
+```
