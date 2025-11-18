@@ -62,6 +62,20 @@ from llmobserve.multi_language_analyzer import (
     analyze_multi_language_code,
 )
 
+# AI-powered instrumentation (optional, requires anthropic package)
+try:
+    from llmobserve.ai_instrument import (
+        AIInstrumenter,
+        preview_instrumentation,
+        auto_instrument as ai_auto_instrument,
+    )
+    _AI_INSTRUMENT_AVAILABLE = True
+except ImportError:
+    _AI_INSTRUMENT_AVAILABLE = False
+    AIInstrumenter = None
+    preview_instrumentation = None
+    ai_auto_instrument = None
+
 __version__ = "0.3.0"  # API key-based authentication
 
 __all__ = [
@@ -122,6 +136,10 @@ __all__ = [
     "preview_multi_language_tree",
     "analyze_multi_language_file",
     "analyze_multi_language_code",
+    # AI-powered instrumentation (optional)
+    "AIInstrumenter",
+    "preview_instrumentation",
+    "ai_auto_instrument",
 ]
 
 

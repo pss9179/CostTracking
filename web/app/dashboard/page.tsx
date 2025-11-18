@@ -411,6 +411,22 @@ export default function DashboardPage() {
               <p className="pl-5">Use <code className="px-1.5 py-0.5 bg-gray-100 rounded">@agent("name")</code> to mark agent entrypoints.</p>
               <p className="pl-5">Use <code className="px-1.5 py-0.5 bg-gray-100 rounded">wrap_all_tools()</code> before passing tools to frameworks.</p>
             </div>
+            <div className="mt-4 flex gap-3">
+              <Link 
+                href="/docs#labeling" 
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors shadow-sm"
+              >
+                <span>📚</span>
+                Learn How to Label Costs
+              </Link>
+              <Link 
+                href="/docs#ai-instrument" 
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-sm font-medium rounded-md transition-colors shadow-sm"
+              >
+                <span>✨</span>
+                AI Auto-Instrument
+              </Link>
+            </div>
           </CardContent>
         </Card>
       )}

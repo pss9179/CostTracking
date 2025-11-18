@@ -217,6 +217,253 @@ api_key = os.getenv("LLMOBSERVE_API_KEY")`}
           </Card>
         </section>
 
+        {/* Labeling Costs Section */}
+        <section id="labeling" className="mb-16 scroll-mt-20">
+          <div className="flex items-center gap-3 mb-6">
+            <FileCode className="w-8 h-8 text-indigo-600" />
+            <h2 className="text-3xl font-bold text-gray-900">Labeling Your Costs</h2>
+          </div>
+          
+          <Card className="mb-6 border-2 border-amber-200 bg-amber-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">💡</span>
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Why Label Costs?</h3>
+                  <p className="text-gray-700">
+                    LLMObserve automatically tracks <strong>all</strong> your LLM API calls - nothing is hidden. 
+                    However, unlabeled costs appear as &quot;Untracked&quot; in your dashboard. By adding labels, 
+                    you can organize costs by agent, tool, or workflow to understand exactly where your money is going.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Code className="w-5 h-5 text-indigo-600" />
+                  <CardTitle>Method 1: @agent Decorator</CardTitle>
+                </div>
+                <CardDescription>Best for agent functions and entry points</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CodeBlock 
+                  code={`from llmobserve import agent, observe
+
+observe(collector_url="...", api_key="...")
+
+@agent("researcher")
+def research_agent(query):
+    # All API calls in this function are automatically 
+    # labeled as "agent:researcher"
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": query}]
+    )
+    return response
+
+# Dashboard shows costs under "researcher" agent`}
+                  id="decorator"
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Code className="w-5 h-5 text-indigo-600" />
+                  <CardTitle>Method 2: section() Context Manager</CardTitle>
+                </div>
+                <CardDescription>Best for code blocks and nested workflows</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CodeBlock 
+                  code={`from llmobserve import section
+
+# Flat labeling
+with section("agent:researcher"):
+    response = client.chat.completions.create(...)
+    
+# Hierarchical labeling (nested)
+with section("agent:researcher"):
+    with section("tool:web_search"):
+        # Labeled as "agent:researcher/tool:web_search"
+        search_results = search_api.query(...)
+    
+    with section("tool:summarize"):
+        # Labeled as "agent:researcher/tool:summarize"
+        summary = llm.create(...)`}
+                  id="section"
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Code className="w-5 h-5 text-indigo-600" />
+                  <CardTitle>Method 3: wrap_all_tools()</CardTitle>
+                </div>
+                <CardDescription>Best for LangChain, CrewAI, and other frameworks</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CodeBlock 
+                  code={`from llmobserve import wrap_all_tools
+from langchain.agents import AgentExecutor
+
+# Wrap your tools before passing to framework
+tools = [search_tool, calculator_tool, weather_tool]
+wrapped_tools = wrap_all_tools(tools)
+
+# Each tool call is automatically tracked
+agent = AgentExecutor(
+    tools=wrapped_tools,
+    llm=llm,
+    ...
+)
+
+# Dashboard shows costs per tool`}
+                  id="wrap_tools"
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* AI Auto-Instrument Section */}
+        <section id="ai-instrument" className="mb-16 scroll-mt-20">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
+              <span className="text-2xl">✨</span>
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900">AI Auto-Instrumentation</h2>
+            <Badge className="bg-purple-600 text-white">NEW</Badge>
+          </div>
+
+          <Card className="mb-6 border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <span className="text-3xl">🤖</span>
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-2">Let AI Label Your Code</h3>
+                  <p className="text-gray-700 mb-3">
+                    Use Claude AI to automatically analyze your Python code and suggest where to add labels. 
+                    The AI understands LangChain, CrewAI, AutoGen, and custom agent patterns.
+                  </p>
+                  <div className="bg-white/50 rounded-lg p-3 text-sm text-gray-700">
+                    <strong>How it works:</strong> The AI reads your code, identifies agent functions, tool calls, 
+                    and workflows, then suggests the optimal instrumentation strategy using our labeling methods.
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Terminal className="w-5 h-5" />
+                  Installation
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CodeBlock 
+                  code={`# Install with AI support
+pip install 'llmobserve[ai]'
+
+# Set your Anthropic API key
+export ANTHROPIC_API_KEY="sk-ant-..."`}
+                  id="ai-install"
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Preview Suggestions (No Changes)</CardTitle>
+                <CardDescription>See what the AI suggests without modifying your code</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CodeBlock 
+                  code={`# Analyze a file and preview suggestions
+llmobserve preview my_agent.py
+
+# Output:
+# 🔍 Analysis of my_agent.py
+# 
+# Found 3 suggestions:
+# 
+# 1. Line 15 - decorator
+#    Label: research_agent
+#    Function: research_workflow
+#    Reason: Main agent orchestration function making LLM calls
+#    Before: def research_workflow(query):
+#    After:  @agent("research_agent")
+#            def research_workflow(query):
+# 
+# 2. Line 42 - wrap_tools
+#    ...`}
+                  id="ai-preview"
+                  language="bash"
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Auto-Apply Changes</CardTitle>
+                <CardDescription>Let AI modify your code (creates .bak backup)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CodeBlock 
+                  code={`# Apply AI suggestions automatically
+llmobserve instrument my_agent.py --auto-apply
+
+# Output:
+# ✅ Applied 3 changes to my_agent.py
+#    Backup created: my_agent.py.bak
+#
+# Changes:
+#   1. Added @agent("research_agent") decorator
+#   2. Added @agent("writer_agent") decorator
+#   3. Wrapped tools with wrap_all_tools()
+
+# Your original file is backed up as .bak`}
+                  id="ai-apply"
+                  language="bash"
+                />
+              </CardContent>
+            </Card>
+
+            <Card className="border-amber-200 bg-amber-50">
+              <CardContent className="pt-6">
+                <div className="space-y-3 text-sm text-gray-700">
+                  <div className="flex items-start gap-2">
+                    <span>💰</span>
+                    <p><strong>Cost:</strong> Uses Claude API (~$0.01 per file analyzed). We don&apos;t charge extra.</p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span>🔒</span>
+                    <p><strong>Privacy:</strong> Your code is sent to Anthropic&apos;s API for analysis. Not stored by us.</p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span>📝</span>
+                    <p><strong>Safety:</strong> Always creates .bak backup before modifying files.</p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span>🎯</span>
+                    <p><strong>Accuracy:</strong> AI is conservative - only suggests where it clearly makes sense.</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
         {/* Features */}
         <section className="mb-16">
           <div className="flex items-center gap-3 mb-6">
