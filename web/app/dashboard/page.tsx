@@ -83,16 +83,26 @@ export default function DashboardPage() {
           fetchRuns(1000, null, token),
           fetchProviderStats(24, null, token)
         ]);
+        
+        // Log for debugging
+        console.log(`[Dashboard] Fetched ${runsData.length} runs, ${providersData.length} provider stats`);
+        console.log(`[Dashboard] Provider stats:`, providersData);
+        
         setRuns(runsData);
         setProviderStats(providersData);
 
-        // Fetch events for customer filtering
-        const eventPromises = runsData.slice(0, 50).map((run) => 
-          fetchRunDetail(run.run_id, null, token).then((detail) => detail.events).catch(() => [])
-        );
-        const eventsArrays = await Promise.all(eventPromises);
-        const flatEvents = eventsArrays.flat();
-        setAllEvents(flatEvents);
+        // Fetch events for customer filtering - only fetch if we have runs
+        if (runsData.length > 0) {
+          const eventPromises = runsData.slice(0, 50).map((run) => 
+            fetchRunDetail(run.run_id, null, token).then((detail) => detail.events).catch(() => [])
+          );
+          const eventsArrays = await Promise.all(eventPromises);
+          const flatEvents = eventsArrays.flat();
+          console.log(`[Dashboard] Fetched ${flatEvents.length} events from ${runsData.length} runs`);
+          setAllEvents(flatEvents);
+        } else {
+          setAllEvents([]);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load data");
       } finally {
@@ -201,17 +211,7 @@ export default function DashboardPage() {
       : providerStats
     ).filter(stat => stat.provider !== "internal" && stat.provider !== "unknown"); // Hide "unknown" provider
     
-    // Add fake data if no real data
-    if (realStats.length === 0) {
-      return [
-        { provider: 'openai', total_cost: 0.125, call_count: 450, avg_latency: 1234, error_count: 2, percentage: 45.2 },
-        { provider: 'anthropic', total_cost: 0.089, call_count: 280, avg_latency: 987, error_count: 1, percentage: 32.1 },
-        { provider: 'pinecone', total_cost: 0.032, call_count: 120, avg_latency: 456, error_count: 0, percentage: 11.5 },
-        { provider: 'stripe', total_cost: 0.019, call_count: 80, avg_latency: 234, error_count: 0, percentage: 6.8 },
-        { provider: 'google', total_cost: 0.014, call_count: 65, avg_latency: 567, error_count: 0, percentage: 5.0 },
-      ];
-    }
-    
+    // Return empty array if no real data - NO FAKE DATA
     return realStats;
   })();
 
@@ -238,35 +238,11 @@ export default function DashboardPage() {
       return aDate.localeCompare(bDate);
     }) as Array<{ date: string; [provider: string]: string | number }>;
     
-    // Add fake data if no real data
-    if (realData.length === 0) {
-      const days = Math.ceil(dateRangeMs / (24 * 60 * 60 * 1000));
-      const providers = ['openai', 'anthropic', 'pinecone', 'stripe'];
-      return Array.from({ length: Math.min(days, 30) }, (_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() - (Math.min(days, 30) - 1 - i));
-        const dateKey = date.toISOString().split('T')[0];
-        const dayData: Record<string, any> = { date: dateKey };
-        providers.forEach((provider, idx) => {
-          // Create realistic variation
-          const baseCost = [0.15, 0.08, 0.03, 0.02][idx];
-          const variation = 0.7 + Math.random() * 0.6; // 70% to 130% variation
-          dayData[provider] = baseCost * variation * (1 + Math.sin(i * 0.3) * 0.2);
-        });
-        return dayData as { date: string; [provider: string]: string | number };
-      });
-    }
-    
+    // Return empty array if no real data - NO FAKE DATA
     return realData;
   })();
 
-  const chartProviders = (() => {
-    const realProviders = Array.from(new Set(filteredProviderStats.map(s => s.provider)));
-    if (realProviders.length === 0) {
-      return ['openai', 'anthropic', 'pinecone', 'stripe'];
-    }
-    return realProviders;
-  })();
+  const chartProviders = Array.from(new Set(filteredProviderStats.map(s => s.provider)));
 
   // Calculate 7-day sparklines for each provider
   const providerSparklines = new Map<string, number[]>();
@@ -285,18 +261,8 @@ export default function DashboardPage() {
       return dayEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
     });
     
-    // Add fake sparkline data if all zeros
-    if (sparklineData.every(v => v === 0)) {
-      const baseCost = stat.total_cost / 7;
-      const fakeData = last7Days.map((_, i) => {
-        const variation = 0.7 + Math.random() * 0.6;
-        const trend = 1 + Math.sin(i * 0.5) * 0.2;
-        return baseCost * variation * trend;
-      });
-      providerSparklines.set(stat.provider, fakeData);
-    } else {
-      providerSparklines.set(stat.provider, sparklineData);
-    }
+    // Use real data only - NO FAKE DATA
+    providerSparklines.set(stat.provider, sparklineData);
   });
 
   if (error) {
