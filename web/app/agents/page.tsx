@@ -74,7 +74,7 @@ export default function AgentsPage() {
                 };
                 
                 existing.calls++;
-                existing.tokens += (event.tokens_prompt || 0) + (event.tokens_completion || 0);
+                existing.tokens += (event.input_tokens || 0) + (event.output_tokens || 0);
                 existing.cost += cost;
                 existing.avg_latency += event.latency_ms || 0;
                 if (event.error_message) existing.errors++;
@@ -83,7 +83,7 @@ export default function AgentsPage() {
               } else if (cost > 0) {
                 // Untracked event (only if has cost - still show it!)
                 untrackedStats.calls++;
-                untrackedStats.tokens += (event.tokens_prompt || 0) + (event.tokens_completion || 0);
+                untrackedStats.tokens += (event.input_tokens || 0) + (event.output_tokens || 0);
                 untrackedStats.cost += cost;
                 untrackedStats.avg_latency += event.latency_ms || 0;
                 if (event.error_message) untrackedStats.errors++;
@@ -119,12 +119,15 @@ export default function AgentsPage() {
 
   const totalCost = agents.reduce((sum, a) => sum + a.cost, 0);
   
-  // Prepare chart data
-  const chartData = agents.slice(0, 5).map((a, idx) => ({
-    name: a.agent.replace("agent:", ""),
-    value: parseFloat(a.cost.toFixed(4)),
-    percentage: totalCost > 0 ? ((a.cost / totalCost) * 100).toFixed(1) : 0,
-  }));
+  // Prepare chart data (filter out zero-cost agents for cleaner viz)
+  const chartData = agents
+    .filter(a => a.cost > 0)
+    .slice(0, 5)
+    .map((a, idx) => ({
+      name: a.agent.replace("agent:", ""),
+      value: parseFloat(a.cost.toFixed(6)),
+      percentage: totalCost > 0 ? ((a.cost / totalCost) * 100).toFixed(1) : 0,
+    }));
 
   return (
     <ProtectedLayout>
@@ -182,7 +185,7 @@ export default function AgentsPage() {
                           {agent.agent.replace("agent:", "")}
                         </span>
                         <span className="text-green-600 font-semibold">
-                          ${agent.cost.toFixed(4)}
+                          ${agent.cost.toFixed(6)}
                         </span>
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
@@ -218,7 +221,7 @@ export default function AgentsPage() {
                         outerRadius={90}
                         fill="#8884d8"
                         dataKey="value"
-                        label={(entry) => `${entry.name}: $${entry.value}`}
+                        label={(entry) => `${entry.name}: $${entry.value.toFixed(6)}`}
                       >
                         {chartData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={AGENT_COLORS[index % AGENT_COLORS.length]} />
