@@ -132,14 +132,14 @@ def create_event_from_http_response(
         # Still track it, just mark as unknown
     
     # Extract model
-    model_id = extract_model_from_request(request_body, provider)
+    model = extract_model_from_request(request_body, provider)
     
     # Extract tokens
-    prompt_tokens, completion_tokens, total_tokens = extract_tokens_from_response(response_body, provider)
+    input_tokens, output_tokens, total_tokens = extract_tokens_from_response(response_body, provider)
     
     # Calculate total if not provided
-    if total_tokens is None and prompt_tokens and completion_tokens:
-        total_tokens = prompt_tokens + completion_tokens
+    if total_tokens is None and input_tokens and output_tokens:
+        total_tokens = input_tokens + output_tokens
     
     # Get context
     run_id = context.get_run_id()
@@ -148,8 +148,9 @@ def create_event_from_http_response(
     section = context.get_current_section() or "/"
     section_path = context.get_section_path() or "/"
     customer_id = context.get_customer_id()
+    tenant_id = config.get_tenant_id()
     
-    # Create event
+    # Create event (using backend schema field names!)
     event: TraceEvent = {
         "id": str(uuid.uuid4()),
         "run_id": run_id,
@@ -159,29 +160,38 @@ def create_event_from_http_response(
         "section_path": section_path,
         "span_type": "http_fallback",  # Mark as HTTP fallback
         "provider": provider,
-        "model_id": model_id,
+        "model": model,  # Backend expects "model" not "model_id"
         "endpoint": f"{method} {url}",
-        "prompt_tokens": prompt_tokens,
-        "completion_tokens": completion_tokens,
-        "total_tokens": total_tokens,
+        "input_tokens": input_tokens or 0,  # Backend expects "input_tokens"
+        "output_tokens": output_tokens or 0,  # Backend expects "output_tokens"
+        "cached_tokens": 0,
         "latency_ms": latency_ms,
-        "status_code": status_code,
-        "timestamp": time.time(),
+        "status": "ok" if status_code < 400 else "error",
+        "is_streaming": False,
+        "stream_cancelled": False,
+        "cost_usd": 0.0,  # Will be calculated below
+        "event_metadata": {
+            "status_code": status_code,
+            "url": url,
+            "method": method
+        }
     }
     
     # Add optional fields
     if customer_id:
         event["customer_id"] = customer_id
+    if tenant_id:
+        event["tenant_id"] = tenant_id
     
     # Calculate cost if we have token info
-    if provider and model_id and total_tokens:
+    if provider and model and total_tokens:
         try:
             from llmobserve.pricing import compute_cost
             cost = compute_cost(
                 provider=provider,
-                model_id=model_id,
-                prompt_tokens=prompt_tokens or 0,
-                completion_tokens=completion_tokens or 0,
+                model_id=model,
+                prompt_tokens=input_tokens or 0,
+                completion_tokens=output_tokens or 0,
                 total_tokens=total_tokens
             )
             if cost is not None:
