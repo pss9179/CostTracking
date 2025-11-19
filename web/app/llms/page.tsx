@@ -38,8 +38,9 @@ export default function LLMsPage() {
         }
         
         // Fetch LLM stats from backend
+        const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/stats/llms?hours=24`,
+          `${collectorUrl}/stats/llms?hours=24`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
