@@ -270,7 +270,7 @@ export default function AgentsPage() {
                             <TableCell className="text-right">{agent.calls.toLocaleString()}</TableCell>
                             <TableCell className="text-right">{agent.tokens.toLocaleString()}</TableCell>
                             <TableCell className="text-right font-semibold">
-                              ${agent.cost.toFixed(4)}
+                              ${agent.cost.toFixed(6)}
                             </TableCell>
                             <TableCell className="text-right">{agent.avg_latency.toFixed(0)}ms</TableCell>
                             <TableCell className="text-right">{agent.errors}</TableCell>
