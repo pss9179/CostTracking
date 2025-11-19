@@ -180,6 +180,9 @@ def patch_httpx():
                                 agent=agent if agent != "/" else None,
                             )
                         
+                        # Track start time for latency calculation
+                        start_time = time.time()
+                        
                         # Execute request and check response
                         # CRITICAL: If going through proxy, disable decompression by modifying request
                         # before sending
@@ -243,8 +246,10 @@ def patch_httpx():
                                 # Mark as tracked (successful tracking)
                                 request_tracker.mark_request_tracked(request_id)
                                 
+                                logger.debug(f"[llmobserve] About to check proxy_url (value: {proxy_url})")
                                 # HTTP FALLBACK: Create event if no proxy
                                 if not proxy_url:
+                                    logger.debug(f"[llmobserve] Calling HTTP fallback for {request_url_str}")
                                     from llmobserve.http_fallback import try_create_http_fallback_event
                                     try_create_http_fallback_event(
                                         method=request.method,
@@ -412,8 +417,10 @@ def patch_httpx():
                                 # Mark as tracked (successful tracking)
                                 request_tracker.mark_request_tracked(request_id)
                                 
+                                logger.debug(f"[llmobserve] About to check proxy_url (value: {proxy_url})")
                                 # HTTP FALLBACK: Create event if no proxy
                                 if not proxy_url:
+                                    logger.debug(f"[llmobserve] Calling HTTP fallback for {request_url_str}")
                                     from llmobserve.http_fallback import try_create_http_fallback_event
                                     try_create_http_fallback_event(
                                         method=request.method,

@@ -29,6 +29,7 @@ def try_create_http_fallback_event(
     Returns True if event was created, False otherwise.
     Fails silently - never breaks the user's application.
     """
+    logger.debug(f"[llmobserve] try_create_http_fallback_event called for {method} {url} (status {status_code})")
     try:
         if not should_create_event(url, status_code):
             return False
