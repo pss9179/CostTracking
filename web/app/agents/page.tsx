@@ -227,7 +227,7 @@ export default function AgentsPage() {
                           <Cell key={`cell-${index}`} fill={AGENT_COLORS[index % AGENT_COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number) => `$${value.toFixed(4)}`} />
+                      <Tooltip formatter={(value: number) => `$${value.toFixed(6)}`} />
                       <Legend />
                     </PieChart>
                   </ResponsiveContainer>
