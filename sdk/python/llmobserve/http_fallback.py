@@ -32,7 +32,10 @@ def try_create_http_fallback_event(
     logger.debug(f"[llmobserve] try_create_http_fallback_event called for {method} {url} (status {status_code})")
     try:
         if not should_create_event(url, status_code):
+            logger.debug(f"[llmobserve] should_create_event returned False for {url}")
             return False
+        
+        logger.debug(f"[llmobserve] should_create_event passed, creating event...")
         
         # Calculate latency
         end_time = time.time()
@@ -45,16 +48,19 @@ def try_create_http_fallback_event(
         try:
             if request_content:
                 request_body = json.loads(request_content.decode('utf-8'))
-        except:
-            pass
+                logger.debug(f"[llmobserve] Parsed request body")
+        except Exception as ex:
+            logger.debug(f"[llmobserve] Failed to parse request body: {ex}")
         
         try:
             if response_content:
                 response_body = json.loads(response_content.decode('utf-8'))
-        except:
-            pass
+                logger.debug(f"[llmobserve] Parsed response body")
+        except Exception as ex:
+            logger.debug(f"[llmobserve] Failed to parse response body: {ex}")
         
         # Create event
+        logger.debug(f"[llmobserve] Calling create_event_from_http_response...")
         event = create_event_from_http_response(
             method=method,
             url=url,
@@ -69,10 +75,14 @@ def try_create_http_fallback_event(
             buffer.add_event(event)
             logger.debug(f"[llmobserve] HTTP fallback: created event for {url}")
             return True
+        else:
+            logger.debug(f"[llmobserve] create_event_from_http_response returned None")
         
         return False
         
     except Exception as e:
-        logger.debug(f"[llmobserve] HTTP fallback failed (non-critical): {e}")
+        logger.warning(f"[llmobserve] HTTP fallback failed (non-critical): {e}")
+        import traceback
+        logger.debug(f"[llmobserve] Traceback: {traceback.format_exc()}")
         return False
 
