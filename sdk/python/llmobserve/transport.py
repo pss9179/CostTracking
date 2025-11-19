@@ -61,7 +61,7 @@ def flush_events() -> None:
                 import urllib.request
                 import urllib.error
                 
-                url = f"{collector_url}/events"
+                url = f"{collector_url}/events/"  # Note: trailing slash required
                 data = json.dumps(events).encode("utf-8")
                 req = urllib.request.Request(
                     url,
@@ -87,7 +87,7 @@ def flush_events() -> None:
                 return
             
             # Use requests if available
-            url = f"{collector_url}/events"
+            url = f"{collector_url}/events/"  # Note: trailing slash required
             headers = {"Content-Type": "application/json"}
             
             if config.get_api_key():
