@@ -1,0 +1,250 @@
+{
+  "test_multi_agent.py": {
+    "hash": "054e937d29e3f7724fe27e82887fda9da475cbbc68ce7aea12f5e6c1715d1fec",
+    "candidate": {
+      "file_path": "test_multi_agent.py",
+      "language": "python",
+      "confidence": 1.0,
+      "reasons": [
+        "Imports from LLM library: openai",
+        "Agent-like function: research_agent",
+        "Agent-like function: writer_agent",
+        "Agent-like function: analyzer_agent",
+        "Agent-like function: orchestrator_workflow",
+        "LLM API call at line 26",
+        "LLM API call at line 45",
+        "LLM API call at line 63",
+        "LLM API call at line 85",
+        "LLM API call at line 105",
+        "LLM API call at line 25",
+        "LLM API call at line 42",
+        "LLM API call at line 82",
+        "LLM API call at line 102"
+      ],
+      "imports": [
+        "os",
+        "openai"
+      ],
+      "dependencies": [],
+      "content_hash": "054e937d29e3f7724fe27e82887fda9da475cbbc68ce7aea12f5e6c1715d1fec",
+      "llm_calls": [
+        {
+          "pattern": "\\.chat\\.completions\\.create",
+          "line": 26,
+          "snippet": "   response = client.chat.completions.create(\n        model=\"gpt"
+        },
+        {
+          "pattern": "\\.chat\\.completions\\.create",
+          "line": 45,
+          "snippet": "ns_response = client.chat.completions.create(\n        model=\"gpt"
+        },
+        {
+          "pattern": "\\.chat\\.completions\\.create",
+          "line": 63,
+          "snippet": "is_response = client.chat.completions.create(\n        model=\"gpt"
+        },
+        {
+          "pattern": "\\.chat\\.completions\\.create",
+          "line": 85,
+          "snippet": "   response = client.chat.completions.create(\n        model=\"gpt"
+        },
+        {
+          "pattern": "\\.chat\\.completions\\.create",
+          "line": 105,
+          "snippet": "nt_response = client.chat.completions.create(\n        model=\"gpt"
+        },
+        {
+          "pattern": "OpenAI\\(",
+          "line": 25,
+          "snippet": "LM.\"\"\"\n    client = OpenAI()\n    response = cli"
+        },
+        {
+          "pattern": "OpenAI\\(",
+          "line": 42,
+          "snippet": "   \"\"\"\n    client = OpenAI()\n    \n    # Step 1:"
+        },
+        {
+          "pattern": "OpenAI\\(",
+          "line": 82,
+          "snippet": "   \"\"\"\n    client = OpenAI()\n    \n    # Polish "
+        },
+        {
+          "pattern": "OpenAI\\(",
+          "line": 102,
+          "snippet": "   \"\"\"\n    client = OpenAI()\n    \n    # Analyze"
+        }
+      ],
+      "agent_patterns": [
+        {
+          "type": "function",
+          "name": "research_agent",
+          "line": 37
+        },
+        {
+          "type": "function",
+          "name": "writer_agent",
+          "line": 78
+        },
+        {
+          "type": "function",
+          "name": "analyzer_agent",
+          "line": 97
+        },
+        {
+          "type": "function",
+          "name": "orchestrator_workflow",
+          "line": 129
+        }
+      ],
+      "line_count": 163
+    }
+  },
+  "test_with_tracking.py": {
+    "hash": "ba0cd9db11899259ea82c5112cdda554f6d2ad15a8894b4d365b0d2f647bcdb0",
+    "candidate": {
+      "file_path": "test_with_tracking.py",
+      "language": "python",
+      "confidence": 1.0,
+      "reasons": [
+        "Imports LLM library: llmobserve",
+        "Imports from LLM library: openai",
+        "Agent-like function: research_agent",
+        "Agent-like function: writer_agent",
+        "Agent-like function: analyzer_agent",
+        "Agent-like function: orchestrator_workflow",
+        "LLM API call at line 37",
+        "LLM API call at line 53",
+        "LLM API call at line 71",
+        "LLM API call at line 90",
+        "LLM API call at line 107",
+        "LLM API call at line 36",
+        "LLM API call at line 50",
+        "LLM API call at line 88",
+        "LLM API call at line 104"
+      ],
+      "imports": [
+        "os",
+        "llmobserve",
+        "openai"
+      ],
+      "dependencies": [],
+      "content_hash": "ba0cd9db11899259ea82c5112cdda554f6d2ad15a8894b4d365b0d2f647bcdb0",
+      "llm_calls": [
+        {
+          "pattern": "\\.chat\\.completions\\.create",
+          "line": 37,
+          "snippet": "   response = client.chat.completions.create(\n        model=\"gpt"
+        },
+        {
+          "pattern": "\\.chat\\.completions\\.create",
+          "line": 53,
+          "snippet": "ns_response = client.chat.completions.create(\n        model=\"gpt"
+        },
+        {
+          "pattern": "\\.chat\\.completions\\.create",
+          "line": 71,
+          "snippet": "is_response = client.chat.completions.create(\n        model=\"gpt"
+        },
+        {
+          "pattern": "\\.chat\\.completions\\.create",
+          "line": 90,
+          "snippet": "   response = client.chat.completions.create(\n        model=\"gpt"
+        },
+        {
+          "pattern": "\\.chat\\.completions\\.create",
+          "line": 107,
+          "snippet": "nt_response = client.chat.completions.create(\n        model=\"gpt"
+        },
+        {
+          "pattern": "OpenAI\\(",
+          "line": 36,
+          "snippet": "LM.\"\"\"\n    client = OpenAI()\n    response = cli"
+        },
+        {
+          "pattern": "OpenAI\\(",
+          "line": 50,
+          "snippet": "ls.\"\"\"\n    client = OpenAI()\n    \n    # Generat"
+        },
+        {
+          "pattern": "OpenAI\\(",
+          "line": 88,
+          "snippet": "nt.\"\"\"\n    client = OpenAI()\n    \n    response "
+        },
+        {
+          "pattern": "OpenAI\\(",
+          "line": 104,
+          "snippet": "ts.\"\"\"\n    client = OpenAI()\n    \n    # Analyze"
+        }
+      ],
+      "agent_patterns": [
+        {
+          "type": "function",
+          "name": "research_agent",
+          "line": 48
+        },
+        {
+          "type": "function",
+          "name": "writer_agent",
+          "line": 86
+        },
+        {
+          "type": "function",
+          "name": "analyzer_agent",
+          "line": 102
+        },
+        {
+          "type": "function",
+          "name": "orchestrator_workflow",
+          "line": 126
+        }
+      ],
+      "line_count": 173
+    }
+  },
+  "run_safe_tests.py": {
+    "hash": "e67ee8d9a2f9de8d7fea1352470018188709b270f0d94c65a2df96dd502d7055",
+    "candidate": {
+      "file_path": "run_safe_tests.py",
+      "language": "python",
+      "confidence": 1.0,
+      "reasons": [
+        "Imports from LLM library: llmobserve.scanner",
+        "Imports from LLM library: llmobserve.refiner",
+        "Imports from LLM library: llmobserve.patcher",
+        "Imports from LLM library: llmobserve.cli",
+        "Imports from LLM library: llmobserve",
+        "Imports from LLM library: llmobserve",
+        "Imports from LLM library: llmobserve.http_interceptor",
+        "Imports from LLM library: llmobserve.caps",
+        "LLM API call at line 111"
+      ],
+      "imports": [
+        "sys",
+        "os",
+        "llmobserve.scanner",
+        "llmobserve.refiner",
+        "llmobserve.patcher",
+        "llmobserve.cli",
+        "hashlib",
+        "pathlib",
+        "ast",
+        "llmobserve",
+        "llmobserve",
+        "llmobserve.http_interceptor",
+        "llmobserve.caps",
+        "traceback"
+      ],
+      "dependencies": [],
+      "content_hash": "e67ee8d9a2f9de8d7fea1352470018188709b270f0d94c65a2df96dd502d7055",
+      "llm_calls": [
+        {
+          "pattern": "OpenAI\\(",
+          "line": 111,
+          "snippet": "    client = openai.OpenAI()\n    \"\"\"\n    \n    t"
+        }
+      ],
+      "agent_patterns": [],
+      "line_count": 252
+    }
+  }
+}
