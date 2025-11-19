@@ -1,14 +1,16 @@
 """
 WebSocket Interceptor for LLMObserve Context Propagation
 
-Patches websockets and aiohttp WebSocket connections to inject context headers.
+Patches websockets and aiohttp WebSocket connections to inject context headers
+and create events for tracking.
 """
 
 import logging
 import uuid
+import time
 from typing import Any, Optional
 
-from llmobserve import config, context
+from llmobserve import config, context, buffer
 
 logger = logging.getLogger("llmobserve")
 
