@@ -242,6 +242,19 @@ def patch_httpx():
                             else:
                                 # Mark as tracked (successful tracking)
                                 request_tracker.mark_request_tracked(request_id)
+                                
+                                # HTTP FALLBACK: Create event if no proxy
+                                if not proxy_url:
+                                    from llmobserve.http_fallback import try_create_http_fallback_event
+                                    try_create_http_fallback_event(
+                                        method=request.method,
+                                        url=request_url_str,
+                                        status_code=response.status_code,
+                                        request_content=getattr(request, 'content', None),
+                                        response_content=getattr(response, 'content', None),
+                                        start_time=start_time,
+                                        request_id=request_id
+                                    )
                         else:
                             logger.debug(
                                 f"[llmobserve] Skipping tracking for status {response.status_code}"
@@ -398,6 +411,19 @@ def patch_httpx():
                             else:
                                 # Mark as tracked (successful tracking)
                                 request_tracker.mark_request_tracked(request_id)
+                                
+                                # HTTP FALLBACK: Create event if no proxy
+                                if not proxy_url:
+                                    from llmobserve.http_fallback import try_create_http_fallback_event
+                                    try_create_http_fallback_event(
+                                        method=request.method,
+                                        url=request_url_str,
+                                        status_code=response.status_code,
+                                        request_content=getattr(request, 'content', None),
+                                        response_content=getattr(response, 'content', None),
+                                        start_time=start_time,
+                                        request_id=request_id
+                                    )
                         else:
                             logger.debug(
                                 f"[llmobserve] Skipping tracking for status {response.status_code}"
