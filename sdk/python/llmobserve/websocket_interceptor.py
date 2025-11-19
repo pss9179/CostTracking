@@ -42,16 +42,19 @@ def patch_websockets() -> bool:
         original_connect = websockets.connect
         
         def patched_connect(uri, **kwargs):
-            """Patched connect that injects context headers."""
+            """Patched connect that injects context headers and creates events."""
             if config.is_enabled():
                 try:
+                    span_id = str(uuid.uuid4())
+                    start_time = time.time()
+                    
                     extra_headers = kwargs.get("extra_headers", [])
                     if not isinstance(extra_headers, list):
                         extra_headers = list(extra_headers) if extra_headers else []
                     
                     # Inject LLMObserve context
                     extra_headers.append(("X-LLMObserve-Run-ID", context.get_run_id()))
-                    extra_headers.append(("X-LLMObserve-Span-ID", str(uuid.uuid4())))
+                    extra_headers.append(("X-LLMObserve-Span-ID", span_id))
                     
                     parent_span = context.get_current_span_id()
                     if parent_span:
@@ -66,9 +69,48 @@ def patch_websockets() -> bool:
                     
                     kwargs["extra_headers"] = extra_headers
                     logger.debug(f"[llmobserve] Injected context into WebSocket connection: {uri}")
+                    
+                    # Make connection
+                    connection = original_connect(uri, **kwargs)
+                    
+                    # Create event for WebSocket connection
+                    end_time = time.time()
+                    latency_ms = (end_time - start_time) * 1000
+                    
+                    event = {
+                        "id": str(uuid.uuid4()),
+                        "run_id": context.get_run_id(),
+                        "span_id": span_id,
+                        "parent_span_id": parent_span or "",
+                        "section": context.get_current_section() or "/",
+                        "section_path": context.get_section_path() or "/",
+                        "span_type": "websocket",
+                        "provider": "websocket",
+                        "endpoint": f"WS {uri}",
+                        "model": None,
+                        "input_tokens": 0,
+                        "output_tokens": 0,
+                        "cached_tokens": 0,
+                        "cost_usd": 0.0,
+                        "latency_ms": latency_ms,
+                        "status": "ok",
+                        "is_streaming": True,
+                        "stream_cancelled": False,
+                        "event_metadata": {"uri": str(uri), "protocol": "websocket"},
+                    }
+                    
+                    if customer:
+                        event["customer_id"] = customer
+                    
+                    buffer.add_event(event)
+                    logger.debug(f"[llmobserve] Tracked WebSocket connection: {uri}")
+                    
+                    return connection
+                    
                 except Exception as e:
                     # Fail-open: if injection fails, continue anyway
-                    logger.debug(f"[llmobserve] WebSocket header injection failed: {e}")
+                    logger.debug(f"[llmobserve] WebSocket tracking failed: {e}")
+                    return original_connect(uri, **kwargs)
             
             return original_connect(uri, **kwargs)
         
