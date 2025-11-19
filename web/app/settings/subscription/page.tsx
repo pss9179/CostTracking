@@ -157,7 +157,7 @@ export default function SubscriptionPage() {
                 <p className="text-sm text-gray-600 mt-2">
                   {subscriptionStatus === "active"
                     ? "You have full access to all features"
-                    : "Upgrade to Pro for $8/month to unlock all features"}
+                    : "Upgrade to Pro for $5/month to unlock all features"}
                 </p>
               </div>
             </div>
@@ -207,7 +207,7 @@ export default function SubscriptionPage() {
                   <CreditCard className="w-5 h-5" />
                   <CardTitle>Upgrade to Pro</CardTitle>
                 </div>
-                <CardDescription>$8/month - Cancel anytime</CardDescription>
+                <CardDescription>$5/month - Cancel anytime</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -233,7 +233,7 @@ export default function SubscriptionPage() {
                     </ul>
                   </div>
                   <Button onClick={handleCheckout} disabled={loading} className="w-full" size="lg">
-                    {loading ? "Processing..." : "Subscribe for $8/month"}
+                    {loading ? "Processing..." : "Subscribe for $5/month"}
                   </Button>
                 </div>
               </CardContent>

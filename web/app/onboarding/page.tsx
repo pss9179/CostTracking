@@ -336,14 +336,14 @@ print(response.choices[0].message.content)`;
                     💳 Subscribe to Continue
                   </p>
                   <p className="text-xs text-blue-700 mb-3">
-                    LLM Observe Pro is $8/month. Subscribe now to start tracking your costs!
+                    LLM Observe Pro is $5/month. Subscribe now to start tracking your costs!
                   </p>
                   <Button 
                     onClick={() => router.push("/settings/subscription")} 
                     className="w-full bg-indigo-600 hover:bg-indigo-700"
                     size="lg"
                   >
-                    Subscribe Now - $8/month
+                    Subscribe Now - $5/month
                   </Button>
                   <p className="text-xs text-blue-600 text-center mt-2">
                     Have a promo code? Enter it in Settings → Subscription

@@ -3,7 +3,7 @@
 **Track every LLM API call. Know exactly what you're spending. Optimize what matters.**
 
 > Zero-config cost tracking for OpenAI, Anthropic, Google, and 40+ LLM providers.  
-> AI-powered instrumentation included. $8/month.
+> AI-powered instrumentation included. $5/month.
 
 ---
 
@@ -280,7 +280,7 @@ ANTHROPIC_API_KEY=sk-ant-...  # For AI instrumentation
 
 ## 💰 Pricing
 
-**$8/month** - Unlimited tracking, all features included:
+**$5/month** - Unlimited tracking, all features included:
 - ✅ Unlimited API calls tracked
 - ✅ All providers (40+)
 - ✅ Multi-tenant support
@@ -319,7 +319,7 @@ MIT License - see LICENSE file for details
 ❌ Complex setup  
 ❌ Framework-specific  
 ❌ Expensive ($50-500/month)  
-✅ **LLMObserve: Zero-config, any framework, $8/month**
+✅ **LLMObserve: Zero-config, any framework, $5/month**
 
 ### **The Difference**
 - **HTTP Interception:** Works with ANY API, not just specific SDKs

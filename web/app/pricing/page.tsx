@@ -60,7 +60,7 @@ export default function PricingPage() {
             <CardDescription className="text-lg">Everything you need to track LLM costs</CardDescription>
             <div className="mt-6">
               <div className="flex items-baseline justify-center gap-2">
-                <span className="text-5xl font-bold text-gray-900">$8</span>
+                <span className="text-5xl font-bold text-gray-900">$5</span>
                 <span className="text-xl text-gray-600">/month</span>
               </div>
               <p className="text-sm text-gray-500 mt-2">Billed monthly • Cancel anytime</p>
@@ -156,7 +156,7 @@ export default function PricingPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  No limits! Track unlimited API calls, customers, and agents. The $8/month price covers everything.
+                  No limits! Track unlimited API calls, customers, and agents. The $5/month price covers everything.
                 </p>
               </CardContent>
             </Card>
@@ -181,7 +181,7 @@ export default function PricingPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  For now, we only offer the $8/month plan. If you need enterprise features like SSO, dedicated support, or on-premise deployment, email us at enterprise@llmobserve.com.
+                  For now, we only offer the $5/month plan. If you need enterprise features like SSO, dedicated support, or on-premise deployment, email us at enterprise@llmobserve.com.
                 </p>
               </CardContent>
             </Card>
@@ -210,7 +210,7 @@ export default function PricingPage() {
             size="lg"
             className="bg-indigo-600 hover:bg-indigo-700"
           >
-            Get Started - $8/month
+            Get Started - $5/month
             <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
         </div>

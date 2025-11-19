@@ -36,7 +36,7 @@ export default function LandingPage() {
                 onClick={() => router.push("/sign-up")}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
               >
-                Get Started - $8/month
+                Get Started - $5/month
               </Button>
             </div>
           </div>
