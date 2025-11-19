@@ -600,20 +600,38 @@ def patch_aiohttp():
                     is_internal = True
                 
                 if not is_internal:
-                    # ALWAYS inject context headers (for proxy OR direct instrumentation)
                     try:
+                        # Generate request ID
+                        request_body = kwargs.get("json") or kwargs.get("data")
+                        if isinstance(request_body, dict):
+                            import json as json_module
+                            request_body_str = json_module.dumps(request_body).encode('utf-8')
+                        elif isinstance(request_body, str):
+                            request_body_str = request_body.encode('utf-8')
+                        elif isinstance(request_body, bytes):
+                            request_body_str = request_body
+                        else:
+                            request_body_str = None
+                        
+                        request_id = request_tracker.generate_request_id(method, url_str, request_body_str)
+                        
+                        # Check retry
+                        if request_tracker.is_request_tracked(request_id):
+                            logger.debug(f"[llmobserve] Skipping retry (aiohttp): {request_id}")
+                            return await original_request(self, method, url, **kwargs)
+                        
+                        # Inject headers
                         headers = kwargs.get("headers", {})
                         if headers is None:
                             headers = {}
                         
                         headers["X-LLMObserve-Run-ID"] = context.get_run_id()
                         headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
+                        headers["X-LLMObserve-Request-ID"] = request_id
                         parent_span = context.get_current_span_id()
                         headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
-                        # Get section from context
                         current_section = context.get_current_section()
                         section_path = context.get_section_path()
-                        
                         headers["X-LLMObserve-Section"] = current_section or ""
                         headers["X-LLMObserve-Section-Path"] = section_path or ""
                         customer = context.get_customer_id()
@@ -627,9 +645,41 @@ def patch_aiohttp():
                             url = f"{proxy_url}/proxy"
                         
                         kwargs["headers"] = headers
+                        
+                        # Track start time
+                        start_time = time.time()
+                        
+                        # Make request
+                        response = await original_request(self, method, url, **kwargs)
+                        
+                        # HTTP FALLBACK: Create event if no proxy
+                        if request_tracker.should_track_response(response.status):
+                            request_tracker.mark_request_tracked(request_id)
+                            
+                            if not proxy_url:
+                                # Read response body
+                                response_body = None
+                                try:
+                                    response_body = await response.read()
+                                except:
+                                    pass
+                                
+                                from llmobserve.http_fallback import try_create_http_fallback_event
+                                try_create_http_fallback_event(
+                                    method=method,
+                                    url=url_str,
+                                    status_code=response.status,
+                                    request_content=request_body_str,
+                                    response_content=response_body,
+                                    start_time=start_time,
+                                    request_id=request_id
+                                )
+                        
+                        return response
+                        
                     except Exception as e:
-                        # Fail-open: if header injection fails, continue anyway
-                        logger.debug(f"[llmobserve] Header injection failed: {e}")
+                        logger.debug(f"[llmobserve] Tracking failed (aiohttp): {e}")
+                        return await original_request(self, method, url, **kwargs)
             
             return await original_request(self, method, url, **kwargs)
         
