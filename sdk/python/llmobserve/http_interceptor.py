@@ -351,6 +351,9 @@ def patch_httpx():
                                 agent=agent if agent != "/" else None,
                             )
                         
+                        # Track start time for latency
+                        start_time = time.time()
+                        
                         # Execute request and check response
                         response = await original_async_send(self, request, **kwargs)
                         
