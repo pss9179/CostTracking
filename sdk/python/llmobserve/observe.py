@@ -215,6 +215,15 @@ def observe(
         logger.info("[llmobserve]   → Use wrap_openai_client(client) for OpenAI")
         logger.info("[llmobserve]   → Use wrap_anthropic_client(client) for Anthropic")
     
+    # OPENAI PATCHING: Always patch OpenAI for direct event creation
+    # This works without a proxy and creates events directly
+    try:
+        from llmobserve.openai_patch import patch_openai
+        patch_openai()
+        logger.info("[llmobserve] ✓ OpenAI SDK patched for direct tracking")
+    except Exception as e:
+        logger.warning(f"[llmobserve]   ⚠️  OpenAI patching failed (openai not installed?): {e}")
+    
     # HTTP FALLBACK: Patch HTTP, gRPC, and WebSocket protocols for universal coverage
     # This ensures context propagates across all network calls
     if enable_http_fallback:
