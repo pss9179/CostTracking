@@ -728,8 +728,24 @@ def patch_urllib3():
                 is_internal = True
             
             if not is_internal:
-                # Inject context headers
                 try:
+                    # Generate request ID
+                    request_body = kwargs.get("body")
+                    if isinstance(request_body, str):
+                        request_body_str = request_body.encode('utf-8')
+                    elif isinstance(request_body, bytes):
+                        request_body_str = request_body
+                    else:
+                        request_body_str = None
+                    
+                    request_id = request_tracker.generate_request_id(method, url_str, request_body_str)
+                    
+                    # Check retry
+                    if request_tracker.is_request_tracked(request_id):
+                        logger.debug(f"[llmobserve] Skipping retry (urllib3): {request_id}")
+                        return original_request(self, method, url, **kwargs)
+                    
+                    # Inject headers
                     headers = kwargs.get("headers", {})
                     if headers is None:
                         headers = {}
@@ -740,6 +756,7 @@ def patch_urllib3():
                     
                     headers["X-LLMObserve-Run-ID"] = context.get_run_id()
                     headers["X-LLMObserve-Span-ID"] = str(uuid.uuid4())
+                    headers["X-LLMObserve-Request-ID"] = request_id
                     parent_span = context.get_current_span_id()
                     headers["X-LLMObserve-Parent-Span-ID"] = parent_span if parent_span else ""
                     headers["X-LLMObserve-Section"] = context.get_current_section()
@@ -752,16 +769,39 @@ def patch_urllib3():
                     # If proxy is configured, route through proxy
                     if proxy_url:
                         headers["X-LLMObserve-Target-URL"] = url_str
-                        # CRITICAL: Remove Accept-Encoding when routing through proxy
                         headers.pop("Accept-Encoding", None)
                         headers.pop("accept-encoding", None)
-                        # Route to proxy
                         url = f"{proxy_url}/proxy"
                     
                     kwargs["headers"] = headers
+                    
+                    # Track start time
+                    start_time = time.time()
+                    
+                    # Make request
+                    response = original_request(self, method, url, **kwargs)
+                    
+                    # HTTP FALLBACK: Create event if no proxy
+                    if request_tracker.should_track_response(response.status):
+                        request_tracker.mark_request_tracked(request_id)
+                        
+                        if not proxy_url:
+                            from llmobserve.http_fallback import try_create_http_fallback_event
+                            try_create_http_fallback_event(
+                                method=method,
+                                url=url_str,
+                                status_code=response.status,
+                                request_content=request_body_str,
+                                response_content=response.data if hasattr(response, 'data') else None,
+                                start_time=start_time,
+                                request_id=request_id
+                            )
+                    
+                    return response
+                    
                 except Exception as e:
-                    # Fail-open: if header injection fails, continue anyway
-                    logger.debug(f"[llmobserve] urllib3 header injection failed: {e}")
+                    logger.debug(f"[llmobserve] Tracking failed (urllib3): {e}")
+                    return original_request(self, method, url, **kwargs)
         
         return original_request(self, method, url, **kwargs)
     
