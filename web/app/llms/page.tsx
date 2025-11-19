@@ -36,23 +36,23 @@ export default function LLMsPage() {
           console.error("No Clerk token available");
           return;
         }
-        const runs = await fetchRuns(1000, null, token);
         
-        // Aggregate by provider + model
-        const aggregated = new Map<string, LLMStats>();
-        
-        // Note: Run type doesn't have provider/model info - would need to fetch RunDetail for each run
-        // For now, return empty stats since LLM data requires event-level details
-        // TODO: Implement proper LLM aggregation by fetching run details
-        setStats([]);
+        // Fetch LLM stats from backend
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/stats/llms?hours=24`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
-        // Calculate averages
-        const result = Array.from(aggregated.values()).map(s => ({
-          ...s,
-          avg_latency: s.calls > 0 ? s.avg_latency / s.calls : 0,
-        }));
+        if (!response.ok) {
+          throw new Error(`Failed to fetch LLM stats: ${response.status}`);
+        }
 
-        setStats(result.sort((a, b) => b.cost - a.cost));
+        const data = await response.json();
+        setStats(data);
       } catch (error) {
         console.error("Failed to load LLM stats:", error);
       } finally {
@@ -61,7 +61,7 @@ export default function LLMsPage() {
     }
 
     loadData();
-  }, []);
+  }, [getToken]);
 
   const filteredStats = selectedProvider === "all"
     ? stats

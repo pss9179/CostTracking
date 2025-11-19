@@ -39,17 +39,23 @@ export default function InfrastructurePage() {
           console.error("No Clerk token available");
           return;
         }
-        const runs = await fetchRuns(1000, null, token);
         
-        // Aggregate by provider (excluding LLMs)
-        const aggregated = new Map<string, InfraStats>();
-        
-        // Note: Run type doesn't have provider info - would need to fetch RunDetail for each run
-        // For now, return empty stats since infrastructure data requires event-level details
-        // TODO: Implement proper infrastructure aggregation by fetching run details
-        
-        // Return empty array for now - infrastructure stats require event-level data
-        setStats([]);
+        // Fetch infrastructure stats from backend
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/stats/infrastructure?hours=24`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch infrastructure stats: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setStats(data);
       } catch (error) {
         console.error("Failed to load infrastructure stats:", error);
       } finally {
@@ -58,7 +64,7 @@ export default function InfrastructurePage() {
     }
 
     loadData();
-  }, []);
+  }, [getToken]);
 
   const totalCost = stats.reduce((sum, s) => sum + s.cost, 0);
   const totalCalls = stats.reduce((sum, s) => sum + s.calls, 0);
