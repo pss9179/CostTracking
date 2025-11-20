@@ -37,7 +37,7 @@ async def get_llm_stats(
         func.sum(TraceEvent.input_tokens).label("prompt_tokens"),
         func.sum(TraceEvent.output_tokens).label("completion_tokens"),
         func.avg(TraceEvent.latency_ms).label("avg_latency"),
-        func.sum(func.case((TraceEvent.status == "error", 1), else_=0)).label("errors")
+        func.sum(case((TraceEvent.status == "error", 1), else_=0)).label("errors")
     ).where(
         and_(
             TraceEvent.created_at >= cutoff,
@@ -90,7 +90,7 @@ async def get_infrastructure_stats(
         func.sum(TraceEvent.cost_usd).label("total_cost"),
         func.count(TraceEvent.id).label("call_count"),
         func.avg(TraceEvent.latency_ms).label("avg_latency"),
-        func.sum(func.case((TraceEvent.status == "error", 1), else_=0)).label("errors")
+        func.sum(case((TraceEvent.status == "error", 1), else_=0)).label("errors")
     ).where(
         and_(
             TraceEvent.created_at >= cutoff,
