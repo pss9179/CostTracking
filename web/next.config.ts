@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
+  // @ts-expect-error - turbopack is a valid key in Next.js 16 but might not be in the type definition yet
+  turbopack: {},
 };
 
 export default nextConfig;

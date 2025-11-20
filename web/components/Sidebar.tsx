@@ -2,16 +2,17 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { 
-  LayoutDashboard, 
-  List, 
-  Bot, 
-  Zap, 
-  Server, 
-  DollarSign, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  List,
+  Bot,
+  Zap,
+  Server,
+  DollarSign,
+  BarChart3,
   Settings,
-  Activity
+  Activity,
+  BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserButton, useUser } from "@clerk/nextjs";
@@ -26,6 +27,7 @@ const navigation = [
   { name: "Costs", href: "/costs", icon: DollarSign },
   { name: "Insights", href: "/insights", icon: BarChart3 },
   { name: "Settings", href: "/settings", icon: Settings },
+  { name: "API Docs", href: "/api-docs", icon: BookOpen },
 ];
 
 export function Sidebar() {
@@ -40,9 +42,9 @@ export function Sidebar() {
   }
 
   return (
-    <div 
-      data-sidebar 
-      className="flex flex-shrink-0 flex-col border-r border-gray-100 bg-background h-screen" 
+    <div
+      data-sidebar
+      className="flex flex-shrink-0 flex-col border-r border-gray-100 bg-background h-screen"
       style={{ zIndex: 10 }}
     >
       {/* Logo at top */}
@@ -51,7 +53,7 @@ export function Sidebar() {
           <Activity className="h-7 w-7 text-indigo-600" strokeWidth={2.5} />
         </Link>
       </div>
-      
+
       {/* Navigation - icons above text */}
       <nav className="flex-1 space-y-1 px-2 py-3 overflow-y-auto">
         {navigation.map((item) => {
@@ -81,12 +83,12 @@ export function Sidebar() {
           );
         })}
       </nav>
-      
+
       {/* Bottom section with profile */}
       <div className="py-2 flex-shrink-0 flex flex-col items-center gap-2 relative">
         {isLoaded && user ? (
           <div className="relative flex items-center justify-center">
-            <UserButton 
+            <UserButton
               afterSignOutUrl="/sign-in"
               appearance={{
                 elements: {
