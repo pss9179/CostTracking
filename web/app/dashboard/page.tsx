@@ -28,8 +28,9 @@ import { Sparkline } from "@/components/Sparkline";
 import { useDateRange } from "@/contexts/DateRangeContext";
 import { getDateRangeMs } from "@/components/DateRangeFilter";
 import { cn } from "@/lib/utils";
+import { Suspense } from "react";
 
-export default function DashboardPage() {
+function DashboardPageContent() {
   const router = useRouter();
   const { isLoaded, user } = useUser();
   const { getToken } = useAuth();
@@ -717,5 +718,13 @@ export default function DashboardPage() {
       </Card>
     </div>
     </ProtectedLayout>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="p-6"><Skeleton className="h-96 w-full" /></div>}>
+      <DashboardPageContent />
+    </Suspense>
   );
 }

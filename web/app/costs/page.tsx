@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -124,7 +125,7 @@ function groupModelsByProvider(events: any[]): ProviderGroup[] {
   return results.sort((a, b) => b.totalCost - a.totalCost);
 }
 
-export default function CostsPage() {
+function CostsPageContent() {
   const router = useRouter();
   const { getToken } = useAuth();
   const [runs, setRuns] = useState<Run[]>([]);
@@ -603,5 +604,13 @@ export default function CostsPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function CostsPage() {
+  return (
+    <Suspense fallback={<div className="p-6"><Skeleton className="h-96 w-full" /></div>}>
+      <CostsPageContent />
+    </Suspense>
   );
 }
