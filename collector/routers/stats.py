@@ -6,6 +6,7 @@ from uuid import UUID
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session, select, func, and_
+from sqlalchemy import case
 from models import TraceEvent
 from db import get_session
 from auth import get_current_user_id
