@@ -15,7 +15,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { CustomerFilter } from "@/components/CustomerFilter";
 import { fetchRunDetail, fetchRuns, type Run } from "@/lib/api";
