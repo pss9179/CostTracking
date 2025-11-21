@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserButton, useUser } from "@clerk/nextjs";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Users } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -35,10 +36,26 @@ export function Sidebar() {
   const router = useRouter();
   const { isLoaded, user } = useUser();
   const [showDropdown, setShowDropdown] = useState(false);
+  const [userType, setUserType] = useState<string | null>(null);
 
-  // Don't show sidebar on auth pages
-  if (pathname?.startsWith('/sign-')) {
+  useEffect(() => {
+    // Check user type on mount
+    const type = localStorage.getItem("userType");
+    setUserType(type);
+  }, []);
+
+  // Don't show sidebar on auth pages or onboarding
+  if (pathname?.startsWith('/sign-') || pathname === '/onboarding') {
     return null;
+  }
+
+  // Filter navigation based on user type
+  const filteredNavigation = [...navigation];
+  if (userType === 'multi') {
+    // Check if Customers tab is already there to avoid duplicates if re-rendering
+    if (!filteredNavigation.find(item => item.name === "Customers")) {
+      filteredNavigation.splice(1, 0, { name: "Customers", href: "/customers", icon: Users });
+    }
   }
 
   return (
@@ -56,7 +73,7 @@ export function Sidebar() {
 
       {/* Navigation - icons above text */}
       <nav className="flex-1 space-y-1 px-2 py-3 overflow-y-auto">
-        {navigation.map((item) => {
+        {filteredNavigation.map((item) => {
           const isActive = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href + "/"));
           return (
             <Link
