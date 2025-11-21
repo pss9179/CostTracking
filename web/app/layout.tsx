@@ -28,7 +28,7 @@ export default function RootLayout({
       signInFallbackRedirectUrl="/dashboard"
       signUpFallbackRedirectUrl="/onboarding"
     >
-      <html lang="en">
+      <html lang="en" suppressHydrationWarning>
         <body className={`${dmSans.className} min-h-screen bg-background antialiased`}>
           <UserTypeGuard>
             <LayoutWrapper>{children}</LayoutWrapper>
