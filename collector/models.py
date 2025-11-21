@@ -67,10 +67,12 @@ class APIKey(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Creation time")
     last_used_at: Optional[datetime] = Field(default=None, description="Last usage timestamp")
     revoked_at: Optional[datetime] = Field(default=None, description="Revocation timestamp")
+    # project_id: Optional[UUID] = Field(default=None, foreign_key="projects.id", index=True, description="Project ID")
     
     class Config:
         indexes = [
             Index("idx_api_keys_user_id", "user_id"),
+            Index("idx_api_keys_project_id", "project_id"),
             Index("idx_api_keys_hash", "key_hash"),
         ]
 
@@ -247,6 +249,7 @@ class TraceEvent(SQLModel, table=True):
     tenant_id: str = Field(default="default_tenant", index=True, description="Tenant identifier (defaults to 'default_tenant' for solo devs)")
     user_id: Optional[UUID] = Field(default=None, foreign_key="users.id", index=True, description="Optional user reference (for auth)")
     customer_id: Optional[str] = Field(default=None, index=True, description="End-customer identifier (tenant's customers)")
+    # project_id: Optional[UUID] = Field(default=None, foreign_key="projects.id", index=True, description="Project ID")
     
     # Metrics
     input_tokens: int = Field(default=0, description="Input/prompt tokens")
@@ -356,3 +359,64 @@ class TraceEventCreate(SQLModel):
     event_metadata: Optional[dict] = None
     # Note: tenant_id and user_id can be extracted from API key/auth, or sent explicitly
 
+
+class Project(SQLModel, table=True):
+    """
+    Projects allow organizations to group resources (API keys, traces) together.
+    """
+    __tablename__ = "projects"
+
+    id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
+    name: str = Field(index=True, description="Project name")
+    organization_id: str = Field(index=True, description="Clerk Organization ID")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        indexes = [
+            Index("idx_projects_org", "organization_id"),
+        ]
+
+
+class ProjectCreate(SQLModel):
+    name: str
+    organization_id: str
+
+
+class ProjectResponse(SQLModel):
+    id: UUID
+    name: str
+    organization_id: str
+    created_at: datetime
+
+
+class Organization(SQLModel, table=True):
+    """
+    Organization data synced from Clerk.
+    """
+    __tablename__ = "organizations"
+
+    id: str = Field(primary_key=True, description="Clerk Organization ID")
+    name: str = Field(index=True)
+    slug: Optional[str] = Field(default=None, index=True)
+    image_url: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class OrganizationMembership(SQLModel, table=True):
+    """
+    Link between Users and Organizations (synced from Clerk).
+    """
+    __tablename__ = "organization_memberships"
+
+    id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
+    organization_id: str = Field(foreign_key="organizations.id", index=True)
+    user_id: UUID = Field(foreign_key="users.id", index=True)
+    role: str = Field(description="Role in organization (e.g. org:admin, org:member)")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        indexes = [
+            Index("idx_org_members_org_user", "organization_id", "user_id", unique=True),
+        ]

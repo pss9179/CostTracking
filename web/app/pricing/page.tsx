@@ -19,7 +19,7 @@ export default function PricingPage() {
               <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
                 <Zap className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-gray-900">LLM Observe</span>
+              <span className="text-xl font-bold text-gray-900">Skyline</span>
             </Link>
             <div className="flex items-center gap-4">
               <Link href="/docs" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
@@ -56,7 +56,7 @@ export default function PricingPage() {
             <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full mb-4 mx-auto">
               <Zap className="w-8 h-8 text-indigo-600" />
             </div>
-            <CardTitle className="text-3xl font-bold mb-2">LLM Observe Pro</CardTitle>
+            <CardTitle className="text-3xl font-bold mb-2">Skyline Pro</CardTitle>
             <CardDescription className="text-lg">Everything you need to track LLM costs</CardDescription>
             <div className="mt-6">
               <div className="flex items-baseline justify-center gap-2">

@@ -22,7 +22,7 @@ export function Navigation() {
           <div className="flex h-16 items-center justify-between">
             <Link href="/" className="flex items-center space-x-2">
               <Activity className="h-6 w-6 text-blue-600" />
-              <span className="text-xl font-bold">LLMObserve</span>
+              <span className="text-xl font-bold">Skyline</span>
             </Link>
           </div>
         </div>

@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 import json
 from typing import Optional
 
-from models import User, APIKey
+from models import User, APIKey, Organization, OrganizationMembership
 from db import get_session
 from auth import generate_api_key
 
@@ -40,6 +40,18 @@ async def handle_clerk_webhook(
             await handle_user_updated(data, session)
         elif event_type == "user.deleted":
             await handle_user_deleted(data, session)
+        elif event_type == "organization.created":
+            await handle_organization_created(data, session)
+        elif event_type == "organization.updated":
+            await handle_organization_updated(data, session)
+        elif event_type == "organization.deleted":
+            await handle_organization_deleted(data, session)
+        elif event_type == "organizationMembership.created":
+            await handle_membership_created(data, session)
+        elif event_type == "organizationMembership.updated":
+            await handle_membership_updated(data, session)
+        elif event_type == "organizationMembership.deleted":
+            await handle_membership_deleted(data, session)
         else:
             logger.warning(f"[Clerk Webhook] Unhandled event type: {event_type}")
         
@@ -165,4 +177,162 @@ async def handle_user_deleted(data: dict, session: Session):
         logger.info(f"[Clerk Webhook] User {user.email} deleted (keeping data)")
     else:
         logger.warning(f"[Clerk Webhook] User {clerk_user_id} not found for deletion")
+
+
+async def handle_organization_created(data: dict, session: Session):
+    """Create organization in local DB."""
+    from models import Organization
+    
+    org_id = data.get("id")
+    name = data.get("name")
+    slug = data.get("slug")
+    image_url = data.get("image_url")
+    
+    if not org_id:
+        return
+
+    org = Organization(
+        id=org_id,
+        name=name,
+        slug=slug,
+        image_url=image_url
+    )
+    session.add(org)
+    try:
+        session.commit()
+        logger.info(f"[Clerk Webhook] Created organization {name} ({org_id})")
+    except Exception as e:
+        session.rollback()
+        logger.error(f"[Clerk Webhook] Failed to create organization: {e}")
+
+
+async def handle_organization_updated(data: dict, session: Session):
+    """Update organization in local DB."""
+    from models import Organization
+    
+    org_id = data.get("id")
+    if not org_id:
+        return
+        
+    org = session.get(Organization, org_id)
+    if not org:
+        await handle_organization_created(data, session)
+        return
+        
+    org.name = data.get("name", org.name)
+    org.slug = data.get("slug", org.slug)
+    org.image_url = data.get("image_url", org.image_url)
+    
+    session.add(org)
+    session.commit()
+    logger.info(f"[Clerk Webhook] Updated organization {org.name} ({org_id})")
+
+
+async def handle_organization_deleted(data: dict, session: Session):
+    """Delete organization from local DB."""
+    from models import Organization
+    
+    org_id = data.get("id")
+    if not org_id:
+        return
+        
+    org = session.get(Organization, org_id)
+    if org:
+        session.delete(org)
+        session.commit()
+        logger.info(f"[Clerk Webhook] Deleted organization {org_id}")
+
+
+async def handle_membership_created(data: dict, session: Session):
+    """Create organization membership."""
+    from models import OrganizationMembership, User
+    
+    org_id = data.get("organization", {}).get("id")
+    user_id = data.get("public_user_data", {}).get("user_id")
+    role = data.get("role")
+    
+    if not org_id or not user_id:
+        return
+        
+    # Find local user
+    statement = select(User).where(User.clerk_user_id == user_id)
+    user = session.exec(statement).first()
+    
+    if not user:
+        logger.warning(f"[Clerk Webhook] User {user_id} not found for membership creation")
+        return
+        
+    membership = OrganizationMembership(
+        organization_id=org_id,
+        user_id=user.id,
+        role=role
+    )
+    session.add(membership)
+    try:
+        session.commit()
+        logger.info(f"[Clerk Webhook] Created membership for user {user.email} in org {org_id}")
+    except Exception as e:
+        session.rollback()
+        logger.error(f"[Clerk Webhook] Failed to create membership: {e}")
+
+
+async def handle_membership_updated(data: dict, session: Session):
+    """Update organization membership."""
+    from models import OrganizationMembership, User
+    
+    org_id = data.get("organization", {}).get("id")
+    user_id = data.get("public_user_data", {}).get("user_id")
+    role = data.get("role")
+    
+    if not org_id or not user_id:
+        return
+        
+    statement = select(User).where(User.clerk_user_id == user_id)
+    user = session.exec(statement).first()
+    
+    if not user:
+        return
+        
+    mem_stmt = select(OrganizationMembership).where(
+        OrganizationMembership.organization_id == org_id,
+        OrganizationMembership.user_id == user.id
+    )
+    membership = session.exec(mem_stmt).first()
+    
+    if not membership:
+        await handle_membership_created(data, session)
+        return
+        
+    membership.role = role
+    session.add(membership)
+    session.commit()
+    logger.info(f"[Clerk Webhook] Updated membership for user {user.email} in org {org_id}")
+
+
+async def handle_membership_deleted(data: dict, session: Session):
+    """Delete organization membership."""
+    from models import OrganizationMembership, User
+    
+    org_id = data.get("organization", {}).get("id")
+    user_id = data.get("public_user_data", {}).get("user_id")
+    
+    if not org_id or not user_id:
+        return
+        
+    statement = select(User).where(User.clerk_user_id == user_id)
+    user = session.exec(statement).first()
+    
+    if not user:
+        return
+        
+    mem_stmt = select(OrganizationMembership).where(
+        OrganizationMembership.organization_id == org_id,
+        OrganizationMembership.user_id == user.id
+    )
+    membership = session.exec(mem_stmt).first()
+    
+    if membership:
+        session.delete(membership)
+        session.commit()
+        logger.info(f"[Clerk Webhook] Deleted membership for user {user.email} in org {org_id}")
 

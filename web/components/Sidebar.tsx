@@ -12,15 +12,20 @@ import {
   LineChart,
   Settings2,
   Activity,
-  FileCode2
+  FileCode2,
+  Building2,
+  ChevronsUpDown,
+  Plus,
+  Folder
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { UserButton, useUser, OrganizationSwitcher, useOrganization } from "@clerk/nextjs";
+import { UserButton, useUser, useOrganization, useClerk, OrganizationSwitcher } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
 import { Users } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutGrid },
+  { name: "Projects", href: "/projects", icon: Folder },
   // { name: "Runs", href: "/runs", icon: List }, // Removed as per user request
   { name: "Agents", href: "/agents", icon: Cpu },
   // { name: "LLMs", href: "/llms", icon: Zap }, // Removed as per user request
@@ -32,23 +37,30 @@ const navigation = [
 ];
 
 function OrgSwitcherWrapper() {
-  const { organization } = useOrganization();
+  const { organization, isLoaded } = useOrganization();
   
+  if (!isLoaded) return <div className="h-12 w-full animate-pulse bg-gray-100 rounded-lg" />;
+
   return (
-    <div className="w-full px-2 relative" style={{ minHeight: '4rem' }}>
-      <div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center justify-center px-2">
-        <div className="flex items-center gap-1.5">
-          <span className="text-blue-600 font-bold text-base leading-tight">Skyline</span>
-          <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+    <div className="w-full relative">
+      {/* Custom Trigger UI (Visible) */}
+      <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
+        <div className="w-full flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg hover:bg-gray-100 transition-colors group cursor-pointer pointer-events-auto">
+          <div className="flex items-center gap-1.5">
+             <span className="text-blue-600 font-bold text-base leading-tight">Skyline</span>
+             <ChevronsUpDown className="h-3 w-3 text-gray-400 group-hover:text-gray-600" />
+          </div>
+          
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-[10px] font-medium text-gray-500 truncate max-w-[80px] leading-tight">
+              {organization?.name || "Select Org"}
+            </span>
+          </div>
         </div>
-        {organization && (
-          <span className="text-gray-900 text-[11px] mt-1 leading-tight">{organization.name}</span>
-        )}
       </div>
       
-      <div className="relative z-10" style={{ opacity: 0, pointerEvents: 'auto' }}>
+      {/* Actual Switcher (Invisible but clickable) */}
+      <div className="relative z-20 opacity-0 w-full">
         <OrganizationSwitcher 
           hidePersonal={true}
           afterCreateOrganizationUrl="/dashboard"
@@ -57,7 +69,7 @@ function OrgSwitcherWrapper() {
           appearance={{
             elements: {
               rootBox: "w-full",
-              organizationSwitcherTrigger: "w-full min-h-[4rem]"
+              organizationSwitcherTrigger: "w-full min-h-[3.5rem] cursor-pointer",
             }
           }}
         />
@@ -105,7 +117,7 @@ export function Sidebar() {
       style={{ zIndex: 10 }}
     >
       {/* Organization Switcher with Skyline branding */}
-      <div className="flex h-16 items-center justify-center flex-shrink-0 w-full border-b border-gray-100/50">
+      <div className="flex h-20 items-center justify-center flex-shrink-0 w-full border-b border-gray-100/50 px-2">
         <OrgSwitcherWrapper />
       </div>
 

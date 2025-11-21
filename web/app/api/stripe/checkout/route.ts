@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: "usd",
             product_data: {
-              name: "LLM Observe Pro",
+              name: "Skyline Pro",
               description: "Monthly subscription for LLM cost tracking",
             },
             recurring: {

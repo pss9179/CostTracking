@@ -6,7 +6,7 @@ import bcrypt
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from fastapi import Header, HTTPException, Depends
+from fastapi import Header, HTTPException, Depends, Request
 from sqlmodel import Session, select
 from db import get_session
 from models import APIKey, User
@@ -43,11 +43,12 @@ def get_key_prefix(api_key: str, length: int = 12) -> str:
 
 
 async def get_current_user(
+    request: Request,
     authorization: Optional[str] = Header(None),
     session: Session = Depends(get_session)
 ) -> User:
     """
-    FastAPI dependency to validate API key and return current user.
+    FastAPI dependency to validate API key OR Clerk JWT and return current user.
     
     Usage:
         @app.get("/protected")
@@ -66,66 +67,66 @@ async def get_current_user(
     if len(parts) != 2 or parts[0].lower() != "bearer":
         raise HTTPException(
             status_code=401,
-            detail="Invalid Authorization header format. Expected: Bearer <api_key>",
+            detail="Invalid Authorization header format. Expected: Bearer <token>",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    api_key = parts[1]
+    token = parts[1]
     
-    # Validate API key format
-    if not api_key.startswith("llmo_sk_"):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API key format",
-        )
+    # Check if it's an API key (starts with llmo_sk_)
+    if token.startswith("llmo_sk_"):
+        # Validate API key
+        statement = select(APIKey).where(APIKey.revoked_at.is_(None))
+        api_keys = session.exec(statement).all()
+        
+        matched_key = None
+        for key in api_keys:
+            if verify_api_key_hash(token, key.key_hash):
+                matched_key = key
+                break
+        
+        if not matched_key:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or revoked API key",
+            )
+        
+        # Update last_used_at
+        matched_key.last_used_at = datetime.utcnow()
+        session.add(matched_key)
+        session.commit()
+        
+        # Get user
+        user = session.get(User, matched_key.user_id)
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="User not found",
+            )
+        return user
     
-    # Look up API key in database
-    # Note: In production, you'd want to cache this or use a faster lookup
-    statement = select(APIKey).where(APIKey.revoked_at.is_(None))
-    api_keys = session.exec(statement).all()
-    
-    matched_key = None
-    for key in api_keys:
-        if verify_api_key_hash(api_key, key.key_hash):
-            matched_key = key
-            break
-    
-    if not matched_key:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or revoked API key",
-        )
-    
-    # Update last_used_at
-    matched_key.last_used_at = datetime.utcnow()
-    session.add(matched_key)
-    session.commit()
-    
-    # Get user
-    user = session.get(User, matched_key.user_id)
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="User not found",
-        )
-    
-    return user
+    else:
+        # Assume it's a Clerk JWT
+        # Import locally to avoid circular import
+        from clerk_auth import get_current_clerk_user
+        return await get_current_clerk_user(request, session)
 
 
 async def get_current_user_id(
+    request: Request,
     authorization: Optional[str] = Header(None),
     session: Session = Depends(get_session)
 ) -> Optional[UUID]:
     """
-    Convenience dependency to get user ID from API key.
+    Convenience dependency to get user ID from API key or Clerk token.
     Returns None if no authorization provided (MVP mode).
     """
-    # MVP mode: Allow unauthenticated access
+    # MVP mode: Allow unauthenticated access if no header
     if not authorization:
         return None
     
     try:
-        user = await get_current_user(authorization, session)
+        user = await get_current_user(request, authorization, session)
         return user.id
     except HTTPException:
         # Invalid key - return None instead of raising (fail-open for MVP)

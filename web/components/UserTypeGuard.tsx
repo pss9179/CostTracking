@@ -22,19 +22,14 @@ export function UserTypeGuard({ children }: { children: React.ReactNode }) {
         if (!user) return;
 
         const userType = localStorage.getItem(`user_${user.id}_type`);
-        const onboardingComplete = localStorage.getItem(`user_${user.id}_onboarding_complete`);
         const isOnboarding = pathname === "/onboarding";
-        const isWelcome = pathname === "/onboarding/welcome";
 
         if (!userType && !isOnboarding) {
-            // Step 1: No type selected -> Force selection
+            // No organization created -> Force organization creation
             router.push("/onboarding");
-        } else if (userType && !onboardingComplete && !isWelcome) {
-            // Step 2: Type selected but not complete -> Force welcome
-            router.push("/onboarding/welcome");
-        } else if (userType && onboardingComplete && (isOnboarding || isWelcome)) {
-            // Step 3: Complete -> Prevent re-entry
-            router.push("/dashboard");
+        } else if (userType && isOnboarding) {
+            // Organization created -> Redirect to overview
+            router.push("/overview");
         } else {
             // All good
             setChecked(true);

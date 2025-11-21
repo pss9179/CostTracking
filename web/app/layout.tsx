@@ -12,7 +12,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "LLM Observe - Cost Observability Dashboard",
+  title: "Skyline - Cost Observability Dashboard",
   description: "First-class observability for LLM and API costs with hierarchical tracing",
 };
 

@@ -116,22 +116,25 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
-  
+
   /* Sidebar base styles */
   [data-sidebar] {
     flex-shrink: 0 !important;
-    width: 7rem !important; /* 112px - wider sidebar for better text fit */
+    width: 7rem !important;
+    /* 112px - wider sidebar for better text fit */
     position: relative !important;
     z-index: 10 !important;
   }
-  
+
   /* Ensure main content doesn't overlap sidebar */
   main {
-    min-width: 0 !important; /* Prevents flex items from overflowing */
+    min-width: 0 !important;
+    /* Prevents flex items from overflowing */
   }
 }
 
@@ -140,15 +143,16 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
-  
+
   /* Subtle divider utility */
   .divider-subtle {
     background: linear-gradient(to right, transparent, hsl(var(--border) / 0.3), transparent);
   }
-  
+
   /* Smooth transitions */
   * {
     transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
@@ -188,12 +192,15 @@
   0% {
     transform: translate(0px, 0px) scale(1);
   }
+
   33% {
     transform: translate(30px, -50px) scale(1.1);
   }
+
   66% {
     transform: translate(-20px, 20px) scale(0.9);
   }
+
   100% {
     transform: translate(0px, 0px) scale(1);
   }
@@ -212,12 +219,6 @@
 }
 
 /* Hide OrganizationSwitcher default content in sidebar */
-[data-sidebar] [class*="cl-organizationPreviewAvatarBox"],
-[data-sidebar] [class*="cl-organizationPreviewMainIdentifier"],
-[data-sidebar] [class*="cl-organizationPreviewSecondaryIdentifier"] {
-  display: none !important;
-}
-
 [data-sidebar] [class*="cl-organizationSwitcherTrigger"] {
   width: 100% !important;
   background: transparent !important;
@@ -232,25 +233,22 @@
   background: rgb(249 250 251) !important;
 }
 
-[data-sidebar] [class*="cl-organizationPreview"] {
-  display: none !important;
-}
-
 /* Hide any stray Skyline links in the top bar/main content header area */
 /* Hide LinkComponent with href="/overview" and className="flex items-center" */
-.flex.flex-col.min-w-0 > div:not(:first-child):not(main) a[href="/overview"].flex.items-center,
-.flex.flex-col.min-w-0 > div:not(:first-child):not(main) a[href="/overview"],
-.flex.flex-col.min-w-0 > div:not(:first-child):not(main) a[href*="/overview"] {
+.flex.flex-col.min-w-0>div:not(:first-child):not(main) a[href="/overview"].flex.items-center,
+.flex.flex-col.min-w-0>div:not(:first-child):not(main) a[href="/overview"],
+.flex.flex-col.min-w-0>div:not(:first-child):not(main) a[href*="/overview"] {
   display: none !important;
 }
 
 /* Hide the parent div if it contains the Skyline link or span */
-.flex.flex-col.min-w-0 > div:not(:first-child):not(main):has(a[href="/overview"]),
-.flex.flex-col.min-w-0 > div:not(:first-child):not(main):has(span.text-xl.font-bold.text-gray-900) {
+.flex.flex-col.min-w-0>div:not(:first-child):not(main):has(a[href="/overview"]),
+.flex.flex-col.min-w-0>div:not(:first-child):not(main):has(span.text-xl.font-bold.text-gray-900) {
   display: none !important;
 }
 
-/* Hide Skyline spans with text-xl font-bold text-gray-900 */
-.flex.flex-col.min-w-0 > div:not(:first-child):not(main) span.text-xl.font-bold.text-gray-900 {
-  display: none !important;
+/* Grayscale organization avatars in the dropdown to reduce color */
+.cl-organizationSwitcherPopoverCard .cl-organizationPreviewAvatarBox,
+.cl-organizationListPreviewAvatarBox {
+  filter: grayscale(100%) opacity(0.6);
 }

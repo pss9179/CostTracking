@@ -4,8 +4,8 @@ API Key management endpoints using Clerk authentication.
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
-from typing import List
+from sqlmodel import Session, select, SQLModel
+from typing import List, Optional
 
 from models import User, APIKey, APIKeyListItem, APIKeyResponse
 from db import get_session
@@ -53,9 +53,14 @@ async def get_current_user_with_keys(
     }
 
 
+class APIKeyCreateRequest(SQLModel):
+    name: str
+    project_id: Optional[str] = None
+
+
 @router.post("", response_model=APIKeyResponse)
 async def create_api_key(
-    name: str,
+    request: APIKeyCreateRequest,
     current_user: User = Depends(get_current_clerk_user),
     session: Session = Depends(get_session)
 ):
@@ -69,14 +74,15 @@ async def create_api_key(
         user_id=current_user.id,
         key_hash=key_hash,
         key_prefix=get_key_prefix(api_key),
-        name=name
+        name=request.name,
+        # project_id=request.project_id
     )
     
     session.add(api_key_record)
     session.commit()
     session.refresh(api_key_record)
     
-    logger.info(f"[Clerk API Keys] Created API key for user {current_user.email}")
+    logger.info(f"[Clerk API Keys] Created API key for user {current_user.email} (Project: {request.project_id})")
     
     return APIKeyResponse(
         id=api_key_record.id,
