@@ -72,52 +72,64 @@ export default function ApiDocsPage() {
             <section className="mb-12">
                 <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
                     <Terminal className="h-6 w-6 text-indigo-600" />
-                    AI CLI
+                    AI Auto-Instrumentation & Review
                 </h2>
                 <p className="text-gray-600 mb-6">
-                    The <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono">llmobserve</code> CLI helps you automatically detect and label agents in your codebase.
+                    The <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono">llmobserve</code> CLI intelligently scans your codebase to detect <strong>hierarchical structures</strong> of agents, tools, and workflows. It proposes changes that you can interactively review before applying.
                 </p>
 
                 <div className="grid gap-6 md:grid-cols-3 mb-8">
                     <Card
-                        title="1. Scan"
-                        description="Analyzes your codebase for agents and LLM calls without modifying files."
+                        title="1. Scan & Detect"
+                        description="Analyzes ASTs to find agents, tools, and LLM calls. Builds a dependency graph to understand your app's hierarchy."
                         code="llmobserve scan ."
                     />
                     <Card
-                        title="2. Review"
-                        description="Interactively review suggested labels and changes before applying them."
+                        title="2. Interactive Review"
+                        description="Step through every suggested change. Approve, reject, or modify labels for agents and steps."
                         code="llmobserve review"
                     />
                     <Card
-                        title="3. Apply"
-                        description="Apply approved changes with automatic backups and validation."
+                        title="3. Safe Apply"
+                        description="Apply changes with automatic backups. If syntax validation fails, it auto-rolls back."
                         code="llmobserve apply"
                     />
                 </div>
 
-                <div className="bg-slate-950 rounded-xl p-6 text-slate-300 font-mono text-sm overflow-x-auto">
+                <div className="bg-slate-950 rounded-xl p-6 text-slate-300 font-mono text-sm overflow-x-auto shadow-2xl border border-slate-800">
                     <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-4">
-                        <span className="text-slate-400">Terminal</span>
+                        <span className="text-slate-400">Interactive Review Session</span>
                         <div className="flex gap-1.5">
                             <div className="w-3 h-3 rounded-full bg-red-500/20" />
                             <div className="w-3 h-3 rounded-full bg-yellow-500/20" />
                             <div className="w-3 h-3 rounded-full bg-green-500/20" />
                         </div>
                     </div>
-                    <div className="space-y-2">
-                        <div className="flex gap-2">
-                            <span className="text-green-400">$</span>
-                            <span>llmobserve scan .</span>
+                    <div className="space-y-4">
+                        <div>
+                            <div className="flex gap-2">
+                                <span className="text-green-400">$</span>
+                                <span>llmobserve review</span>
+                            </div>
+                            <div className="text-slate-500 mt-1">📋 Reviewing suggested changes...</div>
                         </div>
-                        <div className="text-slate-500">🔍 Scanning . for LLM-related code...</div>
-                        <div className="text-slate-500">📊 Found 12 files with LLM code</div>
-                        <br />
-                        <div className="flex gap-2">
-                            <span className="text-green-400">$</span>
-                            <span>llmobserve apply</span>
+
+                        <div className="pl-4 border-l-2 border-slate-800">
+                            <div className="text-indigo-400 font-bold">[1/12] research_agent.py</div>
+                            <div className="text-slate-400 mt-1">
+                                Claude: "Identified main agent loop. Suggesting <span className="text-yellow-400">@agent('researcher')</span> label."
+                            </div>
+
+                            <div className="mt-3 bg-slate-900 p-3 rounded border border-slate-800">
+                                <div className="text-red-400">- def run_research(query):</div>
+                                <div className="text-green-400">+ @agent("researcher")</div>
+                                <div className="text-green-400">+ def run_research(query):</div>
+                            </div>
+
+                            <div className="mt-2 text-white">
+                                Apply this change? [y/n/view/skip]: <span className="animate-pulse">_</span>
+                            </div>
                         </div>
-                        <div className="text-slate-500">✅ Successfully applied 12 patches</div>
                     </div>
                 </div>
             </section>
