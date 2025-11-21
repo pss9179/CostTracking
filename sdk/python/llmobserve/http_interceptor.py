@@ -43,6 +43,21 @@ def extract_provider_from_url(url: str) -> Optional[str]:
     return None
 
 
+def should_skip_http_fallback(url: str) -> bool:
+    """
+    Check if HTTP fallback should be skipped for this URL.
+    
+    Returns True if the provider has a dedicated SDK patch that already
+    tracks calls (to avoid duplicate events).
+    """
+    provider = extract_provider_from_url(url)
+    # OpenAI SDK is patched separately, so skip HTTP fallback for OpenAI calls
+    if provider == "openai":
+        logger.debug(f"[llmobserve] Skipping HTTP fallback for OpenAI (SDK already patched)")
+        return True
+    return False
+
+
 def patch_httpx():
     """Patch httpx.Client and httpx.AsyncClient to inject headers."""
     try:
@@ -248,7 +263,8 @@ def patch_httpx():
                                 
                                 logger.debug(f"[llmobserve] About to check proxy_url (value: {proxy_url})")
                                 # HTTP FALLBACK: Create event if no proxy
-                                if not proxy_url:
+                                # Skip if provider SDK is already patched (avoid duplicates)
+                                if not proxy_url and not should_skip_http_fallback(request_url_str):
                                     logger.debug(f"[llmobserve] Calling HTTP fallback for {request_url_str}")
                                     from llmobserve.http_fallback import try_create_http_fallback_event
                                     try_create_http_fallback_event(
@@ -419,7 +435,8 @@ def patch_httpx():
                                 
                                 logger.debug(f"[llmobserve] About to check proxy_url (value: {proxy_url})")
                                 # HTTP FALLBACK: Create event if no proxy
-                                if not proxy_url:
+                                # Skip if provider SDK is already patched (avoid duplicates)
+                                if not proxy_url and not should_skip_http_fallback(request_url_str):
                                     logger.debug(f"[llmobserve] Calling HTTP fallback for {request_url_str}")
                                     from llmobserve.http_fallback import try_create_http_fallback_event
                                     try_create_http_fallback_event(
@@ -539,10 +556,11 @@ def patch_requests():
                         response = original_request(self, method, url, **kwargs)
                         
                         # HTTP FALLBACK: Create event if no proxy
+                        # Skip if provider SDK is already patched (avoid duplicates)
                         if request_tracker.should_track_response(response.status_code):
                             request_tracker.mark_request_tracked(request_id)
                             
-                            if not proxy_url:
+                            if not proxy_url and not should_skip_http_fallback(url):
                                 from llmobserve.http_fallback import try_create_http_fallback_event
                                 try_create_http_fallback_event(
                                     method=method,
@@ -653,10 +671,11 @@ def patch_aiohttp():
                         response = await original_request(self, method, url, **kwargs)
                         
                         # HTTP FALLBACK: Create event if no proxy
+                        # Skip if provider SDK is already patched (avoid duplicates)
                         if request_tracker.should_track_response(response.status):
                             request_tracker.mark_request_tracked(request_id)
                             
-                            if not proxy_url:
+                            if not proxy_url and not should_skip_http_fallback(url_str):
                                 # Read response body
                                 response_body = None
                                 try:
@@ -782,10 +801,11 @@ def patch_urllib3():
                     response = original_request(self, method, url, **kwargs)
                     
                     # HTTP FALLBACK: Create event if no proxy
+                    # Skip if provider SDK is already patched (avoid duplicates)
                     if request_tracker.should_track_response(response.status):
                         request_tracker.mark_request_tracked(request_id)
                         
-                        if not proxy_url:
+                        if not proxy_url and not should_skip_http_fallback(url_str):
                             from llmobserve.http_fallback import try_create_http_fallback_event
                             try_create_http_fallback_event(
                                 method=method,

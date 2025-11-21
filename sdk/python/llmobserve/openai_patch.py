@@ -155,8 +155,10 @@ def _track_openai_call(
     
     # Get hierarchical section information
     section_path = context.get_section_path()
-    span_id = context.get_current_span_id() or str(uuid.uuid4())
-    parent_span_id = context.get_parent_span_id()
+    # Generate a NEW span_id for this LLM call
+    span_id = str(uuid.uuid4())
+    # The current section's span_id becomes this event's parent
+    parent_span_id = context.get_current_span_id()
     
     # Detect 429 rate limiting
     status = "cancelled" if stream_cancelled else ("error" if error else "ok")
