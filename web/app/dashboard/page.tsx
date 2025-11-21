@@ -95,8 +95,9 @@ function DashboardPageContent() {
           throw new Error("Not authenticated. Please sign in again.");
         }
 
+        // Fetch initial data - limit to reasonable amount for fast loading
         const [runsData, providersData] = await Promise.all([
-          fetchRuns(1000, null, token),
+          fetchRuns(50, null, token),  // Reduced from 1000 to 50 for faster loading
           fetchProviderStats(24, null, token)
         ]);
 
@@ -107,15 +108,24 @@ function DashboardPageContent() {
         setRuns(runsData);
         setProviderStats(providersData);
 
-        // Fetch events for customer filtering - only fetch if we have runs
-        if (runsData.length > 0) {
-          const eventPromises = runsData.slice(0, 50).map((run) =>
-            fetchRunDetail(run.run_id, null, token).then((detail) => detail.events).catch(() => [])
-          );
-          const eventsArrays = await Promise.all(eventPromises);
-          const flatEvents = eventsArrays.flat();
-          console.log(`[Dashboard] Fetched ${flatEvents.length} events from ${runsData.length} runs`);
-          setAllEvents(flatEvents);
+        // Fetch events for customer filtering in background - only fetch first 10 runs for speed
+        // This is non-blocking so dashboard shows up fast
+        if (runsData.length > 0 && !isBackground) {
+          // Fetch events in background without blocking UI
+          Promise.all(
+            runsData.slice(0, 10).map((run) => 
+              fetchRunDetail(run.run_id, null, token)
+                .then((detail) => detail.events)
+                .catch(() => [])
+            )
+          ).then((eventsArrays) => {
+            const flatEvents = eventsArrays.flat();
+            console.log(`[Dashboard] Fetched ${flatEvents.length} events from ${runsData.length} runs`);
+            setAllEvents(flatEvents);
+          }).catch((err) => {
+            console.warn("[Dashboard] Failed to fetch some run details:", err);
+            // Don't set error, just log - dashboard still works without events
+          });
         } else {
           setAllEvents([]);
         }
