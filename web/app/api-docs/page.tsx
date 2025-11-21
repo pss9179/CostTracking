@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, Terminal } from "lucide-react";
+import { Terminal, Check, Copy, Bot, Zap, Server } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -68,15 +68,140 @@ export default function ApiDocsPage() {
                     />
                 </div>
             </section>
+            {/* AI CLI Section */}
+            <section className="mb-12">
+                <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
+                    <Terminal className="h-6 w-6 text-indigo-600" />
+                    AI CLI
+                </h2>
+                <p className="text-gray-600 mb-6">
+                    The <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono">llmobserve</code> CLI helps you automatically detect and label agents in your codebase.
+                </p>
+
+                <div className="grid gap-6 md:grid-cols-3 mb-8">
+                    <Card
+                        title="1. Scan"
+                        description="Analyzes your codebase for agents and LLM calls without modifying files."
+                        code="llmobserve scan ."
+                    />
+                    <Card
+                        title="2. Review"
+                        description="Interactively review suggested labels and changes before applying them."
+                        code="llmobserve review"
+                    />
+                    <Card
+                        title="3. Apply"
+                        description="Apply approved changes with automatic backups and validation."
+                        code="llmobserve apply"
+                    />
+                </div>
+
+                <div className="bg-slate-950 rounded-xl p-6 text-slate-300 font-mono text-sm overflow-x-auto">
+                    <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-4">
+                        <span className="text-slate-400">Terminal</span>
+                        <div className="flex gap-1.5">
+                            <div className="w-3 h-3 rounded-full bg-red-500/20" />
+                            <div className="w-3 h-3 rounded-full bg-yellow-500/20" />
+                            <div className="w-3 h-3 rounded-full bg-green-500/20" />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <div className="flex gap-2">
+                            <span className="text-green-400">$</span>
+                            <span>llmobserve scan .</span>
+                        </div>
+                        <div className="text-slate-500">🔍 Scanning . for LLM-related code...</div>
+                        <div className="text-slate-500">📊 Found 12 files with LLM code</div>
+                        <br />
+                        <div className="flex gap-2">
+                            <span className="text-green-400">$</span>
+                            <span>llmobserve apply</span>
+                        </div>
+                        <div className="text-slate-500">✅ Successfully applied 12 patches</div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Manual Labeling Section */}
+            <section className="mb-12">
+                <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
+                    <Check className="h-6 w-6 text-indigo-600" />
+                    Manual Labeling
+                </h2>
+                <p className="text-gray-600 mb-6">
+                    For fine-grained control, use the <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono">@trace</code> decorator or <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono">section</code> context manager.
+                </p>
+
+                <div className="grid gap-8 md:grid-cols-2">
+                    <div className="space-y-4">
+                        <h3 className="font-medium text-gray-900">Using Decorators</h3>
+                        <div className="relative group">
+                            <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl opacity-20 blur group-hover:opacity-30 transition duration-200"></div>
+                            <div className="relative bg-white rounded-xl border border-gray-200 p-4">
+                                <pre className="text-sm font-mono text-gray-800 overflow-x-auto">
+                                    {`from llmobserve import trace
+
+@trace(agent="researcher")
+def run_research(query):
+    # ...
+
+@trace(tool="web_search")
+def search(query):
+    # ...`}
+                                </pre>
+                                <CopyButton text={`from llmobserve import trace
+
+@trace(agent="researcher")
+def run_research(query):
+    # ...
+
+@trace(tool="web_search")
+def search(query):
+    # ...`} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <h3 className="font-medium text-gray-900">Using Context Managers</h3>
+                        <div className="relative group">
+                            <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl opacity-20 blur group-hover:opacity-30 transition duration-200"></div>
+                            <div className="relative bg-white rounded-xl border border-gray-200 p-4">
+                                <pre className="text-sm font-mono text-gray-800 overflow-x-auto">
+                                    {`from llmobserve import section
+
+with section("agent:writer"):
+    # ...
+    
+    with section("step:draft"):
+        # ...`}
+                                </pre>
+                                <CopyButton text={`from llmobserve import section
+
+with section("agent:writer"):
+    # ...
+    
+    with section("step:draft"):
+        # ...`} />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </div>
     );
 }
 
-function Card({ title, description }: { title: string; description: string }) {
+function Card({ title, description, code }: { title: string; description: string; code?: string }) {
     return (
         <div className="p-6 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow">
             <h3 className="font-semibold text-gray-900 mb-2">{title}</h3>
-            <p className="text-sm text-gray-600 leading-relaxed">{description}</p>
+            <p className="text-sm text-gray-600 mb-4">{description}</p>
+            {code && (
+                <div className="bg-gray-50 rounded-lg p-2 font-mono text-xs text-gray-800 border border-gray-100">
+                    {code}
+                </div>
+            )}
         </div>
     );
 }
@@ -84,7 +209,7 @@ function Card({ title, description }: { title: string; description: string }) {
 function CopyButton({ text }: { text: string }) {
     const [copied, setCopied] = useState(false);
 
-    const handleCopy = () => {
+    const copy = () => {
         navigator.clipboard.writeText(text);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
@@ -92,10 +217,15 @@ function CopyButton({ text }: { text: string }) {
 
     return (
         <button
-            onClick={handleCopy}
-            className="p-2 hover:bg-slate-200 rounded-md transition-colors text-slate-500 hover:text-slate-700"
+            onClick={copy}
+            className="absolute top-3 right-3 p-2 rounded-lg bg-white/80 hover:bg-white border border-gray-200 shadow-sm transition-all"
+            title="Copy to clipboard"
         >
-            {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+            {copied ? (
+                <Check className="h-4 w-4 text-green-500" />
+            ) : (
+                <Copy className="h-4 w-4 text-gray-500" />
+            )}
         </button>
     );
 }
