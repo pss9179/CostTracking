@@ -5,15 +5,18 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
+import { useUser } from "@clerk/nextjs";
+
 export default function OnboardingPage() {
   const router = useRouter();
+  const { user } = useUser();
   const [selected, setSelected] = useState<"solo" | "multi" | null>(null);
 
   const handleContinue = () => {
-    if (!selected) return;
+    if (!selected || !user) return;
 
     // Save selection to localStorage
-    localStorage.setItem("userType", selected);
+    localStorage.setItem(`user_${user.id}_type`, selected);
 
     // Redirect to welcome page
     router.push("/onboarding/welcome");

@@ -5,7 +5,7 @@ import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 
 export function UserTypeGuard({ children }: { children: React.ReactNode }) {
-    const { isLoaded, isSignedIn } = useUser();
+    const { isLoaded, isSignedIn, user } = useUser();
     const router = useRouter();
     const pathname = usePathname();
     const [checked, setChecked] = useState(false);
@@ -19,8 +19,10 @@ export function UserTypeGuard({ children }: { children: React.ReactNode }) {
             return;
         }
 
-        const userType = localStorage.getItem("userType");
-        const onboardingComplete = localStorage.getItem("onboardingComplete");
+        if (!user) return;
+
+        const userType = localStorage.getItem(`user_${user.id}_type`);
+        const onboardingComplete = localStorage.getItem(`user_${user.id}_onboarding_complete`);
         const isOnboarding = pathname === "/onboarding";
         const isWelcome = pathname === "/onboarding/welcome";
 
@@ -37,7 +39,7 @@ export function UserTypeGuard({ children }: { children: React.ReactNode }) {
             // All good
             setChecked(true);
         }
-    }, [isLoaded, isSignedIn, pathname, router]);
+    }, [isLoaded, isSignedIn, user, pathname, router]);
 
     // Optional: Show loading state while checking
     if (!checked) {

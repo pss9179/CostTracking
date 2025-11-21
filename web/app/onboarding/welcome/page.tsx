@@ -6,12 +6,17 @@ import { useRouter } from "next/navigation";
 import { BookOpen, Key, ArrowRight, Activity } from "lucide-react";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 
+import { useUser } from "@clerk/nextjs";
+
 export default function WelcomePage() {
     const router = useRouter();
+    const { user } = useUser();
 
     const handleComplete = (destination: string) => {
+        if (!user) return;
+
         // Mark onboarding as complete
-        localStorage.setItem("onboardingComplete", "true");
+        localStorage.setItem(`user_${user.id}_onboarding_complete`, "true");
         router.push(destination);
     };
 

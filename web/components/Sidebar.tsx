@@ -39,10 +39,12 @@ export function Sidebar() {
   const [userType, setUserType] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isLoaded || !user) return;
+
     // Check user type on mount
-    const type = localStorage.getItem("userType");
+    const type = localStorage.getItem(`user_${user.id}_type`);
     setUserType(type);
-  }, []);
+  }, [isLoaded, user]);
 
   // Don't show sidebar on auth pages or onboarding
   if (pathname?.startsWith('/sign-') || pathname === '/onboarding') {
