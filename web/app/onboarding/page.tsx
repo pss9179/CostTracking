@@ -15,8 +15,8 @@ export default function OnboardingPage() {
     // Save selection to localStorage
     localStorage.setItem("userType", selected);
 
-    // Redirect to dashboard
-    router.push("/dashboard");
+    // Redirect to welcome page
+    router.push("/onboarding/welcome");
   };
 
   return (

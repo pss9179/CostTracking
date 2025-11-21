@@ -20,13 +20,18 @@ export function UserTypeGuard({ children }: { children: React.ReactNode }) {
         }
 
         const userType = localStorage.getItem("userType");
+        const onboardingComplete = localStorage.getItem("onboardingComplete");
         const isOnboarding = pathname === "/onboarding";
+        const isWelcome = pathname === "/onboarding/welcome";
 
         if (!userType && !isOnboarding) {
-            // No type selected, force onboarding
+            // Step 1: No type selected -> Force selection
             router.push("/onboarding");
-        } else if (userType && isOnboarding) {
-            // Already selected, prevent re-onboarding
+        } else if (userType && !onboardingComplete && !isWelcome) {
+            // Step 2: Type selected but not complete -> Force welcome
+            router.push("/onboarding/welcome");
+        } else if (userType && onboardingComplete && (isOnboarding || isWelcome)) {
+            // Step 3: Complete -> Prevent re-entry
             router.push("/dashboard");
         } else {
             // All good
