@@ -3,6 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import { LayoutWrapper } from "@/components/LayoutWrapper";
+import { UserTypeGuard } from "@/components/UserTypeGuard";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -24,12 +25,14 @@ export default function RootLayout({
     <ClerkProvider
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
-      signInFallbackRedirectUrl="/onboarding"
+      signInFallbackRedirectUrl="/dashboard"
       signUpFallbackRedirectUrl="/onboarding"
     >
       <html lang="en">
         <body className={`${dmSans.className} min-h-screen bg-background antialiased`}>
-          <LayoutWrapper>{children}</LayoutWrapper>
+          <UserTypeGuard>
+            <LayoutWrapper>{children}</LayoutWrapper>
+          </UserTypeGuard>
         </body>
       </html>
     </ClerkProvider>
