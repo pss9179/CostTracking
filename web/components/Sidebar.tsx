@@ -15,7 +15,7 @@ import {
   FileCode2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { UserButton, useUser, OrganizationSwitcher } from "@clerk/nextjs";
+import { UserButton, useUser, OrganizationSwitcher, useOrganization } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
 import { Users } from "lucide-react";
 
@@ -30,6 +30,41 @@ const navigation = [
   // { name: "Settings", href: "/settings", icon: Settings }, // Removed to move to bottom
   { name: "API Docs", href: "/api-docs", icon: FileCode2 },
 ];
+
+function OrgSwitcherWrapper() {
+  const { organization } = useOrganization();
+  
+  return (
+    <div className="w-full px-2 relative" style={{ minHeight: '4rem' }}>
+      <div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center justify-center px-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-blue-600 font-bold text-base leading-tight">Skyline</span>
+          <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+        {organization && (
+          <span className="text-gray-900 text-[11px] mt-1 leading-tight">{organization.name}</span>
+        )}
+      </div>
+      
+      <div className="relative z-10" style={{ opacity: 0, pointerEvents: 'auto' }}>
+        <OrganizationSwitcher 
+          hidePersonal={true}
+          afterCreateOrganizationUrl="/dashboard"
+          afterLeaveOrganizationUrl="/dashboard"
+          afterSelectOrganizationUrl="/dashboard"
+          appearance={{
+            elements: {
+              rootBox: "w-full",
+              organizationSwitcherTrigger: "w-full min-h-[4rem]"
+            }
+          }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -66,25 +101,12 @@ export function Sidebar() {
   return (
     <div
       data-sidebar
-      className="flex flex-shrink-0 flex-col border-r border-gray-100 bg-gradient-to-b from-blue-50/30 via-white to-white h-screen w-20"
+      className="flex flex-shrink-0 flex-col border-r border-gray-100 bg-gradient-to-b from-blue-50/30 via-white to-white h-screen w-28"
       style={{ zIndex: 10 }}
     >
-      {/* Organization Switcher */}
+      {/* Organization Switcher with Skyline branding */}
       <div className="flex h-16 items-center justify-center flex-shrink-0 w-full border-b border-gray-100/50">
-        <OrganizationSwitcher 
-          hidePersonal={true}
-          afterCreateOrganizationUrl="/dashboard"
-          afterLeaveOrganizationUrl="/dashboard"
-          afterSelectOrganizationUrl="/dashboard"
-          appearance={{
-            elements: {
-              rootBox: "flex justify-center items-center w-full",
-              organizationSwitcherTrigger: "flex justify-center items-center w-full hover:bg-gray-100 rounded-lg p-1",
-              organizationPreviewTextContainer: "hidden", // Hide text on narrow sidebar
-              organizationPreviewAvatarBox: "h-8 w-8"
-            }
-          }}
-        />
+        <OrgSwitcherWrapper />
       </div>
 
       {/* Navigation - icons above text */}

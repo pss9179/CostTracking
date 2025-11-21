@@ -2,8 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Zap, BarChart3, Shield, Code, TrendingUp, CheckCircle2, DollarSign } from "lucide-react";
+import {
+  ArrowRight,
+  Zap,
+  BarChart3,
+  Shield,
+  Code,
+  TrendingUp,
+  CheckCircle2,
+  DollarSign,
+} from "lucide-react";
 import Link from "next/link";
 
 export default function LandingPage() {
@@ -11,8 +21,19 @@ export default function LandingPage() {
   const { isLoaded, isSignedIn } = useUser();
 
   // Redirect to dashboard if already signed in
-  if (isLoaded && isSignedIn) {
-    router.push("/dashboard");
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      router.push("/dashboard");
+    }
+  }, [isLoaded, isSignedIn, router]);
+
+  // Show loading state while checking auth
+  if (!isLoaded) {
+    return null;
+  }
+
+  // Don't render landing page if signed in (redirect will happen)
+  if (isSignedIn) {
     return null;
   }
 
@@ -26,10 +47,13 @@ export default function LandingPage() {
               <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
                 <BarChart3 className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-gray-900">LLM Observe</span>
+              <span className="text-xl font-bold text-gray-900">Skyline</span>
             </div>
             <div className="flex items-center gap-4">
-              <Link href="/sign-in" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
+              <Link
+                href="/sign-in"
+                className="text-gray-600 hover:text-gray-900 text-sm font-medium"
+              >
                 Login
               </Link>
               <Button
@@ -46,15 +70,16 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="relative overflow-hidden pt-20 pb-32 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-
           {/* Main Headline */}
           <div className="text-center max-w-4xl mx-auto mb-12">
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
               Track LLM costs in just{" "}
               <span className="text-indigo-600">10 lines of code</span>
-          </h1>
+            </h1>
             <p className="text-xl md:text-2xl text-gray-600 mb-8">
-              Monitor spending across all your AI providers. Track costs by customer, agent, or model. Set spending caps and never go over budget.
+              Monitor spending across all your AI providers. Track costs by
+              customer, agent, or model. Set spending caps and never go over
+              budget.
             </p>
 
             {/* CTA Buttons */}
@@ -92,14 +117,17 @@ export default function LandingPage() {
               Stop guessing your LLM costs
             </h2>
             <p className="text-xl text-gray-600">
-              Track spending across OpenAI, Anthropic, Google, and 40+ providers. See costs by customer, agent, or model.
+              Track spending across OpenAI, Anthropic, Google, and 40+
+              providers. See costs by customer, agent, or model.
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
             {/* Cost Tracking */}
             <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Real-time Cost Tracking</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                Real-time Cost Tracking
+              </h3>
               <div className="bg-gray-50 rounded-lg p-4 mb-4 font-mono text-sm">
                 <div className="text-gray-600">OpenAI: $0.45</div>
                 <div className="mt-2 space-y-1">
@@ -112,30 +140,42 @@ export default function LandingPage() {
                 </div>
               </div>
               <p className="text-gray-600 text-sm">
-                Every API call is tracked with accurate cost calculation. See exactly where your money is going.
+                Every API call is tracked with accurate cost calculation. See
+                exactly where your money is going.
               </p>
             </div>
 
             {/* Customer Cost Tracking */}
             <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Track Customer Costs</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                Track Customer Costs
+              </h3>
               <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2">
-                <div className="font-mono text-sm bg-white rounded p-2">Customer A: $0.89</div>
-                <div className="font-mono text-sm bg-white rounded p-2">Customer B: $0.45</div>
-                <div className="font-mono text-sm bg-white rounded p-2">Customer C: $0.23</div>
+                <div className="font-mono text-sm bg-white rounded p-2">
+                  Customer A: $0.89
+                </div>
+                <div className="font-mono text-sm bg-white rounded p-2">
+                  Customer B: $0.45
+                </div>
+                <div className="font-mono text-sm bg-white rounded p-2">
+                  Customer C: $0.23
+                </div>
                 <div className="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-blue-700 text-xs flex items-center gap-2 mt-2">
                   <span>📊</span>
                   <span>Per-customer breakdown</span>
                 </div>
               </div>
               <p className="text-gray-600 text-sm">
-                Perfect for SaaS founders. Track costs per customer to understand profitability and set pricing.
+                Perfect for SaaS founders. Track costs per customer to
+                understand profitability and set pricing.
               </p>
             </div>
 
             {/* Spending Caps */}
             <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Spending Caps & Alerts</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                Spending Caps & Alerts
+              </h3>
               <div className="bg-gray-50 rounded-lg p-4 mb-4 font-mono text-sm">
                 <div className="text-gray-600">Daily cap: $100</div>
                 <div className="mt-2">Current spend: $87.50</div>
@@ -145,7 +185,8 @@ export default function LandingPage() {
                 </div>
               </div>
               <p className="text-gray-600 text-sm">
-                Set budget limits with email alerts. Never go over budget again with automatic spending caps.
+                Set budget limits with email alerts. Never go over budget again
+                with automatic spending caps.
               </p>
             </div>
           </div>
@@ -160,7 +201,8 @@ export default function LandingPage() {
               Automatic cost tracking for all your LLM calls
             </h2>
             <p className="text-xl text-gray-600">
-              Stop calculating costs in spreadsheets. We track every API call and calculate costs automatically.
+              Stop calculating costs in spreadsheets. We track every API call
+              and calculate costs automatically.
             </p>
           </div>
 
@@ -169,9 +211,12 @@ export default function LandingPage() {
               <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <BarChart3 className="w-8 h-8 text-indigo-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Real-time Cost Tracking</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                Real-time Cost Tracking
+              </h3>
               <p className="text-gray-600">
-                Monitor every LLM call and API request. See costs update in real-time as your agents make calls.
+                Monitor every LLM call and API request. See costs update in
+                real-time as your agents make calls.
               </p>
             </div>
 
@@ -179,9 +224,12 @@ export default function LandingPage() {
               <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <DollarSign className="w-8 h-8 text-indigo-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Customer Cost Tracking</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                Customer Cost Tracking
+              </h3>
               <p className="text-gray-600">
-                Track costs per customer for your SaaS. See which customers are most expensive and optimize pricing.
+                Track costs per customer for your SaaS. See which customers are
+                most expensive and optimize pricing.
               </p>
             </div>
 
@@ -189,9 +237,12 @@ export default function LandingPage() {
               <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Shield className="w-8 h-8 text-indigo-600" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Spending Caps</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                Spending Caps
+              </h3>
               <p className="text-gray-600">
-                Set budget limits with email alerts and automatic blocking to prevent cost overruns.
+                Set budget limits with email alerts and automatic blocking to
+                prevent cost overruns.
               </p>
             </div>
           </div>
@@ -226,7 +277,9 @@ npm install llmobserve
 from llmobserve import observe
 
 observe(
-    collector_url="${process.env.NEXT_PUBLIC_COLLECTOR_URL || "https://api.llmobserve.com"}",
+    collector_url="${
+      process.env.NEXT_PUBLIC_COLLECTOR_URL || "https://api.llmobserve.com"
+    }",
     api_key=process.env.LLMOBSERVE_API_KEY
 )
 
@@ -246,7 +299,8 @@ observe(
                     Works with all major LLM providers
                   </h3>
                   <p className="text-gray-600">
-                    Seamlessly integrates with OpenAI, Anthropic, Google, Cohere, and 40+ providers
+                    Seamlessly integrates with OpenAI, Anthropic, Google,
+                    Cohere, and 40+ providers
                   </p>
                 </div>
               </div>
@@ -260,7 +314,8 @@ observe(
                     Zero code changes required
                   </h3>
                   <p className="text-gray-600">
-                    Drop-in cost tracking without modifying your application code
+                    Drop-in cost tracking without modifying your application
+                    code
                   </p>
                 </div>
               </div>
@@ -299,7 +354,8 @@ observe(
             </Button>
           </div>
           <p className="text-indigo-100 mt-4 text-sm">
-            For individual developers • For SaaS founders tracking customer costs
+            For individual developers • For SaaS founders tracking customer
+            costs
           </p>
         </div>
       </section>
@@ -312,12 +368,18 @@ observe(
               <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
                 <BarChart3 className="w-5 h-5 text-white" />
               </div>
-              <span className="text-lg font-bold text-gray-900">LLM Observe</span>
+              <span className="text-lg font-bold text-gray-900">Skyline</span>
             </div>
             <div className="flex gap-6 text-sm text-gray-600">
-              <Link href="/docs" className="hover:text-gray-900">Docs</Link>
-              <Link href="/pricing" className="hover:text-gray-900">Pricing</Link>
-              <Link href="#" className="hover:text-gray-900">Support</Link>
+              <Link href="/docs" className="hover:text-gray-900">
+                Docs
+              </Link>
+              <Link href="/pricing" className="hover:text-gray-900">
+                Pricing
+              </Link>
+              <Link href="#" className="hover:text-gray-900">
+                Support
+              </Link>
             </div>
           </div>
         </div>

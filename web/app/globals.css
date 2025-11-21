@@ -124,7 +124,7 @@
   /* Sidebar base styles */
   [data-sidebar] {
     flex-shrink: 0 !important;
-    width: 5rem !important; /* 80px - compact sidebar matching ai-crm style */
+    width: 7rem !important; /* 112px - wider sidebar for better text fit */
     position: relative !important;
     z-index: 10 !important;
   }
@@ -209,4 +209,48 @@
 
 .animation-delay-4000 {
   animation-delay: 4s;
+}
+
+/* Hide OrganizationSwitcher default content in sidebar */
+[data-sidebar] [class*="cl-organizationPreviewAvatarBox"],
+[data-sidebar] [class*="cl-organizationPreviewMainIdentifier"],
+[data-sidebar] [class*="cl-organizationPreviewSecondaryIdentifier"] {
+  display: none !important;
+}
+
+[data-sidebar] [class*="cl-organizationSwitcherTrigger"] {
+  width: 100% !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0.5rem !important;
+  justify-content: center !important;
+  min-height: 4rem !important;
+}
+
+[data-sidebar] [class*="cl-organizationSwitcherTrigger"]:hover {
+  background: rgb(249 250 251) !important;
+}
+
+[data-sidebar] [class*="cl-organizationPreview"] {
+  display: none !important;
+}
+
+/* Hide any stray Skyline links in the top bar/main content header area */
+/* Hide LinkComponent with href="/overview" and className="flex items-center" */
+.flex.flex-col.min-w-0 > div:not(:first-child):not(main) a[href="/overview"].flex.items-center,
+.flex.flex-col.min-w-0 > div:not(:first-child):not(main) a[href="/overview"],
+.flex.flex-col.min-w-0 > div:not(:first-child):not(main) a[href*="/overview"] {
+  display: none !important;
+}
+
+/* Hide the parent div if it contains the Skyline link or span */
+.flex.flex-col.min-w-0 > div:not(:first-child):not(main):has(a[href="/overview"]),
+.flex.flex-col.min-w-0 > div:not(:first-child):not(main):has(span.text-xl.font-bold.text-gray-900) {
+  display: none !important;
+}
+
+/* Hide Skyline spans with text-xl font-bold text-gray-900 */
+.flex.flex-col.min-w-0 > div:not(:first-child):not(main) span.text-xl.font-bold.text-gray-900 {
+  display: none !important;
 }
