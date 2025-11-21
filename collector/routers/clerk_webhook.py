@@ -59,36 +59,67 @@ async def handle_user_created(data: dict, session: Session):
         logger.error("[Clerk Webhook] Missing user ID or email")
         return
     
-    # Check if user already exists
+    # Check if user already exists by clerk_user_id
     statement = select(User).where(User.clerk_user_id == clerk_user_id)
     existing_user = session.exec(statement).first()
+    
+    # Also check by email in case user exists with different clerk_user_id
+    if not existing_user and email:
+        email_statement = select(User).where(User.email == email)
+        existing_user = session.exec(email_statement).first()
+        if existing_user and not existing_user.clerk_user_id:
+            # Update existing user with clerk_user_id
+            existing_user.clerk_user_id = clerk_user_id
+            session.add(existing_user)
+            session.commit()
+            session.refresh(existing_user)
+            logger.info(f"[Clerk Webhook] Updated existing user {email} with Clerk ID {clerk_user_id}")
+            return
     
     if existing_user:
         logger.info(f"[Clerk Webhook] User {email} already exists, skipping")
         return
     
     # Create user
-    user = User(
-        clerk_user_id=clerk_user_id,
-        email=email,
-        name=f"{data.get('first_name', '')} {data.get('last_name', '')}".strip() or None,
-        subscription_tier="free"
-    )
-    session.add(user)
-    session.flush()  # Get user ID
-    
-    # Auto-generate API key
-    api_key = generate_api_key()
-    api_key_record = APIKey(
-        user_id=user.id,
-        key_hash=api_key,  # Will be hashed by model
-        key_prefix=api_key[:12],
-        name="Default API Key"
-    )
-    session.add(api_key_record)
-    session.commit()
-    
-    logger.info(f"[Clerk Webhook] Created user {email} with API key {api_key_record.key_prefix}...")
+    try:
+        user = User(
+            clerk_user_id=clerk_user_id,
+            email=email,
+            name=f"{data.get('first_name', '')} {data.get('last_name', '')}".strip() or None,
+            subscription_tier="free"
+        )
+        session.add(user)
+        session.flush()  # Get user ID
+        
+        # Auto-generate API key
+        api_key = generate_api_key()
+        api_key_record = APIKey(
+            user_id=user.id,
+            key_hash=api_key,  # Will be hashed by model
+            key_prefix=api_key[:12],
+            name="Default API Key"
+        )
+        session.add(api_key_record)
+        session.commit()
+        
+        logger.info(f"[Clerk Webhook] Created user {email} with API key {api_key_record.key_prefix}...")
+    except Exception as e:
+        # Handle race condition: user might have been created by another request
+        if "unique constraint" in str(e).lower() or "duplicate key" in str(e).lower():
+            logger.warning(f"[Clerk Webhook] Race condition detected, user was created by another request. Looking up again...")
+            session.rollback()
+            # Try to find the user again
+            statement = select(User).where(User.clerk_user_id == clerk_user_id)
+            user = session.exec(statement).first()
+            if not user and email:
+                email_statement = select(User).where(User.email == email)
+                user = session.exec(email_statement).first()
+            if user:
+                logger.info(f"[Clerk Webhook] Found existing user after race condition: {user.email} (ID: {user.id})")
+            else:
+                logger.error(f"[Clerk Webhook] Failed to create or find user after race condition: {str(e)}")
+        else:
+            raise
 
 
 async def handle_user_updated(data: dict, session: Session):

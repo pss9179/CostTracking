@@ -146,8 +146,15 @@ async def get_current_clerk_user(
     
     # Look up user in local DB, create if doesn't exist (lazy user creation)
     try:
+        # First check by clerk_user_id (primary lookup)
         statement = select(User).where(User.clerk_user_id == clerk_user_id)
         user = session.exec(statement).first()
+        
+        if not user and email:
+            # Also check by email in case user exists with different clerk_user_id
+            # (shouldn't happen, but handles edge cases)
+            email_statement = select(User).where(User.email == email)
+            user = session.exec(email_statement).first()
         
         if not user:
             # WARNING: User should have been created via webhook or /users/sync
@@ -161,17 +168,48 @@ async def get_current_clerk_user(
             if not email:
                 email = f"user_{clerk_user_id[:8]}@clerk.local"
             
-            user = User(
-                clerk_user_id=clerk_user_id,
-                email=email,
-                name=name,
-                user_type="solo_dev",  # Default, can be updated later via /users/sync
-            )
-            session.add(user)
-            session.commit()
-            session.refresh(user)
+            # Check again by email before creating (race condition protection)
+            email_check = select(User).where(User.email == email)
+            existing_by_email = session.exec(email_check).first()
+            if existing_by_email:
+                logger.warning(f"[Clerk Auth] User with email {email} already exists, updating clerk_user_id")
+                # Update existing user with clerk_user_id if missing
+                if not existing_by_email.clerk_user_id:
+                    existing_by_email.clerk_user_id = clerk_user_id
+                    session.add(existing_by_email)
+                    session.commit()
+                    session.refresh(existing_by_email)
+                return existing_by_email
             
-            logger.warning(f"[Clerk Auth] ⚠️ Auto-created user: {user.email} (ID: {user.id}) - webhook may have failed")
+            try:
+                user = User(
+                    clerk_user_id=clerk_user_id,
+                    email=email,
+                    name=name,
+                    user_type="solo_dev",  # Default, can be updated later via /users/sync
+                )
+                session.add(user)
+                session.commit()
+                session.refresh(user)
+                
+                logger.warning(f"[Clerk Auth] ⚠️ Auto-created user: {user.email} (ID: {user.id}) - webhook may have failed")
+            except Exception as create_error:
+                # Handle race condition: another request might have created the user
+                if "unique constraint" in str(create_error).lower() or "duplicate key" in str(create_error).lower():
+                    logger.warning(f"[Clerk Auth] Race condition detected, user was created by another request. Looking up again...")
+                    session.rollback()
+                    # Try to find the user again
+                    statement = select(User).where(User.clerk_user_id == clerk_user_id)
+                    user = session.exec(statement).first()
+                    if not user and email:
+                        email_statement = select(User).where(User.email == email)
+                        user = session.exec(email_statement).first()
+                    if user:
+                        logger.info(f"[Clerk Auth] Found user after race condition: {user.email} (ID: {user.id})")
+                    else:
+                        raise HTTPException(status_code=500, detail=f"Failed to create or find user after race condition")
+                else:
+                    raise
         else:
             logger.info(f"[Clerk Auth] User found: {user.email} (ID: {user.id})")
         
