@@ -58,59 +58,73 @@ function DashboardPageContent() {
     }
 
     async function loadData(isBackground = false) {
-      try {
-        if (!isBackground) {
-          setLoading(true);
-        }
-        setError(null);
+      // Set loading immediately for non-background loads
+      if (!isBackground) {
+        setLoading(true);
+      }
+      setError(null);
 
+      try {
         // Get Clerk token and set it for API calls
         const token = await getToken();
         if (token && typeof window !== "undefined") {
           (window as any).__clerkToken = token;
         }
 
-        // Fetch user data to get user_type
-        const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
-        const userResponse = await fetch(`${collectorUrl}/clerk/api-keys/me`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
-          if (userData.user?.user_type) {
-            setUserType(userData.user.user_type);
-          }
-        }
-
-        // For now, don't filter by tenant_id to maintain backward compatibility
-        // TODO: Enable tenant filtering once data is properly tagged with tenant_id
-        // const tenantId = getTenantId(user.id);
-
         // Make sure we have a token before making API calls
         if (!token) {
           throw new Error("Not authenticated. Please sign in again.");
         }
 
-        // Fetch initial data - limit to reasonable amount for fast loading
-        const [runsData, providersData] = await Promise.all([
-          fetchRuns(50, null, token),  // Reduced from 1000 to 50 for faster loading
-          fetchProviderStats(24, null, token)
+        // Fetch user data and main data in parallel
+        const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
+        
+        // Fetch user data and main data in parallel - with error handling
+        const [userResponse, runsData, providersData] = await Promise.all([
+          fetch(`${collectorUrl}/clerk/api-keys/me`, {
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }).catch(() => ({ ok: false })), // Don't fail if user endpoint fails
+          fetchRuns(50, null, token).catch((err) => {
+            console.warn("[Dashboard] Failed to fetch runs:", err);
+            return []; // Return empty array on error
+          }),
+          fetchProviderStats(24, null, token).catch((err) => {
+            console.warn("[Dashboard] Failed to fetch provider stats:", err);
+            return []; // Return empty array on error
+          })
         ]);
 
-        // Log for debugging
-        console.log(`[Dashboard] Fetched ${runsData.length} runs, ${providersData.length} provider stats`);
-        console.log(`[Dashboard] Provider stats:`, providersData);
+        // Handle user data
+        if (userResponse && userResponse.ok) {
+          try {
+            const userData = await userResponse.json();
+            if (userData.user?.user_type) {
+              setUserType(userData.user.user_type);
+            }
+          } catch (e) {
+            console.warn("[Dashboard] Failed to parse user data:", e);
+          }
+        }
 
-        setRuns(runsData);
-        setProviderStats(providersData);
+        // Log for debugging
+        console.log(`[Dashboard] Fetched ${runsData?.length || 0} runs, ${providersData?.length || 0} provider stats`);
+
+        // Set data immediately - even if empty, show the dashboard
+        setRuns(runsData || []);
+        setProviderStats(providersData || []);
+
+        // IMPORTANT: Set loading to false IMMEDIATELY after getting main data
+        // Don't wait for events - they load in background
+        if (!isBackground) {
+          setLoading(false);
+        }
 
         // Fetch events for customer filtering in background - only fetch first 10 runs for speed
         // This is non-blocking so dashboard shows up fast
-        if (runsData.length > 0 && !isBackground) {
+        if (runsData && runsData.length > 0 && !isBackground) {
           // Fetch events in background without blocking UI
           Promise.all(
             runsData.slice(0, 10).map((run) => 
@@ -132,7 +146,12 @@ function DashboardPageContent() {
       } catch (err) {
         console.error("[Dashboard] Error loading data:", err);
         setError(err instanceof Error ? err.message : "Failed to load data");
+        // Set empty data so dashboard still shows
+        setRuns([]);
+        setProviderStats([]);
+        setAllEvents([]);
       } finally {
+        // Always set loading to false, even on error
         if (!isBackground) {
           setLoading(false);
         }
