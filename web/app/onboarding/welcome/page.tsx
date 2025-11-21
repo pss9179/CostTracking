@@ -1,9 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { BookOpen, Key } from "lucide-react";
+import { BookOpen, Key, ArrowRight, Activity } from "lucide-react";
+import { ProtectedLayout } from "@/components/ProtectedLayout";
 
 export default function WelcomePage() {
     const router = useRouter();
@@ -15,61 +16,76 @@ export default function WelcomePage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-            <div className="max-w-2xl w-full text-center space-y-8">
-                <div className="space-y-4">
+        <ProtectedLayout>
+            <div className="max-w-4xl mx-auto py-12 px-4">
+                <div className="text-center mb-12 space-y-4">
+                    <div className="inline-flex items-center justify-center p-3 bg-indigo-100 rounded-full mb-4">
+                        <Activity className="h-8 w-8 text-indigo-600" />
+                    </div>
                     <h1 className="text-4xl font-bold tracking-tight text-gray-900">
-                        Welcome to The Context Company
+                        Welcome to LLM Observe
                     </h1>
-                    <p className="text-lg text-gray-600">
-                        Analytics will show here once you send your first run.
+                    <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                        Your dashboard is ready. Connect your first application to start tracking costs, latency, and quality.
                     </p>
                 </div>
 
-                <div className="flex flex-col gap-4 max-w-md mx-auto">
-                    <Button
-                        size="lg"
-                        className="w-full h-14 text-lg bg-blue-600 hover:bg-blue-700 text-white"
-                        onClick={() => handleComplete("/api-docs")}
-                    >
-                        <BookOpen className="mr-2 h-5 w-5" />
-                        View documentation
-                    </Button>
+                <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+                    <Card className="border-2 border-transparent hover:border-indigo-100 transition-all duration-200 shadow-sm hover:shadow-md cursor-pointer group" onClick={() => handleComplete("/api-docs")}>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-indigo-600">
+                                <BookOpen className="h-5 w-5" />
+                                Read the Docs
+                            </CardTitle>
+                            <CardDescription>
+                                Learn how to integrate the SDK in minutes
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-gray-600 mb-6">
+                                Follow our quickstart guide to instrument your Python or Node.js application with just a few lines of code.
+                            </p>
+                            <Button
+                                variant="ghost"
+                                className="w-full justify-between group-hover:bg-indigo-50 group-hover:text-indigo-700"
+                            >
+                                View Documentation
+                                <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                            </Button>
+                        </CardContent>
+                    </Card>
 
-                    <Button
-                        variant="outline"
-                        size="lg"
-                        className="w-full h-14 text-lg border-gray-200 hover:bg-gray-50 text-gray-900"
-                        onClick={() => handleComplete("/settings")}
-                    >
-                        <Key className="mr-2 h-5 w-5" />
-                        Get your API key
-                    </Button>
+                    <Card className="border-2 border-transparent hover:border-indigo-100 transition-all duration-200 shadow-sm hover:shadow-md cursor-pointer group" onClick={() => handleComplete("/settings")}>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-indigo-600">
+                                <Key className="h-5 w-5" />
+                                Get API Key
+                            </CardTitle>
+                            <CardDescription>
+                                Generate your first API key
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-gray-600 mb-6">
+                                Create a production or development API key to authenticate your requests and start sending data.
+                            </p>
+                            <Button
+                                variant="ghost"
+                                className="w-full justify-between group-hover:bg-indigo-50 group-hover:text-indigo-700"
+                            >
+                                Go to Settings
+                                <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                            </Button>
+                        </CardContent>
+                    </Card>
                 </div>
 
-                <div className="pt-12 flex justify-center">
-                    {/* Illustration placeholder - using a simple SVG for now to match the vibe */}
-                    <svg
-                        width="200"
-                        height="100"
-                        viewBox="0 0 200 100"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="text-gray-900"
-                    >
-                        <path
-                            d="M20 80 C 50 80, 50 20, 80 20 S 110 80, 140 80 S 170 20, 200 20"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                        />
-                        <circle cx="20" cy="80" r="4" fill="currentColor" />
-                        <circle cx="80" cy="20" r="4" fill="currentColor" />
-                        <circle cx="140" cy="80" r="4" fill="currentColor" />
-                        <circle cx="200" cy="20" r="4" fill="currentColor" />
-                    </svg>
+                <div className="mt-12 text-center">
+                    <p className="text-sm text-gray-500">
+                        Already integrated? <button onClick={() => handleComplete("/dashboard")} className="text-indigo-600 hover:underline font-medium">Go to Dashboard</button>
+                    </p>
                 </div>
             </div>
-        </div>
+        </ProtectedLayout>
     );
 }
