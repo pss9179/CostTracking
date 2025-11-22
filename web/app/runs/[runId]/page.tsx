@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { fetchRunDetail, type RunDetail } from "@/lib/api";
 import { GraphTreeVisualization } from "@/components/GraphTreeVisualization";
 import { WaterfallChart } from "@/components/charts/WaterfallChart";
+import { StepByStepExecution } from "@/components/StepByStepExecution";
 
 export default function RunDetailPage() {
   const params = useParams();
@@ -173,12 +174,28 @@ export default function RunDetailPage() {
       </Card>
 
       {/* Events View - Hierarchical or Flat */}
-      <Tabs defaultValue="hierarchy">
+      <Tabs defaultValue="step-by-step">
         <TabsList>
+          <TabsTrigger value="step-by-step">Step-by-Step Execution</TabsTrigger>
           <TabsTrigger value="hierarchy">Hierarchical Trace</TabsTrigger>
           <TabsTrigger value="waterfall">Waterfall Timeline</TabsTrigger>
           <TabsTrigger value="flat">Flat Event List</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="step-by-step">
+          <Card>
+            <CardHeader>
+              <CardTitle>Step-by-Step Execution</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <StepByStepExecution events={detail.events.map(e => ({
+                ...e,
+                input_tokens: e.input_tokens ?? 0,
+                output_tokens: e.output_tokens ?? 0,
+              }))} />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="hierarchy">
           <Card>

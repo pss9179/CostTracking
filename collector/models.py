@@ -266,6 +266,9 @@ class TraceEvent(SQLModel, table=True):
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Event creation time")
     
+    # Semantic labeling
+    semantic_label: Optional[str] = Field(default=None, index=True, description="Semantic label from CLI analysis (e.g., 'Summarization', 'Botting')")
+    
     # Arbitrary metadata (renamed from 'metadata' to avoid SQLAlchemy reserved word)
     event_metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON), description="Arbitrary details (tenant_id, user_id, etc.)")
     
@@ -357,6 +360,7 @@ class TraceEventCreate(SQLModel):
     is_streaming: bool = False
     stream_cancelled: bool = False
     event_metadata: Optional[dict] = None
+    semantic_label: Optional[str] = None  # Semantic label from CLI analysis
     # Note: tenant_id and user_id can be extracted from API key/auth, or sent explicitly
 
 

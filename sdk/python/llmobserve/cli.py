@@ -154,6 +154,31 @@ Examples:
         help='Enable verbose logging'
     )
     
+    # NEW: 'analyze' command - semantic code analysis
+    analyze_parser = subparsers.add_parser(
+        'analyze',
+        help='Analyze codebase for semantic sections and map to costs (REQUIRED for semantic tracking)'
+    )
+    analyze_parser.add_argument(
+        'path',
+        nargs='?',
+        default='.',
+        help='Directory to analyze (default: current directory)'
+    )
+    analyze_parser.add_argument(
+        '--api-key',
+        help='Your LLMObserve API key (or set LLMOBSERVE_API_KEY env var)'
+    )
+    analyze_parser.add_argument(
+        '--collector-url',
+        help='LLMObserve collector URL (or set LLMOBSERVE_COLLECTOR_URL env var)'
+    )
+    analyze_parser.add_argument(
+        '--verbose',
+        action='store_true',
+        help='Enable verbose logging'
+    )
+    
     # LEGACY: 'preview' command
     preview_parser = subparsers.add_parser(
         'preview',
@@ -196,6 +221,9 @@ Examples:
     if args.command == 'scan':
         _cmd_scan(args)
     
+    elif args.command == 'analyze':
+        _cmd_analyze(args)
+    
     elif args.command == 'review':
         _cmd_review(args)
     
@@ -216,6 +244,125 @@ Examples:
     
     else:
         parser.print_help()
+        sys.exit(1)
+
+
+def _cmd_analyze(args):
+    """Execute analyze command - semantic code analysis."""
+    import json
+    import os
+    from pathlib import Path
+    
+    try:
+        print("🔍 Analyzing codebase for semantic sections...")
+        print()
+        
+        # Get API key and collector URL
+        api_key = args.api_key or os.getenv("LLMOBSERVE_API_KEY")
+        collector_url = args.collector_url or os.getenv("LLMOBSERVE_COLLECTOR_URL")
+        
+        if not api_key:
+            print("❌ Error: API key required for semantic analysis")
+            print("   Set LLMOBSERVE_API_KEY env var or use --api-key")
+            sys.exit(1)
+        
+        if not collector_url:
+            print("❌ Error: Collector URL required")
+            print("   Set LLMOBSERVE_COLLECTOR_URL env var or use --collector-url")
+            sys.exit(1)
+        
+        # Import scanner
+        try:
+            from llmobserve.scanner import CodeScanner
+        except ImportError:
+            print("❌ Error: Scanner module not found")
+            print("   Make sure you're using the full SDK installation")
+            sys.exit(1)
+        
+        # Scan codebase
+        scanner = CodeScanner(args.path)
+        try:
+            candidates = scanner.scan()
+        except Exception as e:
+            print(f"❌ Error scanning codebase: {e}")
+            if args.verbose:
+                import traceback
+                traceback.print_exc()
+            sys.exit(1)
+        
+        if not candidates:
+            print("✅ No LLM-related code found.")
+            print()
+            print("💡 Tip: Make sure your code has LLM API calls (OpenAI, Anthropic, etc.)")
+            sys.exit(0)
+        
+        print(f"📊 Found {len(candidates)} files with LLM code")
+        print()
+        
+        # Use AI to analyze semantic sections
+        print("🤖 Analyzing semantic sections...")
+        
+        # For now, use simple heuristics (can be enhanced with AI later)
+        semantic_map = {}
+        semantic_sections = {}
+        
+        for candidate in candidates:
+            file_path = candidate.file_path
+            # Extract function names from AST if available
+            # For now, use file-based heuristics
+            
+            # Simple heuristic: use filename/directory as semantic label
+            path_parts = Path(file_path).parts
+            if len(path_parts) > 1:
+                # Use parent directory or filename as semantic hint
+                semantic_hint = path_parts[-2] if len(path_parts) > 1 else Path(file_path).stem
+                
+                # Normalize semantic labels
+                semantic_label = semantic_hint.lower().replace('_', ' ').title().replace(' ', '')
+                
+                if file_path not in semantic_map:
+                    semantic_map[file_path] = {}
+                
+                # Map all functions in file to semantic label
+                semantic_map[file_path]["*"] = semantic_label
+                
+                if semantic_label not in semantic_sections:
+                    semantic_sections[semantic_label] = []
+                semantic_sections[semantic_label].append(file_path)
+        
+        # Save semantic map
+        llmobserve_dir = Path(args.path) / ".llmobserve"
+        llmobserve_dir.mkdir(exist_ok=True)
+        
+        semantic_map_file = llmobserve_dir / "semantic_map.json"
+        with open(semantic_map_file, 'w') as f:
+            json.dump(semantic_map, f, indent=2)
+        
+        print()
+        print(f"✅ Semantic analysis complete!")
+        print(f"   Found {len(semantic_sections)} semantic sections:")
+        for label, files in semantic_sections.items():
+            print(f"   ├─ {label}: {len(files)} file(s)")
+        print()
+        print(f"💾 Saved semantic map to: {semantic_map_file}")
+        print()
+        print("📝 Next steps:")
+        print("   1. Add to your code:")
+        print("      import llmobserve")
+        print("      llmobserve.observe(api_key='...')")
+        print()
+        print("   2. Run your code")
+        print()
+        print("   3. View semantic cost breakdown in dashboard!")
+        print()
+        
+        sys.exit(0)
+        
+    except Exception as e:
+        logger.error(f"Analysis failed: {e}")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
         sys.exit(1)
 
 

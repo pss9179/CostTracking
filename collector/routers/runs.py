@@ -366,6 +366,7 @@ async def get_run_detail(
             "status": e.status,
             "created_at": e.created_at.isoformat(),
             "customer_id": e.customer_id,  # Include customer_id for filtering
+            "semantic_label": e.semantic_label,  # Include semantic_label
         }
         for e in events
     ]

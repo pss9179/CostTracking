@@ -247,8 +247,133 @@
   display: none !important;
 }
 
-/* Grayscale organization avatars in the dropdown to reduce color */
-.cl-organizationSwitcherPopoverCard .cl-organizationPreviewAvatarBox,
+/* Custom styling for Clerk Organization Switcher dropdown */
+.cl-organizationSwitcherPopoverCard {
+  background: white !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  border-radius: 0.5rem !important;
+  padding: 0.5rem !important;
+  min-width: 280px !important;
+}
+
+.cl-organizationPreview,
+.cl-organizationListPreview {
+  padding: 0.75rem !important;
+  border-radius: 0.375rem !important;
+  transition: background-color 0.15s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+}
+
+.cl-organizationPreview:hover,
+.cl-organizationListPreview:hover {
+  background-color: #f9fafb !important;
+}
+
+.cl-organizationPreviewText {
+  color: #111827 !important;
+  font-weight: 600 !important;
+  font-size: 0.875rem !important;
+}
+
+.cl-organizationPreviewSecondaryIdentifier {
+  color: #6b7280 !important;
+  font-size: 0.75rem !important;
+  margin-top: 0.25rem !important;
+}
+
+.cl-organizationListPreviewText {
+  color: #111827 !important;
+  font-weight: 500 !important;
+  font-size: 0.875rem !important;
+}
+
+/* Change purple to blue and fix alignment */
+.cl-organizationPreviewAvatarBox,
 .cl-organizationListPreviewAvatarBox {
-  filter: grayscale(100%) opacity(0.6);
+  width: 2rem !important;
+  height: 2rem !important;
+  min-width: 2rem !important;
+  min-height: 2rem !important;
+  border-radius: 0.375rem !important;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  border: 1px solid #2563eb !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+/* Override any purple colors to blue */
+.cl-organizationPreviewAvatarBox svg,
+.cl-organizationListPreviewAvatarBox svg,
+.cl-organizationPreviewAvatarBox path,
+.cl-organizationListPreviewAvatarBox path {
+  fill: white !important;
+  stroke: white !important;
+  color: white !important;
+}
+
+/* Force blue background instead of purple */
+.cl-organizationPreviewAvatarBox[style*="background"],
+.cl-organizationListPreviewAvatarBox[style*="background"] {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+}
+
+.cl-createOrganizationBox {
+  border-top: 1px solid #e5e7eb !important;
+  margin-top: 0.5rem !important;
+  padding-top: 0.5rem !important;
+  padding: 0.75rem !important;
+  border-radius: 0.375rem !important;
+  transition: background-color 0.15s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+}
+
+.cl-createOrganizationBox:hover {
+  background-color: #eff6ff !important;
+}
+
+.cl-createOrganizationButton {
+  color: #2563eb !important;
+  font-weight: 500 !important;
+  font-size: 0.875rem !important;
+}
+
+.cl-organizationSwitcherPopoverActionButton {
+  border-radius: 0.375rem !important;
+  transition: background-color 0.15s ease !important;
+  padding: 0.5rem 0.75rem !important;
+  margin-left: auto !important;
+}
+
+.cl-organizationSwitcherPopoverActionButton:hover {
+  background-color: #f9fafb !important;
+}
+
+.cl-organizationSwitcherPopoverActionButtonText {
+  color: #111827 !important;
+  font-weight: 500 !important;
+  font-size: 0.875rem !important;
+}
+
+/* Ensure manage button shows for all organizations */
+.cl-organizationPreview,
+.cl-organizationListPreview {
+  position: relative !important;
+}
+
+.cl-organizationSwitcherPopoverActionButton {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+/* Hide Clerk footer */
+.cl-footer {
+  display: none !important;
 }

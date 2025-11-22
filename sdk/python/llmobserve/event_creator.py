@@ -150,6 +150,13 @@ def create_event_from_http_response(
     customer_id = context.get_customer_id()
     tenant_id = config.get_tenant_id()
     
+    # Get semantic label from semantic map
+    try:
+        from llmobserve.semantic_mapper import get_semantic_label_from_call_stack
+        semantic_label = get_semantic_label_from_call_stack()
+    except Exception:
+        semantic_label = None
+    
     # Create event (using backend schema field names!)
     event: TraceEvent = {
         "id": str(uuid.uuid4()),
@@ -182,6 +189,8 @@ def create_event_from_http_response(
         event["customer_id"] = customer_id
     if tenant_id:
         event["tenant_id"] = tenant_id
+    if semantic_label:
+        event["semantic_label"] = semantic_label
     
     # Calculate cost if we have token info
     if provider and model and total_tokens:

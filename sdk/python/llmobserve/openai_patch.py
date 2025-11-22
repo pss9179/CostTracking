@@ -157,6 +157,13 @@ def _track_openai_call(
     section_path = context.get_section_path()
     # Generate a NEW span_id for this LLM call
     span_id = str(uuid.uuid4())
+    
+    # Get semantic label from semantic map
+    try:
+        from llmobserve.semantic_mapper import get_semantic_label_from_call_stack
+        semantic_label = get_semantic_label_from_call_stack()
+    except Exception:
+        semantic_label = None
     # The current section's span_id becomes this event's parent
     parent_span_id = context.get_current_span_id()
     
@@ -198,6 +205,10 @@ def _track_openai_call(
     
     # Enrich with retry metadata (attempt_number, is_retry, operation_id)
     event = enrich_event_with_retry_metadata(event)
+    
+    # Add semantic label if available
+    if semantic_label:
+        event["semantic_label"] = semantic_label
     
     buffer.add_event(event)
 

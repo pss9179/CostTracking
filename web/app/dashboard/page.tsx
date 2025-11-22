@@ -16,7 +16,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { fetchRuns, fetchProviderStats, fetchRunDetail, type Run, type ProviderStats } from "@/lib/api";
+import {
+  fetchRuns,
+  fetchProviderStats,
+  fetchRunDetail,
+  type Run,
+  type ProviderStats,
+} from "@/lib/api";
 import { formatCost, calculatePercentage } from "@/lib/stats";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { MainMetricChart } from "@/components/dashboard/MainMetricChart";
@@ -39,7 +45,9 @@ function DashboardPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
-  const [userType, setUserType] = useState<"solo_dev" | "saas_founder" | null>(null);
+  const [userType, setUserType] = useState<"solo_dev" | "saas_founder" | null>(
+    null
+  );
 
   useEffect(() => {
     // If Clerk isn't loaded yet, wait
@@ -74,13 +82,14 @@ function DashboardPageContent() {
         }
 
         // Fetch user data and main data in parallel
-        const collectorUrl = process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
-        
+        const collectorUrl =
+          process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
+
         // Fetch user data and main data in parallel - with error handling
         const [userResponse, runsData, providersData] = await Promise.all([
           fetch(`${collectorUrl}/clerk/api-keys/me`, {
             headers: {
-              "Authorization": `Bearer ${token}`,
+              Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
           }).catch(() => ({ ok: false, json: async () => ({}) })), // Don't fail if user endpoint fails
@@ -91,7 +100,7 @@ function DashboardPageContent() {
           fetchProviderStats(24, null, token).catch((err) => {
             console.warn("[Dashboard] Failed to fetch provider stats:", err);
             return []; // Return empty array on error
-          })
+          }),
         ]);
 
         // Handle user data
@@ -107,7 +116,11 @@ function DashboardPageContent() {
         }
 
         // Log for debugging
-        console.log(`[Dashboard] Fetched ${runsData?.length || 0} runs, ${providersData?.length || 0} provider stats`);
+        console.log(
+          `[Dashboard] Fetched ${runsData?.length || 0} runs, ${
+            providersData?.length || 0
+          } provider stats`
+        );
 
         // Set data immediately - even if empty, show the dashboard
         setRuns(runsData || []);
@@ -124,19 +137,26 @@ function DashboardPageContent() {
         if (runsData && runsData.length > 0 && !isBackground) {
           // Fetch events in background without blocking UI
           Promise.all(
-            runsData.slice(0, 10).map((run) => 
+            runsData.slice(0, 10).map((run) =>
               fetchRunDetail(run.run_id, null, token)
                 .then((detail) => detail.events)
                 .catch(() => [])
             )
-          ).then((eventsArrays) => {
-            const flatEvents = eventsArrays.flat();
-            console.log(`[Dashboard] Fetched ${flatEvents.length} events from ${runsData.length} runs`);
-            setAllEvents(flatEvents);
-          }).catch((err) => {
-            console.warn("[Dashboard] Failed to fetch some run details:", err);
-            // Don't set error, just log - dashboard still works without events
-          });
+          )
+            .then((eventsArrays) => {
+              const flatEvents = eventsArrays.flat();
+              console.log(
+                `[Dashboard] Fetched ${flatEvents.length} events from ${runsData.length} runs`
+              );
+              setAllEvents(flatEvents);
+            })
+            .catch((err) => {
+              console.warn(
+                "[Dashboard] Failed to fetch some run details:",
+                err
+              );
+              // Don't set error, just log - dashboard still works without events
+            });
         } else {
           setAllEvents([]);
         }
@@ -164,84 +184,147 @@ function DashboardPageContent() {
 
   // Filter events by customer if selected
   const filteredEvents = selectedCustomer
-    ? allEvents.filter(e => e.customer_id === selectedCustomer)
+    ? allEvents.filter((e) => e.customer_id === selectedCustomer)
     : allEvents;
 
   // Filter provider stats by customer and exclude "internal" provider
   // Calculate this FIRST before stats to avoid circular dependency
   const filteredProviderStats = (() => {
-    const realStats = (selectedCustomer
-      ? providerStats.filter(stat => {
-        // Recalculate from filtered events
-        const customerEvents = filteredEvents.filter(e => e.provider === stat.provider);
-        return customerEvents.length > 0;
-      }).map(stat => {
-        // Recalculate from filtered events
-        const customerEvents = filteredEvents.filter(e => e.provider === stat.provider);
-        const totalCost = customerEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
-        const callCount = customerEvents.length;
-        return {
-          ...stat,
-          total_cost: totalCost,
-          call_count: callCount,
-          // Percentage will be calculated after total_cost_24h is known
-          percentage: 0,
-        };
-      })
-      : providerStats
-    ).filter(stat => stat.provider !== "internal" && stat.provider !== "unknown"); // Hide "unknown" provider
+    const realStats = (
+      selectedCustomer
+        ? providerStats
+            .filter((stat) => {
+              // Recalculate from filtered events
+              const customerEvents = filteredEvents.filter(
+                (e) => e.provider === stat.provider
+              );
+              return customerEvents.length > 0;
+            })
+            .map((stat) => {
+              // Recalculate from filtered events
+              const customerEvents = filteredEvents.filter(
+                (e) => e.provider === stat.provider
+              );
+              const totalCost = customerEvents.reduce(
+                (sum, e) => sum + (e.cost_usd || 0),
+                0
+              );
+              const callCount = customerEvents.length;
+              return {
+                ...stat,
+                total_cost: totalCost,
+                call_count: callCount,
+                // Percentage will be calculated after total_cost_24h is known
+                percentage: 0,
+              };
+            })
+        : providerStats
+    ).filter(
+      (stat) => stat.provider !== "internal" && stat.provider !== "unknown"
+    ); // Hide "unknown" provider
 
     // Return empty array if no real data - NO FAKE DATA
     return realStats;
   })();
 
   // Calculate total cost from filtered provider stats (needed for percentage calculation)
-  const total_cost_24h_from_providers = filteredProviderStats.reduce((sum, stat) => sum + (stat.total_cost || 0), 0);
+  const total_cost_24h_from_providers = filteredProviderStats.reduce(
+    (sum, stat) => sum + (stat.total_cost || 0),
+    0
+  );
 
   // Update percentages in filteredProviderStats now that we have total
-  filteredProviderStats.forEach(stat => {
-    stat.percentage = total_cost_24h_from_providers > 0 ? (stat.total_cost / total_cost_24h_from_providers) * 100 : 0;
+  filteredProviderStats.forEach((stat) => {
+    stat.percentage =
+      total_cost_24h_from_providers > 0
+        ? (stat.total_cost / total_cost_24h_from_providers) * 100
+        : 0;
   });
+
+  // Calculate semantic cost breakdown (outside stats function so it's accessible)
+  const now = new Date();
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const recentEvents = filteredEvents.filter((e) => {
+    const eventDate = new Date(e.created_at);
+    return eventDate >= yesterday;
+  });
+
+  const semanticCosts = new Map<string, { cost: number; calls: number }>();
+  recentEvents.forEach((event) => {
+    const semanticLabel = event.semantic_label;
+    if (semanticLabel) {
+      const existing = semanticCosts.get(semanticLabel) || {
+        cost: 0,
+        calls: 0,
+      };
+      existing.cost += event.cost_usd || 0;
+      existing.calls += 1;
+      semanticCosts.set(semanticLabel, existing);
+    }
+  });
+
+  // Sort semantic costs by cost descending
+  const sortedSemanticCosts = Array.from(semanticCosts.entries())
+    .map(([label, stats]) => ({
+      label,
+      cost: stats.cost,
+      calls: stats.calls,
+      percentage:
+        total_cost_24h_from_providers > 0
+          ? (stats.cost / total_cost_24h_from_providers) * 100
+          : 0,
+    }))
+    .sort((a, b) => b.cost - a.cost);
 
   // Calculate stats from provider stats (more accurate than events)
   const stats = (() => {
-    const now = new Date();
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     // Use provider stats for total cost (24h window from backend)
     const total_cost = total_cost_24h_from_providers;
-    const total_calls = filteredProviderStats.reduce((sum, stat) => sum + (stat.call_count || 0), 0);
+    const total_calls = filteredProviderStats.reduce(
+      (sum, stat) => sum + (stat.call_count || 0),
+      0
+    );
 
-    // Filter events by time window for untracked/agent calculations
-    const recentEvents = filteredEvents.filter(e => {
-      const eventDate = new Date(e.created_at);
-      return eventDate >= yesterday;
-    });
-
-    const weekEvents = filteredEvents.filter(e => {
+    const weekEvents = filteredEvents.filter((e) => {
       const eventDate = new Date(e.created_at);
       return eventDate >= weekAgo && eventDate < yesterday;
     });
 
     // Separate agent vs untracked costs
-    const agentEvents = recentEvents.filter(e => e.section?.startsWith("agent:") || e.section_path?.startsWith("agent:"));
-    const untrackedEvents = recentEvents.filter(e => !e.section?.startsWith("agent:") && !e.section_path?.startsWith("agent:"));
+    const agentEvents = recentEvents.filter(
+      (e) =>
+        e.section?.startsWith("agent:") || e.section_path?.startsWith("agent:")
+    );
+    const untrackedEvents = recentEvents.filter(
+      (e) =>
+        !e.section?.startsWith("agent:") &&
+        !e.section_path?.startsWith("agent:")
+    );
 
-    const agent_cost = agentEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
-    const untracked_cost = untrackedEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
-    const week_cost = weekEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0) / 7;
+    const agent_cost = agentEvents.reduce(
+      (sum, e) => sum + (e.cost_usd || 0),
+      0
+    );
+    const untracked_cost = untrackedEvents.reduce(
+      (sum, e) => sum + (e.cost_usd || 0),
+      0
+    );
+    const week_cost =
+      weekEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0) / 7;
 
     // Get unique run IDs from ALL events (not just filtered by customer)
     // This ensures total_runs shows all runs, not just customer-filtered ones
-    const allRecentEvents = allEvents.filter(e => {
+    const allRecentEvents = allEvents.filter((e) => {
       const eventDate = new Date(e.created_at);
       return eventDate >= yesterday;
     });
-    const uniqueRuns = new Set(allRecentEvents.map(e => e.run_id));
+    const uniqueRuns = new Set(allRecentEvents.map((e) => e.run_id));
 
     // Calculate untracked percentage
-    const untracked_percentage = total_cost > 0 ? (untracked_cost / total_cost) * 100 : 0;
+    const untracked_percentage =
+      total_cost > 0 ? (untracked_cost / total_cost) * 100 : 0;
 
     return {
       total_cost_24h: total_cost,
@@ -252,7 +335,8 @@ function DashboardPageContent() {
       total_calls_24h: total_calls,
       avg_cost_per_call: total_calls > 0 ? total_cost / total_calls : 0,
       total_runs: uniqueRuns.size,
-      cost_change: week_cost > 0 ? ((total_cost - week_cost) / week_cost) * 100 : 0,
+      cost_change:
+        week_cost > 0 ? ((total_cost - week_cost) / week_cost) * 100 : 0,
     };
   })();
 
@@ -265,40 +349,48 @@ function DashboardPageContent() {
     // Initialize days with 0
     const days = Math.ceil(dateRangeMs / (24 * 60 * 60 * 1000));
     for (let i = 0; i <= days; i++) {
-        const d = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
-        if (d > new Date()) break;
-        dayMap.set(d.toISOString().split('T')[0], 0);
+      const d = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
+      if (d > new Date()) break;
+      dayMap.set(d.toISOString().split("T")[0], 0);
     }
 
-    filteredEvents.forEach(event => {
+    filteredEvents.forEach((event) => {
       const eventDate = new Date(event.created_at);
-      if (eventDate < startDate || !event.provider || event.provider === "internal") return;
+      if (
+        eventDate < startDate ||
+        !event.provider ||
+        event.provider === "internal"
+      )
+        return;
 
-      const dateKey = eventDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      const dateKey = eventDate.toISOString().split("T")[0]; // YYYY-MM-DD
       const current = dayMap.get(dateKey) || 0;
       dayMap.set(dateKey, current + (event.cost_usd || 0));
     });
 
     return Array.from(dayMap.entries())
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([date, value]) => ({
-            date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            value: value
-        }));
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, value]) => ({
+        date: new Date(date).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        }),
+        value: value,
+      }));
   })();
 
   // Calculate 7-day sparklines for each provider
   const providerSparklines = new Map<string, number[]>();
-  filteredProviderStats.forEach(stat => {
+  filteredProviderStats.forEach((stat) => {
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const date = new Date();
       date.setDate(date.getDate() - (6 - i));
-      return date.toISOString().split('T')[0];
+      return date.toISOString().split("T")[0];
     });
 
-    const sparklineData = last7Days.map(date => {
-      const dayEvents = filteredEvents.filter(e => {
-        const eventDate = new Date(e.created_at).toISOString().split('T')[0];
+    const sparklineData = last7Days.map((date) => {
+      const dayEvents = filteredEvents.filter((e) => {
+        const eventDate = new Date(e.created_at).toISOString().split("T")[0];
         return eventDate === date && e.provider === stat.provider;
       });
       return dayEvents.reduce((sum, e) => sum + (e.cost_usd || 0), 0);
@@ -314,7 +406,8 @@ function DashboardPageContent() {
           <CardContent className="pt-6">
             <p className="text-red-600">{error}</p>
             <p className="text-sm text-muted-foreground mt-2">
-              Make sure the collector API is running on {process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000"}
+              Make sure the collector API is running on{" "}
+              {process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000"}
             </p>
           </CardContent>
         </Card>
@@ -327,7 +420,7 @@ function DashboardPageContent() {
       <ProtectedLayout>
         <div className="space-y-8">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {[1, 2, 3, 4].map(i => (
+            {[1, 2, 3, 4].map((i) => (
               <Card key={i}>
                 <CardHeader>
                   <Skeleton className="h-4 w-24" />
@@ -345,159 +438,180 @@ function DashboardPageContent() {
 
   return (
     <ProtectedLayout>
-      <div className="space-y-8">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-              <span>Lagging Indicators</span>
-              <span>/</span>
-              <span className="font-medium text-foreground">Total Cost</span>
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          </div>
-          <div className="flex items-center gap-3">
-             <DateRangeFilter value={dateRange} onChange={setDateRange} />
-             <button className="p-2 hover:bg-gray-100 rounded-md border border-gray-200 transition-colors">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M13.3333 4L2.66667 4" stroke="#64748B" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M13.3333 8L2.66667 8" stroke="#64748B" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M13.3333 12L2.66667 12" stroke="#64748B" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-             </button>
-          </div>
-        </div>
-
+      <div className="space-y-6 -mt-4">
         {/* Main Hero Chart */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-3">
-                <MainMetricChart 
-                    data={dailyChartData}
-                    title="Total Cost (24h)"
-                    metric="Cost"
-                    metricValue={formatCost(stats.total_cost_24h)}
-                    subtext="Daily cost breakdown for the selected period"
-                />
+          <div className="lg:col-span-3">
+            <div className="flex items-center justify-end gap-3 mb-4">
+              <DateRangeFilter value={dateRange} onChange={setDateRange} />
             </div>
+            <MainMetricChart
+              data={dailyChartData}
+              title="Total Cost (24h)"
+              metric="Cost"
+              metricValue={formatCost(stats.total_cost_24h)}
+            />
+          </div>
         </div>
 
         {/* Secondary Metrics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="border-0 shadow-sm bg-white">
-                <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground mb-1">API Calls</p>
-                    <h3 className="text-2xl font-bold">{stats.total_calls_24h.toLocaleString()}</h3>
-                </CardContent>
-            </Card>
-            <Card className="border-0 shadow-sm bg-white">
-                <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground mb-1">Avg Cost/Call</p>
-                    <h3 className="text-2xl font-bold">{formatCost(stats.avg_cost_per_call)}</h3>
-                </CardContent>
-            </Card>
-            <Card className="border-0 shadow-sm bg-white">
-                <CardContent className="pt-6">
-                    <p className="text-sm text-muted-foreground mb-1">Total Runs</p>
-                    <h3 className="text-2xl font-bold">{stats.total_runs}</h3>
-                </CardContent>
-            </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Provider Breakdown Table */}
-            <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Provider Breakdown</h3>
-                <div className="rounded-lg border border-gray-100 bg-white overflow-hidden">
-                    <Table>
-                        <TableHeader className="bg-gray-50/50">
-                            <TableRow className="border-gray-100 hover:bg-transparent">
-                                <TableHead className="font-medium text-gray-500">Provider</TableHead>
-                                <TableHead className="text-right font-medium text-gray-500">Cost</TableHead>
-                                <TableHead className="text-right font-medium text-gray-500">%</TableHead>
-                                <TableHead className="text-right font-medium text-gray-500">Trend</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredProviderStats.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No data</TableCell>
-                                </TableRow>
-                            ) : (
-                                filteredProviderStats.map((provider) => {
-                                    const percentage = provider.percentage !== undefined 
-                                        ? provider.percentage 
-                                        : (stats.total_cost_24h > 0 ? calculatePercentage(provider.total_cost, stats.total_cost_24h) : 0);
-                                    const sparklineData = providerSparklines.get(provider.provider) || [];
-                                    
-                                    return (
-                                        <TableRow key={provider.provider} className="border-gray-50 hover:bg-gray-50/50">
-                                            <TableCell className="font-medium text-gray-900 capitalize">{provider.provider}</TableCell>
-                                            <TableCell className="text-right text-gray-600">{formatCost(provider.total_cost)}</TableCell>
-                                            <TableCell className="text-right text-gray-600">{percentage.toFixed(1)}%</TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex justify-end">
-                                                    <Sparkline data={sparklineData} color="#10b981" width={60} height={20} />
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
+        <Card className="border-0 shadow-sm bg-white">
+          <CardContent className="pt-6">
+            <div className="flex flex-col md:flex-row gap-6">
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground mb-1">API Calls</p>
+                <h3 className="text-2xl font-bold">
+                  {stats.total_calls_24h.toLocaleString()}
+                </h3>
+              </div>
+              <div className="hidden md:block w-px bg-gray-200"></div>
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground mb-1">
+                  Avg Cost/Call
+                </p>
+                <h3 className="text-2xl font-bold">
+                  {formatCost(stats.avg_cost_per_call)}
+                </h3>
+              </div>
+              <div className="hidden md:block w-px bg-gray-200"></div>
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground mb-1">Total Runs</p>
+                <h3 className="text-2xl font-bold">{stats.total_runs}</h3>
+              </div>
             </div>
+          </CardContent>
+        </Card>
 
-            {/* Top Agents Table */}
-            <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Top Agents</h3>
-                <div className="rounded-lg border border-gray-100 bg-white overflow-hidden">
-                    <Table>
-                        <TableHeader className="bg-gray-50/50">
-                            <TableRow className="border-gray-100 hover:bg-transparent">
-                                <TableHead className="font-medium text-gray-500">Agent</TableHead>
-                                <TableHead className="text-right font-medium text-gray-500">Cost</TableHead>
-                                <TableHead className="text-right font-medium text-gray-500">Calls</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                             {(() => {
-                                const agentStats = new Map<string, { cost: number; calls: number }>();
-                                filteredEvents.forEach(event => {
-                                    const section = event.section_path || event.section;
-                                    if (section && section.startsWith("agent:")) {
-                                        const agentName = section.split("/")[0].replace("agent:", "");
-                                        const existing = agentStats.get(agentName) || { cost: 0, calls: 0 };
-                                        existing.cost += (event.cost_usd || 0);
-                                        existing.calls += 1;
-                                        agentStats.set(agentName, existing);
-                                    }
-                                });
+        {/* Semantic Cost Breakdown */}
+        {sortedSemanticCosts.length > 0 && (
+          <Card className="border-0 shadow-sm bg-white">
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold mb-4">
+                Semantic Cost Breakdown
+              </h3>
+              <div className="rounded-lg border border-gray-100 bg-white overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-gray-50/50">
+                    <TableRow className="border-gray-100 hover:bg-transparent">
+                      <TableHead className="font-medium text-gray-500">
+                        Semantic Section
+                      </TableHead>
+                      <TableHead className="text-right font-medium text-gray-500">
+                        Cost
+                      </TableHead>
+                      <TableHead className="text-right font-medium text-gray-500">
+                        %
+                      </TableHead>
+                      <TableHead className="text-right font-medium text-gray-500">
+                        Calls
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedSemanticCosts.map((semantic) => (
+                      <TableRow
+                        key={semantic.label}
+                        className="border-gray-50 hover:bg-gray-50/50"
+                      >
+                        <TableCell className="font-medium text-gray-900">
+                          {semantic.label}
+                        </TableCell>
+                        <TableCell className="text-right text-gray-600">
+                          {formatCost(semantic.cost)}
+                        </TableCell>
+                        <TableCell className="text-right text-gray-600">
+                          {semantic.percentage.toFixed(1)}%
+                        </TableCell>
+                        <TableCell className="text-right text-gray-600">
+                          {semantic.calls.toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-                                const sortedAgents = Array.from(agentStats.entries())
-                                    .sort((a, b) => b[1].cost - a[1].cost)
-                                    .slice(0, 5);
+        <div className="grid grid-cols-1 gap-8">
+          {/* Provider Breakdown Table */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Provider Breakdown</h3>
+            <div className="rounded-lg border border-gray-100 bg-white overflow-hidden">
+              <Table>
+                <TableHeader className="bg-gray-50/50">
+                  <TableRow className="border-gray-100 hover:bg-transparent">
+                    <TableHead className="font-medium text-gray-500">
+                      Provider
+                    </TableHead>
+                    <TableHead className="text-right font-medium text-gray-500">
+                      Cost
+                    </TableHead>
+                    <TableHead className="text-right font-medium text-gray-500">
+                      %
+                    </TableHead>
+                    <TableHead className="text-right font-medium text-gray-500">
+                      Trend
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProviderStats.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={4}
+                        className="text-center py-8 text-muted-foreground"
+                      >
+                        No data
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredProviderStats.map((provider) => {
+                      const percentage =
+                        provider.percentage !== undefined
+                          ? provider.percentage
+                          : stats.total_cost_24h > 0
+                          ? calculatePercentage(
+                              provider.total_cost,
+                              stats.total_cost_24h
+                            )
+                          : 0;
+                      const sparklineData =
+                        providerSparklines.get(provider.provider) || [];
 
-                                if (sortedAgents.length === 0) {
-                                    return (
-                                        <TableRow>
-                                            <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">No agent data</TableCell>
-                                        </TableRow>
-                                    );
-                                }
-
-                                return sortedAgents.map(([agent, stats]) => (
-                                    <TableRow key={agent} className="border-gray-50 hover:bg-gray-50/50">
-                                        <TableCell className="font-medium text-gray-900">{agent}</TableCell>
-                                        <TableCell className="text-right text-gray-600">{formatCost(stats.cost)}</TableCell>
-                                        <TableCell className="text-right text-gray-600">{stats.calls}</TableCell>
-                                    </TableRow>
-                                ));
-                            })()}
-                        </TableBody>
-                    </Table>
-                </div>
+                      return (
+                        <TableRow
+                          key={provider.provider}
+                          className="border-gray-50 hover:bg-gray-50/50"
+                        >
+                          <TableCell className="font-medium text-gray-900 capitalize">
+                            {provider.provider}
+                          </TableCell>
+                          <TableCell className="text-right text-gray-600">
+                            {formatCost(provider.total_cost)}
+                          </TableCell>
+                          <TableCell className="text-right text-gray-600">
+                            {percentage.toFixed(1)}%
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end">
+                              <Sparkline
+                                data={sparklineData}
+                                color="#10b981"
+                                width={60}
+                                height={20}
+                              />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
             </div>
+          </div>
         </div>
       </div>
     </ProtectedLayout>
@@ -506,7 +620,13 @@ function DashboardPageContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="p-6"><Skeleton className="h-96 w-full" /></div>}>
+    <Suspense
+      fallback={
+        <div className="p-6">
+          <Skeleton className="h-96 w-full" />
+        </div>
+      }
+    >
       <DashboardPageContent />
     </Suspense>
   );

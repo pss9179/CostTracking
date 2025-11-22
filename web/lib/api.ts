@@ -59,6 +59,7 @@ export interface RunDetail {
     status: string;
     created_at: string;
     customer_id: string | null;
+    semantic_label?: string | null;
   }>;
 }
 

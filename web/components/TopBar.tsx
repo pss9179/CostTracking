@@ -80,7 +80,6 @@ export function TopBar() {
             {pathname === "/llms" && "LLMs"}
             {pathname === "/infrastructure" && "Infrastructure"}
             {pathname === "/costs" && "Costs"}
-            {pathname === "/insights" && "Insights"}
             {pathname === "/settings" && "Settings"}
             {pathname?.startsWith("/runs/") && "Run Details"}
           </h1>
