@@ -11,6 +11,7 @@ import {
   DollarSign,
   LineChart,
   Settings2,
+  Cog,
   Activity,
   FileCode2,
   Building2,
@@ -21,6 +22,9 @@ import {
   Layers,
   Workflow,
   Users,
+  Globe,
+  Inbox,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -32,7 +36,7 @@ import {
 } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
 
-// Navigation organized by feature groups
+// Navigation organized by feature groups with icon colors
 const navigation = [
   // Feature 1: Basic cost tracking (by provider)
   {
@@ -40,43 +44,65 @@ const navigation = [
     href: "/dashboard",
     icon: LayoutGrid,
     group: "Analytics",
+    iconColor: "text-blue-500",
   },
 
   // Feature 2: Costs per product feature (semantic buckets)
-  { name: "Features", href: "/features", icon: Layers, group: "Analytics" },
+  {
+    name: "Features",
+    href: "/features",
+    icon: Layers,
+    group: "Analytics",
+    iconColor: "text-purple-500",
+  },
 
   // Feature 3: Agent tree visualization
-  { name: "Execution", href: "/agents", icon: Workflow, group: "Analytics" },
+  {
+    name: "Execution",
+    href: "/agents",
+    icon: Workflow,
+    group: "Analytics",
+    iconColor: "text-green-500",
+  },
 
   // Feature 4: Customer/tenant tracking
-  { name: "Customers", href: "/customers", icon: Users, group: "Tenants" },
+  {
+    name: "Customers",
+    href: "/customers",
+    icon: Users,
+    group: "Tenants",
+    iconColor: "text-orange-500",
+  },
 
   // Resources
-  { name: "API Docs", href: "/api-docs", icon: FileCode2, group: "Resources" },
+  {
+    name: "API Docs",
+    href: "/api-docs",
+    icon: FileCode2,
+    group: "Resources",
+    iconColor: "text-cyan-500",
+  },
 ];
 
 function OrgSwitcherWrapper() {
   const { organization, isLoaded } = useOrganization();
 
   if (!isLoaded)
-    return <div className="h-12 w-full animate-pulse bg-gray-100 rounded-lg" />;
+    return (
+      <div className="h-12 w-full animate-pulse bg-[#1e293b] rounded-lg" />
+    );
 
   return (
     <div className="w-full relative">
       {/* Custom Trigger UI (Visible) */}
-      <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
-        <div className="w-full flex flex-col items-center justify-center gap-0.5 p-2 rounded-lg hover:bg-gray-100 transition-colors group cursor-pointer pointer-events-auto">
-          <div className="flex items-center gap-1.5">
-            <span className="text-blue-600 font-bold text-xl leading-tight">
+      <div className="absolute inset-0 z-10 pointer-events-none flex items-center">
+        <div className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-[#1e293b]/20 transition-colors group cursor-pointer pointer-events-auto">
+          <Globe className="h-5 w-5 text-white flex-shrink-0" />
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <span className="text-sm font-semibold text-white truncate">
               Skyline
             </span>
-            <ChevronsUpDown className="h-3 w-3 text-gray-400 group-hover:text-gray-600" />
-          </div>
-
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[10px] font-medium text-gray-500 truncate max-w-[80px] leading-tight">
-              {organization?.name || "Select Org"}
-            </span>
+            <ChevronsUpDown className="h-4 w-4 text-gray-400 group-hover:text-white flex-shrink-0" />
           </div>
         </div>
       </div>
@@ -103,15 +129,15 @@ function OrgSwitcherWrapper() {
                 "px-3 py-2 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-3",
               organizationPreviewText: "text-gray-900 font-semibold",
               organizationPreviewSecondaryIdentifier: "text-gray-500 text-xs",
-              organizationPreviewAvatarBox: "w-8 h-8 flex-shrink-0",
+              organizationPreviewAvatarBox: "hidden",
               organizationList: "space-y-1",
               organizationListPreview:
                 "px-3 py-2 rounded-md hover:bg-gray-50 transition-colors cursor-pointer flex items-center gap-3",
               organizationListPreviewText: "text-gray-900 font-medium",
-              organizationListPreviewAvatarBox: "w-8 h-8 flex-shrink-0",
+              organizationListPreviewAvatarBox: "hidden",
               createOrganizationBox:
                 "px-3 py-2 rounded-md hover:bg-blue-50 transition-colors cursor-pointer border-t border-gray-100 mt-2 pt-2 flex items-center gap-3",
-              createOrganizationButton: "text-blue-600 font-medium",
+              createOrganizationButton: "text-blue-800 font-medium",
               footer: "hidden",
             },
             variables: {
@@ -147,7 +173,12 @@ export function Sidebar() {
   }
 
   // Organize navigation by groups
-  const overviewNav = { name: "Overview", href: "/overview", icon: Home };
+  const overviewNav = {
+    name: "Overview",
+    href: "/overview",
+    icon: Home,
+    iconColor: "text-blue-800",
+  };
 
   // Group navigation items
   const analyticsNav = navigation.filter((item) => item.group === "Analytics");
@@ -160,96 +191,67 @@ export function Sidebar() {
   return (
     <div
       data-sidebar
-      className="flex flex-shrink-0 flex-col border-r border-gray-100 bg-gradient-to-b from-blue-50/30 via-white to-white h-screen w-28"
+      className="flex flex-shrink-0 flex-col bg-black h-screen w-60"
       style={{ zIndex: 10 }}
     >
-      {/* Organization Switcher with Skyline branding */}
-      <div className="flex h-20 items-center justify-center flex-shrink-0 w-full border-b border-gray-100/50 px-2">
+      {/* Organization Switcher with Cloud icon */}
+      <div className="flex h-16 items-center flex-shrink-0 w-full border-b border-[#1e293b]/50 px-4">
         <OrgSwitcherWrapper />
       </div>
 
-      {/* Navigation - icons above text */}
-      <nav className="flex-1 space-y-1 px-2 py-3 overflow-y-auto scrollbar-none">
-        {/* Overview */}
-        {(() => {
-          const isActive =
-            pathname === overviewNav.href ||
-            (overviewNav.href !== "/" &&
-              pathname?.startsWith(overviewNav.href + "/"));
-          return (
-            <Link
-              key={overviewNav.name}
-              href={overviewNav.href}
+      {/* Navigation - icons next to text */}
+      <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto scrollbar-none">
+        {/* Home and Inbox Buttons */}
+        <div className="flex items-center gap-2 mb-3">
+          {/* Overview - Home Button */}
+          <Link
+            href={overviewNav.href}
+            className="group flex items-center justify-center rounded-lg py-3 px-3 transition-all duration-200 flex-1 bg-[#1e293b]/50 hover:bg-[#1e293b] border border-[#334155]/50"
+          >
+            <overviewNav.icon
+              strokeWidth={2}
               className={cn(
-                "group flex flex-col items-center justify-center rounded-lg py-2 px-1 transition-all duration-200 mb-2",
-                isActive
-                  ? "bg-blue-50 text-blue-600"
-                  : "text-gray-900 hover:bg-gray-100 hover:text-black"
+                "h-5 w-5 flex-shrink-0 transition-colors",
+                overviewNav.iconColor
               )}
-            >
-              <overviewNav.icon
-                strokeWidth={2.5}
-                className={cn(
-                  "h-5 w-5 mb-1 transition-colors",
-                  isActive
-                    ? "text-blue-600"
-                    : "text-gray-900 group-hover:text-black"
-                )}
-              />
-              <span
-                className={cn(
-                  "text-[10px] font-bold text-center leading-tight",
-                  isActive
-                    ? "text-blue-600"
-                    : "text-gray-900 group-hover:text-black"
-                )}
-              >
-                {overviewNav.name}
-              </span>
-            </Link>
-          );
-        })()}
+            />
+          </Link>
+
+          {/* Inbox Button */}
+          <Link
+            href="/inbox"
+            className="group flex items-center justify-center rounded-lg py-3 px-3 transition-all duration-200 flex-1 bg-[#1e293b]/50 hover:bg-[#1e293b] border border-[#334155]/50"
+          >
+            <Mail
+              strokeWidth={2}
+              className="h-5 w-5 flex-shrink-0 transition-colors text-blue-800"
+            />
+          </Link>
+        </div>
 
         {/* Analytics Group */}
         {analyticsNav.length > 0 && (
           <>
-            <div className="px-2 py-1 mb-1">
-              <span className="text-[8px] font-semibold text-gray-400 uppercase tracking-wider">
+            <div className="px-3 py-2 mb-1">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 Analytics
               </span>
             </div>
             {analyticsNav.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/" && pathname?.startsWith(item.href + "/"));
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={cn(
-                    "group flex flex-col items-center justify-center rounded-lg py-2 px-1 transition-all duration-200",
-                    isActive
-                      ? "bg-blue-50 text-blue-600"
-                      : "text-gray-900 hover:bg-gray-100 hover:text-black"
-                  )}
+                  className="group flex items-center gap-3 rounded-lg py-2.5 px-3 transition-all duration-200 text-gray-300 hover:bg-[#1e293b] hover:text-white"
                 >
                   <item.icon
-                    strokeWidth={2.5}
+                    strokeWidth={2}
                     className={cn(
-                      "h-5 w-5 mb-1 transition-colors",
-                      isActive
-                        ? "text-blue-600"
-                        : "text-gray-900 group-hover:text-black"
+                      "h-5 w-5 flex-shrink-0 transition-colors",
+                      item.iconColor || "text-gray-300"
                     )}
                   />
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold text-center leading-tight",
-                      isActive
-                        ? "text-blue-600"
-                        : "text-gray-900 group-hover:text-black"
-                    )}
-                  >
+                  <span className="text-sm font-medium leading-tight">
                     {item.name}
                   </span>
                 </Link>
@@ -261,43 +263,26 @@ export function Sidebar() {
         {/* Tenants Group */}
         {finalTenantsNav.length > 0 && (
           <>
-            <div className="px-2 py-1 mt-3 mb-1">
-              <span className="text-[8px] font-semibold text-gray-400 uppercase tracking-wider">
+            <div className="px-3 py-2 mt-3 mb-1">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 Tenants
               </span>
             </div>
             {finalTenantsNav.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/" && pathname?.startsWith(item.href + "/"));
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={cn(
-                    "group flex flex-col items-center justify-center rounded-lg py-2 px-1 transition-all duration-200",
-                    isActive
-                      ? "bg-blue-50 text-blue-600"
-                      : "text-gray-900 hover:bg-gray-100 hover:text-black"
-                  )}
+                  className="group flex items-center gap-3 rounded-lg py-2.5 px-3 transition-all duration-200 text-gray-300 hover:bg-[#1e293b] hover:text-white"
                 >
                   <item.icon
-                    strokeWidth={2.5}
+                    strokeWidth={2}
                     className={cn(
-                      "h-5 w-5 mb-1 transition-colors",
-                      isActive
-                        ? "text-blue-600"
-                        : "text-gray-900 group-hover:text-black"
+                      "h-5 w-5 flex-shrink-0 transition-colors",
+                      item.iconColor || "text-gray-300"
                     )}
                   />
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold text-center leading-tight",
-                      isActive
-                        ? "text-blue-600"
-                        : "text-gray-900 group-hover:text-black"
-                    )}
-                  >
+                  <span className="text-sm font-medium leading-tight">
                     {item.name}
                   </span>
                 </Link>
@@ -309,43 +294,26 @@ export function Sidebar() {
         {/* Resources Group */}
         {resourcesNav.length > 0 && (
           <>
-            <div className="px-2 py-1 mt-3 mb-1">
-              <span className="text-[8px] font-semibold text-gray-400 uppercase tracking-wider">
+            <div className="px-3 py-2 mt-3 mb-1">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 Resources
               </span>
             </div>
             {resourcesNav.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/" && pathname?.startsWith(item.href + "/"));
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={cn(
-                    "group flex flex-col items-center justify-center rounded-lg py-2 px-1 transition-all duration-200",
-                    isActive
-                      ? "bg-blue-50 text-blue-600"
-                      : "text-gray-900 hover:bg-gray-100 hover:text-black"
-                  )}
+                  className="group flex items-center gap-3 rounded-lg py-2.5 px-3 transition-all duration-200 text-gray-300 hover:bg-[#1e293b] hover:text-white"
                 >
                   <item.icon
-                    strokeWidth={2.5}
+                    strokeWidth={2}
                     className={cn(
-                      "h-5 w-5 mb-1 transition-colors",
-                      isActive
-                        ? "text-blue-600"
-                        : "text-gray-900 group-hover:text-black"
+                      "h-5 w-5 flex-shrink-0 transition-colors",
+                      item.iconColor || "text-gray-300"
                     )}
                   />
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold text-center leading-tight",
-                      isActive
-                        ? "text-blue-600"
-                        : "text-gray-900 group-hover:text-black"
-                    )}
-                  >
+                  <span className="text-sm font-medium leading-tight">
                     {item.name}
                   </span>
                 </Link>
@@ -356,40 +324,21 @@ export function Sidebar() {
       </nav>
 
       {/* Bottom section with Settings and Profile */}
-      <div className="py-2 flex-shrink-0 flex flex-col items-center gap-2 relative border-t border-gray-100/50">
+      <div className="py-3 flex-shrink-0 flex flex-col gap-2 relative border-t border-[#1e293b]/50 px-3">
         {/* Settings Link */}
         <Link
           href="/settings"
-          className={cn(
-            "group flex flex-col items-center justify-center rounded-lg py-2 px-1 transition-all duration-200 w-full",
-            pathname === "/settings"
-              ? "bg-blue-50 text-blue-600"
-              : "text-gray-900 hover:bg-gray-100 hover:text-black"
-          )}
+          className="group flex items-center gap-3 rounded-lg py-2.5 px-3 transition-all duration-200 text-gray-300 hover:bg-[#1e293b] hover:text-white"
         >
-          <Settings2
-            strokeWidth={2.5}
-            className={cn(
-              "h-5 w-5 mb-1 transition-colors",
-              pathname === "/settings"
-                ? "text-blue-600"
-                : "text-gray-900 group-hover:text-black"
-            )}
+          <Cog
+            strokeWidth={2}
+            className="h-5 w-5 flex-shrink-0 transition-colors text-gray-400"
           />
-          <span
-            className={cn(
-              "text-[10px] font-bold text-center leading-tight",
-              pathname === "/settings"
-                ? "text-blue-600"
-                : "text-gray-900 group-hover:text-black"
-            )}
-          >
-            Settings
-          </span>
+          <span className="text-sm font-medium leading-tight">Settings</span>
         </Link>
 
         {isLoaded && user ? (
-          <div className="relative flex items-center justify-center">
+          <div className="relative flex items-center px-3">
             <UserButton
               afterSignOutUrl="/sign-in"
               appearance={{
@@ -404,15 +353,13 @@ export function Sidebar() {
         ) : (
           <Link
             href="/sign-in"
-            className="group flex flex-col items-center justify-center rounded-lg py-2 px-1 transition-all duration-200 text-gray-900 hover:bg-gray-100 w-full"
+            className="group flex items-center gap-3 rounded-lg py-2.5 px-3 transition-all duration-200 text-gray-300 hover:bg-[#1e293b] hover:text-white"
           >
-            <Settings2
-              strokeWidth={2.5}
-              className="h-5 w-5 mb-1 transition-colors"
+            <Cog
+              strokeWidth={2}
+              className="h-5 w-5 flex-shrink-0 transition-colors text-gray-300 group-hover:text-white"
             />
-            <span className="text-[10px] font-bold text-center leading-tight">
-              Sign In
-            </span>
+            <span className="text-sm font-medium leading-tight">Sign In</span>
           </Link>
         )}
       </div>
