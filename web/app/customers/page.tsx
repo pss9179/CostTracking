@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Users, ArrowUpRight, ArrowDownRight, DollarSign, Activity } from "lucide-react";
+import { Search } from "lucide-react";
 import { useState } from "react";
 
 // Mock data
@@ -90,7 +90,7 @@ export default function CustomersPage() {
           <button className="bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
             Export CSV
           </button>
-          <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm">
+          <button className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors">
             Add Customer
           </button>
         </div>
@@ -98,88 +98,40 @@ export default function CustomersPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="border-indigo-100 bg-indigo-50/50">
-          <CardContent className="p-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-indigo-600 mb-1">Total Customers</p>
-                <h3 className="text-3xl font-bold text-gray-900">1,245</h3>
-              </div>
-              <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
-                <Users className="h-5 w-5" />
-              </div>
-            </div>
-            <div className="mt-4 flex items-center text-sm text-green-600">
-              <ArrowUpRight className="h-4 w-4 mr-1" />
-              <span className="font-medium">+12%</span>
-              <span className="text-gray-500 ml-1">from last month</span>
-            </div>
+        <Card className="border-0 shadow-sm bg-white">
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground mb-1">Total Customers</p>
+            <h3 className="text-2xl font-bold">1,245</h3>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-gray-500 mb-1">Active (30d)</p>
-                <h3 className="text-3xl font-bold text-gray-900">854</h3>
-              </div>
-              <div className="p-2 bg-green-100 rounded-lg text-green-600">
-                <Activity className="h-5 w-5" />
-              </div>
-            </div>
-            <div className="mt-4 flex items-center text-sm text-green-600">
-              <ArrowUpRight className="h-4 w-4 mr-1" />
-              <span className="font-medium">+5%</span>
-              <span className="text-gray-500 ml-1">from last month</span>
-            </div>
+        <Card className="border-0 shadow-sm bg-white">
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground mb-1">Active (30d)</p>
+            <h3 className="text-2xl font-bold">854</h3>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-gray-500 mb-1">Avg Cost/Customer</p>
-                <h3 className="text-3xl font-bold text-gray-900">$42.50</h3>
-              </div>
-              <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
-                <DollarSign className="h-5 w-5" />
-              </div>
-            </div>
-            <div className="mt-4 flex items-center text-sm text-red-600">
-              <ArrowDownRight className="h-4 w-4 mr-1" />
-              <span className="font-medium">-2%</span>
-              <span className="text-gray-500 ml-1">from last month</span>
-            </div>
+        <Card className="border-0 shadow-sm bg-white">
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground mb-1">Avg Cost/Customer</p>
+            <h3 className="text-2xl font-bold">$42.50</h3>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm font-medium text-gray-500 mb-1">Total Revenue</p>
-                <h3 className="text-3xl font-bold text-gray-900">$52.4k</h3>
-              </div>
-              <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
-                <DollarSign className="h-5 w-5" />
-              </div>
-            </div>
-            <div className="mt-4 flex items-center text-sm text-green-600">
-              <ArrowUpRight className="h-4 w-4 mr-1" />
-              <span className="font-medium">+18%</span>
-              <span className="text-gray-500 ml-1">from last month</span>
-            </div>
+        <Card className="border-0 shadow-sm bg-white">
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground mb-1">Total Revenue</p>
+            <h3 className="text-2xl font-bold">$52.4k</h3>
           </CardContent>
         </Card>
       </div>
 
       {/* Table Section */}
-      <Card className="border-gray-200 shadow-sm">
-        <CardHeader className="border-b border-gray-100 bg-gray-50/50">
+      <div className="rounded-lg border border-gray-100 bg-white overflow-hidden">
+        <div className="border-b border-gray-100 bg-gray-50/50 px-6 py-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-semibold text-gray-900">All Customers</CardTitle>
+            <h3 className="text-lg font-semibold">All Customers</h3>
             <div className="relative w-72">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -190,56 +142,52 @@ export default function CustomersPage() {
               />
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
-                <TableHead className="w-[250px]">Customer</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Total Cost</TableHead>
-                <TableHead className="text-right">API Calls</TableHead>
-                <TableHead className="text-right">Avg Latency</TableHead>
-                <TableHead className="text-right">Last Active</TableHead>
+        </div>
+        <Table>
+          <TableHeader className="bg-gray-50/50">
+            <TableRow className="border-gray-100 hover:bg-transparent">
+              <TableHead className="font-medium text-gray-500">Customer</TableHead>
+              <TableHead className="font-medium text-gray-500">Status</TableHead>
+              <TableHead className="text-right font-medium text-gray-500">Total Cost</TableHead>
+              <TableHead className="text-right font-medium text-gray-500">API Calls</TableHead>
+              <TableHead className="text-right font-medium text-gray-500">Avg Latency</TableHead>
+              <TableHead className="text-right font-medium text-gray-500">Last Active</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredCustomers.map((customer) => (
+              <TableRow key={customer.id} className="border-gray-50 hover:bg-gray-50/50">
+                <TableCell>
+                  <div>
+                    <div className="font-medium text-gray-900">{customer.name}</div>
+                    <div className="text-xs text-gray-500 font-mono">{customer.id}</div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant="secondary"
+                    className="bg-gray-100 text-gray-700 hover:bg-gray-100"
+                  >
+                    {customer.status}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right text-gray-600">
+                  ${customer.total_cost.toFixed(2)}
+                </TableCell>
+                <TableCell className="text-right text-gray-600">
+                  {customer.calls.toLocaleString()}
+                </TableCell>
+                <TableCell className="text-right text-gray-600">
+                  {customer.avg_latency}ms
+                </TableCell>
+                <TableCell className="text-right text-gray-500">
+                  {customer.last_active}
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCustomers.map((customer) => (
-                <TableRow key={customer.id} className="hover:bg-gray-50 transition-colors cursor-pointer">
-                  <TableCell>
-                    <div>
-                      <div className="font-medium text-gray-900">{customer.name}</div>
-                      <div className="text-xs text-gray-500 font-mono">{customer.id}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="secondary"
-                      className={customer.status === 'active'
-                        ? "bg-green-100 text-green-700 hover:bg-green-100"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-100"}
-                    >
-                      {customer.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-medium text-gray-900">
-                    ${customer.total_cost.toFixed(2)}
-                  </TableCell>
-                  <TableCell className="text-right text-gray-600">
-                    {customer.calls.toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-right text-gray-600">
-                    {customer.avg_latency}ms
-                  </TableCell>
-                  <TableCell className="text-right text-gray-500">
-                    {customer.last_active}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
