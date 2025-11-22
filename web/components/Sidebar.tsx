@@ -177,7 +177,7 @@ export function Sidebar() {
     name: "Overview",
     href: "/overview",
     icon: Home,
-    iconColor: "text-blue-800",
+    iconColor: "text-gray-400",
   };
 
   // Group navigation items
@@ -224,7 +224,7 @@ export function Sidebar() {
           >
             <Mail
               strokeWidth={2}
-              className="h-5 w-5 flex-shrink-0 transition-colors text-blue-800"
+              className="h-5 w-5 flex-shrink-0 transition-colors text-gray-400"
             />
           </Link>
         </div>

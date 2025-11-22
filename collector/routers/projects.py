@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from db import get_session
 from models import Project, ProjectCreate, ProjectResponse
-from routers.auth import get_current_user_clerk, User
+from clerk_auth import get_current_clerk_user
+from models import User
 
 router = APIRouter(
     prefix="/projects",
@@ -15,7 +16,7 @@ router = APIRouter(
 def create_project(
     project: ProjectCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user_clerk),
+    current_user: User = Depends(get_current_clerk_user),
 ):
     """
     Create a new project for an organization.
@@ -36,7 +37,7 @@ def create_project(
 def list_projects(
     organization_id: str,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user_clerk),
+    current_user: User = Depends(get_current_clerk_user),
 ):
     """
     List all projects for a specific organization.

@@ -155,22 +155,32 @@ export default function SettingsPage() {
         return;
       }
 
-      const collectorUrl =
-        process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
-      const response = await fetch(`${collectorUrl}/clerk/api-keys/me`, {
+      const response = await fetch("/api/api-keys", {
         headers: {
-          Authorization: `Bearer ${session}`,
           "Content-Type": "application/json",
         },
       });
 
       if (response.ok) {
         const data = await response.json();
+        console.log("API keys loaded:", data);
         setUser(data.user);
-        setApiKeys(data.api_keys);
+        setApiKeys(data.api_keys || []);
       } else {
-        const errorText = await response.text();
-        console.error("Failed to load API keys:", errorText);
+        let errorMessage = "Unknown error";
+        try {
+          const errorData = await response.json();
+          errorMessage =
+            errorData.error || errorData.detail || JSON.stringify(errorData);
+        } catch (e) {
+          const errorText = await response.text();
+          errorMessage = errorText || `HTTP ${response.status}`;
+        }
+        console.error(
+          "Failed to load API keys:",
+          response.status,
+          errorMessage
+        );
         // If user not found, try syncing again
         if (response.status === 404) {
           console.log("User not found, syncing...");
@@ -185,6 +195,8 @@ export default function SettingsPage() {
   };
 
   const handleCreateKey = async () => {
+    console.log("[Frontend] handleCreateKey called, newKeyName:", newKeyName);
+
     if (!newKeyName.trim()) {
       alert("Please enter a name for your API key");
       return;
@@ -192,49 +204,94 @@ export default function SettingsPage() {
 
     try {
       setCreatingKey(true);
+      console.log("[Frontend] Getting token...");
       const session = await getToken();
+      console.log("[Frontend] Token received:", session ? "Yes" : "No");
+
       if (!session) {
         alert("Please sign in to create an API key");
         setCreatingKey(false);
         return;
       }
 
-      console.log(
-        "Creating API key with token:",
-        session.substring(0, 20) + "..."
-      );
+      console.log("[Frontend] Creating API key with name:", newKeyName);
+      console.log("[Frontend] Making fetch request to /api/api-keys");
 
-      const collectorUrl =
-        process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
-      const url = `${collectorUrl}/clerk/api-keys?name=${encodeURIComponent(
-        newKeyName
-      )}`;
-      console.log("POST to:", url);
-
-      const response = await fetch(url, {
+      const response = await fetch("/api/api-keys", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${session}`,
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          name: newKeyName,
+        }),
       });
+
+      console.log(
+        "[Frontend] Response status:",
+        response.status,
+        "ok:",
+        response.ok
+      );
 
       if (response.ok) {
         const data = await response.json();
-        setNewKey(data.key);
-        setNewKeyName("");
-        await loadAPIKeys();
-        alert(
-          "API key created successfully! Copy it now - you won't be able to see it again."
-        );
+        console.log("[Frontend] API key created successfully:", {
+          ...data,
+          key: data.key ? `${data.key.substring(0, 10)}...` : "NO KEY",
+        });
+        if (data.key) {
+          setNewKey(data.key);
+          setNewKeyName("");
+          await loadAPIKeys();
+          alert(
+            "API key created successfully! Copy it now - you won't be able to see it again."
+          );
+        } else {
+          console.error("[Frontend] No key in response:", data);
+          alert(
+            "API key created but key not returned. Please check console for details."
+          );
+        }
       } else {
-        const errorText = await response.text();
-        console.error("Failed to create API key:", response.status, errorText);
-        console.error("Full response:", response);
-        alert(`Failed to create API key: ${response.status} - ${errorText}`);
+        let errorMessage = "Unknown error";
+        try {
+          const errorData = await response.json();
+          errorMessage =
+            errorData.error || errorData.detail || JSON.stringify(errorData);
+          console.error(
+            "[Frontend] Failed to create API key - error data:",
+            errorData
+          );
+        } catch (e) {
+          const errorText = await response.text();
+          errorMessage = errorText || `HTTP ${response.status}`;
+          console.error(
+            "[Frontend] Failed to create API key - error text:",
+            errorText
+          );
+        }
+        console.error(
+          "[Frontend] Failed to create API key:",
+          response.status,
+          errorMessage
+        );
+        alert(`Failed to create API key: ${response.status} - ${errorMessage}`);
       }
     } catch (err) {
-      console.error("Failed to create API key:", err);
+      console.error("Failed to create API key - catch block:", err);
+      console.error(
+        "Error type:",
+        err instanceof Error ? err.constructor.name : typeof err
+      );
+      console.error(
+        "Error message:",
+        err instanceof Error ? err.message : String(err)
+      );
+      console.error(
+        "Error stack:",
+        err instanceof Error ? err.stack : "No stack"
+      );
       alert(
         `Error: ${
           err instanceof Error ? err.message : "Failed to create API key"
@@ -255,24 +312,31 @@ export default function SettingsPage() {
     }
 
     try {
-      const session = await getToken();
-      if (!session) return;
-
-      const collectorUrl =
-        process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
-      const response = await fetch(`${collectorUrl}/clerk/api-keys/${keyId}`, {
+      const response = await fetch(`/api/api-keys?keyId=${keyId}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${session}`,
           "Content-Type": "application/json",
         },
       });
 
       if (response.ok) {
         await loadAPIKeys();
+      } else {
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Unknown error" }));
+        console.error("Failed to revoke API key:", response.status, errorData);
+        alert(
+          `Failed to revoke API key: ${errorData.error || "Unknown error"}`
+        );
       }
     } catch (err) {
       console.error("Failed to revoke API key:", err);
+      alert(
+        `Error: ${
+          err instanceof Error ? err.message : "Failed to revoke API key"
+        }`
+      );
     }
   };
 
