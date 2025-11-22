@@ -340,20 +340,21 @@ function DashboardPageContent() {
     };
   })();
 
-  // Prepare daily chart data for MainMetricChart
+  // Prepare daily chart data for MainMetricChart with provider breakdown
   const dailyChartData = (() => {
     const dateRangeMs = getDateRangeMs(dateRange);
     const startDate = new Date(Date.now() - dateRangeMs);
-    const dayMap = new Map<string, number>();
+    const dayMap = new Map<string, Record<string, number>>();
 
-    // Initialize days with 0
+    // Initialize days with empty provider objects
     const days = Math.ceil(dateRangeMs / (24 * 60 * 60 * 1000));
     for (let i = 0; i <= days; i++) {
       const d = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
       if (d > new Date()) break;
-      dayMap.set(d.toISOString().split("T")[0], 0);
+      dayMap.set(d.toISOString().split("T")[0], {});
     }
 
+    // Aggregate costs by date and provider
     filteredEvents.forEach((event) => {
       const eventDate = new Date(event.created_at);
       if (
@@ -364,19 +365,25 @@ function DashboardPageContent() {
         return;
 
       const dateKey = eventDate.toISOString().split("T")[0]; // YYYY-MM-DD
-      const current = dayMap.get(dateKey) || 0;
-      dayMap.set(dateKey, current + (event.cost_usd || 0));
+      const providerData = dayMap.get(dateKey) || {};
+      const provider = event.provider.toLowerCase();
+      providerData[provider] = (providerData[provider] || 0) + (event.cost_usd || 0);
+      dayMap.set(dateKey, providerData);
     });
 
     return Array.from(dayMap.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, value]) => ({
-        date: new Date(date).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        }),
-        value: value,
-      }));
+      .map(([date, providers]) => {
+        const totalValue = Object.values(providers).reduce((sum, val) => sum + val, 0);
+        return {
+          date: new Date(date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          }),
+          value: totalValue,
+          ...providers, // Spread provider costs into the data object
+        };
+      });
   })();
 
   // Calculate 7-day sparklines for each provider
@@ -450,6 +457,11 @@ function DashboardPageContent() {
               title="Total Cost (24h)"
               metric="Cost"
               metricValue={formatCost(stats.total_cost_24h)}
+              providerStats={providerStats.map(p => ({
+                provider: p.provider,
+                total_cost: p.total_cost,
+                percentage: calculatePercentage(p.total_cost, stats.total_cost_24h)
+              }))}
             />
           </div>
         </div>

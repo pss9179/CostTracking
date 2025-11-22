@@ -565,5 +565,17 @@
   },
   "myapi:duration_based": {
     "per_minute": 0.006
+  },
+  "vapi:assistant": {
+    "per_call": 0.002
+  },
+  "vapi:call": {
+    "per_minute": 0.05
+  },
+  "vapi:phone_number": {
+    "per_call": 0.001
+  },
+  "vapi:webhook": {
+    "per_call": 0.0001
   }
 }

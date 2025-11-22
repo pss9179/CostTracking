@@ -39,6 +39,8 @@ def extract_provider_from_url(url: str) -> Optional[str]:
         return "cohere"
     elif "api.together.xyz" in url_lower:
         return "together"
+    elif "api.vapi.ai" in url_lower or "vapi.ai" in url_lower:
+        return "vapi"
     # Add more providers as needed
     return None
 

@@ -145,7 +145,7 @@ trap cleanup SIGINT SIGTERM
 echo -e "${GREEN}🚀 Starting Collector API (port 8000)...${NC}"
 cd collector
 source venv/bin/activate
-export $(cat .env | xargs)
+export $(grep -v '^#' .env | xargs)
 python3 -m uvicorn main:app --reload --port 8000 > ../logs/collector.log 2>&1 &
 COLLECTOR_PID=$!
 cd ..
