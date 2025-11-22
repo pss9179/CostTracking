@@ -18,9 +18,9 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <DateRangeProvider>
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex h-screen overflow-hidden bg-gray-50">
         <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 my-4 mr-4 rounded-3xl bg-white shadow-lg overflow-hidden">
           <TopBar />
           <main className="flex-1 overflow-y-auto bg-background px-8 py-6">
             {children}
