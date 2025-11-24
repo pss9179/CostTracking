@@ -101,3 +101,7 @@ print("=" * 60)
 print("\n📊 Check the dashboard at http://localhost:3000/dashboard")
 print("   to see the tracked Pinecone costs!")
 
+
+
+
+

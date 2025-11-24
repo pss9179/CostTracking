@@ -240,3 +240,7 @@ Total Expected Calls: ~25+ OpenAI calls + Pinecone operations
    5. Cost comparison between models
 """)
 
+
+
+
+
