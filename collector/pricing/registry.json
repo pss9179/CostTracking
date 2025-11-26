@@ -1221,7 +1221,56 @@
     "per_minute": 0.014
   },
   "rime:tts": {
-    "per_1k_chars": 0.006
+    "per_1k_chars": 0.006,
+    "_comment": "Default rate (Starter/Developer tier)"
+  },
+  "rime:tts-starter": {
+    "per_1k_chars": 0.006,
+    "_comment": "$6/1M chars - Starter ($5/mo) or Developer ($15/mo)"
+  },
+  "rime:tts-pro": {
+    "per_1k_chars": 0.05,
+    "_comment": "$50/1M chars - Pro ($99/mo)"
+  },
+  "rime:tts-business": {
+    "per_1k_chars": 0.04,
+    "_comment": "$40/1M chars - Business ($249/mo)"
+  },
+  "rime:arcana": {
+    "per_1k_chars": 0.006,
+    "_comment": "Same pricing as all Rime models"
+  },
+  "rime:mistv2": {
+    "per_1k_chars": 0.006,
+    "_comment": "Same pricing as all Rime models"
+  },
+  "rime:mist": {
+    "per_1k_chars": 0.006,
+    "_comment": "Same pricing as all Rime models"
+  },
+  "lmnt:tts": {
+    "per_1k_chars": 0.05,
+    "_comment": "Default rate (Indie tier - $10/mo, 200K chars included)"
+  },
+  "lmnt:tts-indie": {
+    "per_1k_chars": 0.05,
+    "_comment": "$0.05/1K chars overage - Indie ($10/mo, 200K chars included)"
+  },
+  "lmnt:tts-pro": {
+    "per_1k_chars": 0.045,
+    "_comment": "$0.045/1K chars overage - Pro ($49/mo, 1.25M chars included)"
+  },
+  "lmnt:tts-premium": {
+    "per_1k_chars": 0.035,
+    "_comment": "$0.035/1K chars overage - Premium ($199/mo, 5.7M chars included)"
+  },
+  "inworld:tts-1": {
+    "per_1k_chars": 0.005,
+    "_comment": "$5/1M chars (~$0.005/min) - Inworld-TTS-1"
+  },
+  "inworld:tts-1-max": {
+    "per_1k_chars": 0.01,
+    "_comment": "$10/1M chars (~$0.01/min) - Inworld-TTS-1-Max"
   },
   "resemble:tts": {
     "per_1k_chars": 0.02

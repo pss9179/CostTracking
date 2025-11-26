@@ -365,9 +365,9 @@ def instrument_twilio() -> bool:
         original_init = Client.__init__
         
         if hasattr(original_init, "_llmobserve_instrumented"):
-            logger.debug("[llmobserve] Twilio already instrumented")
-            return True
-        
+                logger.debug("[llmobserve] Twilio already instrumented")
+                return True
+            
         @functools.wraps(original_init)
         def patched_init(self, *args, **kwargs):
             original_init(self, *args, **kwargs)
@@ -379,7 +379,7 @@ def instrument_twilio() -> bool:
                     self.messages.create = create_messages_wrapper(original_messages_create, "messages.create")
                     self.messages.create._llmobserve_instrumented = True
                     self.messages.create._llmobserve_original = original_messages_create
-            
+        
             # Patch calls.create
             if hasattr(self, "calls") and hasattr(self.calls, "create"):
                 original_calls_create = self.calls.create

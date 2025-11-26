@@ -1,32 +1,32 @@
 {
-  "name": "llmobserve",
+    "name": "llmobserve",
   "version": "0.2.0",
   "description": "Zero-config LLM cost tracking for Node.js - automatically tracks OpenAI, Anthropic, and more",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
   "files": [
     "dist",
     "README.md"
   ],
-  "scripts": {
-    "build": "tsc",
+    "scripts": {
+        "build": "tsc",
     "prepublishOnly": "npm run build",
     "test": "node --test"
-  },
-  "keywords": [
-    "llm",
-    "observability",
-    "cost",
+    },
+    "keywords": [
+        "llm",
+        "observability",
+        "cost",
     "tracking",
-    "openai",
+        "openai",
     "anthropic",
     "gpt",
     "claude",
     "ai",
     "monitoring"
-  ],
-  "author": "LLMObserve",
-  "license": "MIT",
+    ],
+    "author": "LLMObserve",
+    "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/pss9179/CostTracking.git"
@@ -38,8 +38,8 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "devDependencies": {
-    "typescript": "^5.0.0",
-    "@types/node": "^18.0.0"
-  }
+    "devDependencies": {
+        "typescript": "^5.0.0",
+        "@types/node": "^18.0.0"
+    }
 }
