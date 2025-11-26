@@ -431,11 +431,129 @@
   "playht:premium": {
     "per_1k_chars": 1.2
   },
-  "azure_speech:standard": {
-    "per_1k_chars": 0.001
+  "azure_speech:stt_standard_realtime": {
+    "per_minute": 0.0167,
+    "_comment": "$1.00/hour real-time STT"
   },
-  "azure_speech:neural": {
-    "per_1k_chars": 0.016
+  "azure_speech:stt_standard_batch": {
+    "per_minute": 0.003,
+    "_comment": "$0.18/hour batch STT"
+  },
+  "azure_speech:stt_custom_realtime": {
+    "per_minute": 0.02,
+    "_comment": "$1.20/hour custom real-time STT"
+  },
+  "azure_speech:stt_custom_batch": {
+    "per_minute": 0.00375,
+    "_comment": "$0.225/hour custom batch STT"
+  },
+  "azure_speech:stt_addon_langid": {
+    "per_minute": 0.005,
+    "_comment": "$0.30/hour continuous language ID add-on"
+  },
+  "azure_speech:stt_addon_diarization": {
+    "per_minute": 0.005,
+    "_comment": "$0.30/hour diarization add-on"
+  },
+  "azure_speech:stt_addon_pronunciation": {
+    "per_minute": 0.005,
+    "_comment": "$0.30/hour pronunciation assessment add-on"
+  },
+  "azure_speech:stt_conversation_multichannel": {
+    "per_minute": 0.035,
+    "_comment": "$2.10/hour conversation transcription (preview)"
+  },
+  "azure_speech:stt_tier1_2000hrs": {
+    "per_minute": 0.0133,
+    "_comment": "$0.80/hr overage (2000hr commitment @ $1600/mo)"
+  },
+  "azure_speech:stt_tier2_10000hrs": {
+    "per_minute": 0.0108,
+    "_comment": "$0.65/hr overage (10000hr commitment @ $6500/mo)"
+  },
+  "azure_speech:stt_tier3_50000hrs": {
+    "per_minute": 0.00833,
+    "_comment": "$0.50/hr overage (50000hr commitment @ $25000/mo)"
+  },
+  "azure_speech:tts_neural": {
+    "per_1k_chars": 0.015,
+    "_comment": "$15 per 1M characters standard neural TTS"
+  },
+  "azure_speech:tts_custom_professional": {
+    "per_1k_chars": 0.024,
+    "_comment": "$24 per 1M characters custom professional voice"
+  },
+  "azure_speech:tts_custom_neural_hd": {
+    "per_1k_chars": 0.048,
+    "_comment": "$48 per 1M characters custom neural HD"
+  },
+  "azure_speech:tts_tier1_80m": {
+    "per_1k_chars": 0.012,
+    "_comment": "$12 per 1M overage (80M commitment @ $960/mo)"
+  },
+  "azure_speech:tts_tier2_400m": {
+    "per_1k_chars": 0.00975,
+    "_comment": "$9.75 per 1M overage (400M commitment @ $3900/mo)"
+  },
+  "azure_speech:tts_tier3_2000m": {
+    "per_1k_chars": 0.0075,
+    "_comment": "$7.50 per 1M overage (2000M commitment @ $15000/mo)"
+  },
+  "azure_speech:translation_realtime": {
+    "per_minute": 0.0417,
+    "_comment": "$2.50/hour real-time speech translation"
+  },
+  "azure_speech:translation_live_interpreter_input": {
+    "per_minute": 0.0167,
+    "_comment": "$1/hour input audio for live interpreter"
+  },
+  "azure_speech:translation_live_interpreter_output_text": {
+    "per_1k_chars": 0.01,
+    "_comment": "$10 per 1M characters output text"
+  },
+  "azure_speech:translation_live_interpreter_output_standard": {
+    "per_minute": 0.025,
+    "_comment": "$1.50/hour output audio (standard voice)"
+  },
+  "azure_speech:translation_live_interpreter_output_custom": {
+    "per_minute": 0.0333,
+    "_comment": "$2.00/hour output audio (custom voice)"
+  },
+  "azure_speech:translation_video_input": {
+    "per_minute": 0.0833,
+    "_comment": "$5/hour video input"
+  },
+  "azure_speech:translation_video_output_standard": {
+    "per_minute": 0.25,
+    "_comment": "$15/hour video output standard voice"
+  },
+  "azure_speech:translation_video_output_personal": {
+    "per_minute": 0.3333,
+    "_comment": "$20/hour video output personal voice"
+  },
+  "azure_speech:speaker_verification": {
+    "per_transaction": 0.005,
+    "_comment": "$5 per 1000 transactions"
+  },
+  "azure_speech:speaker_identification": {
+    "per_transaction": 0.01,
+    "_comment": "$10 per 1000 transactions"
+  },
+  "azure_speech:voice_profile_storage": {
+    "per_profile_month": 0.0002,
+    "_comment": "$0.20 per 1000 profiles/month"
+  },
+  "azure_speech:avatar_interactive": {
+    "per_minute": 0.50,
+    "_comment": "$0.50/min interactive avatar"
+  },
+  "azure_speech:voice_training": {
+    "per_compute_hour": 52.0,
+    "_comment": "$52 per compute hour for custom voice model training"
+  },
+  "azure_speech:voice_hosting": {
+    "per_model_hour": 4.04,
+    "_comment": "$4.04 per model/hour for custom voice hosting"
   },
   "aws_polly:standard": {
     "per_1m_chars": 4.0

@@ -246,3 +246,9 @@ try:
 except ImportError:
     logger.debug("[llmobserve] Rime instrumentor not available")
 
+try:
+    from llmobserve.instrumentation.azure_speech_instrumentor import instrument_azure_speech
+    register_instrumentor("azure_speech", instrument_azure_speech)
+except ImportError:
+    logger.debug("[llmobserve] Azure Speech instrumentor not available")
+
