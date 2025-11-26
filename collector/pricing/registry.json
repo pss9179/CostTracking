@@ -471,6 +471,28 @@
     "per_minute": 0.0125,
     "_comment": "Default: Fast model, Real-time, Self-Serve"
   },
+  "google:gemini-2.0-flash_audio": {
+    "per_1m_audio_tokens": 0.70,
+    "tokens_per_second": 50,
+    "per_minute": 0.0021,
+    "_comment": "Gemini 2.0 Flash multimodal audio input: $0.70/1M tokens, ~50 tok/sec = $0.0021/min"
+  },
+  "google:gemini-2.0-flash-lite_audio": {
+    "per_1m_audio_tokens": 0.30,
+    "tokens_per_second": 50,
+    "per_minute": 0.0009,
+    "_comment": "Gemini 2.0 Flash Lite multimodal audio input: $0.30/1M tokens, ~50 tok/sec = $0.0009/min"
+  },
+  "google:gemini-1.5-pro_audio": {
+    "per_1m_audio_tokens": 1.25,
+    "tokens_per_second": 50,
+    "per_minute": 0.00375,
+    "_comment": "Gemini 1.5 Pro multimodal audio input: $1.25/1M tokens, ~50 tok/sec = $0.00375/min"
+  },
+  "google:gemini_stt_default": {
+    "per_minute": 0.0021,
+    "_comment": "Default: Gemini 2.0 Flash - cheapest option for Vapi Google transcriber"
+  },
   "deepgram:flux_streaming": {
     "per_minute": 0.0077,
     "_comment": "Streaming - Pay As You Go"

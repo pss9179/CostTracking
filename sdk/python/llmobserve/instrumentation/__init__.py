@@ -258,3 +258,9 @@ try:
 except ImportError:
     logger.debug("[llmobserve] Gladia instrumentor not available")
 
+try:
+    from llmobserve.instrumentation.google_stt_instrumentor import instrument_google_stt
+    register_instrumentor("google_stt", instrument_google_stt)
+except ImportError:
+    logger.debug("[llmobserve] Google STT instrumentor not available")
+
