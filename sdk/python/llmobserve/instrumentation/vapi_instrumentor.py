@@ -36,6 +36,12 @@ def track_vapi_call(
     is_voice_call: bool = False,
     cost_breakdown: Optional[dict] = None,
     transcript: Optional[str] = None,
+    stt_provider: Optional[str] = None,
+    stt_model: Optional[str] = None,
+    tts_provider: Optional[str] = None,
+    tts_model: Optional[str] = None,
+    llm_provider: Optional[str] = None,
+    llm_model: Optional[str] = None,
 ) -> None:
     """Track a Vapi API call with voice-specific fields.
     
@@ -48,15 +54,24 @@ def track_vapi_call(
     # If we have detailed cost breakdown from Vapi, create separate events for each segment
     if is_voice_call and cost_breakdown and any(cost_breakdown.get(k) for k in ['stt', 'llm', 'tts', 'transport']):
         # Create individual events for each segment with cost
+        # Map segment type to provider/model info
+        segment_providers = {
+            "stt": (stt_provider or "vapi", stt_model),
+            "llm": (llm_provider or "vapi", llm_model),
+            "tts": (tts_provider or "vapi", tts_model),
+            "telephony": ("vapi", None),  # Telephony is always Vapi/Twilio/Vonage
+        }
+        
         segments = [
-            ("stt", cost_breakdown.get("stt"), "stt_call", cost_breakdown.get("llm_prompt_tokens")),
-            ("llm", cost_breakdown.get("llm"), "llm_call", cost_breakdown.get("llm_completion_tokens")),
-            ("tts", cost_breakdown.get("tts"), "tts_call", cost_breakdown.get("tts_characters")),
-            ("telephony", cost_breakdown.get("transport"), "telephony_call", None),
+            ("stt", cost_breakdown.get("stt"), "stt_call", None, None),  # STT: no tokens, uses audio duration
+            ("llm", cost_breakdown.get("llm"), "llm_call", cost_breakdown.get("llm_prompt_tokens"), cost_breakdown.get("llm_completion_tokens")),
+            ("tts", cost_breakdown.get("tts"), "tts_call", cost_breakdown.get("tts_characters"), None),  # TTS: characters as input
+            ("telephony", cost_breakdown.get("transport"), "telephony_call", None, None),
         ]
         
-        for segment_type, segment_cost, span_type, tokens in segments:
+        for segment_type, segment_cost, span_type, input_tokens, output_tokens in segments:
             if segment_cost and segment_cost > 0:
+                provider, model = segment_providers.get(segment_type, ("vapi", None))
                 event = {
                     "id": str(uuid.uuid4()),
                     "run_id": context.get_run_id(),
@@ -65,13 +80,13 @@ def track_vapi_call(
                     "section": context.get_current_section(),
                     "section_path": context.get_section_path(),
                     "span_type": span_type,
-                    "provider": "vapi",
+                    "provider": provider.lower() if provider else "vapi",  # Normalize to lowercase
                     "endpoint": f"{method_name}.{segment_type}",
-                    "model": None,
+                    "model": model,
                     "cost_usd": segment_cost,
                     "latency_ms": latency_ms / 4 if latency_ms else 0,  # Estimate per segment
-                    "input_tokens": tokens or 0,
-                    "output_tokens": 0,
+                    "input_tokens": input_tokens or 0,
+                    "output_tokens": output_tokens or 0,
                     "status": status,
                     "tenant_id": config.get_tenant_id(),
                     "customer_id": context.get_customer_id(),
@@ -164,7 +179,7 @@ def track_vapi_call(
 
 
 def extract_vapi_call_info(response: Any) -> dict:
-    """Extract call ID, duration, assistant ID, cost breakdown, and transcript from Vapi response.
+    """Extract call ID, duration, assistant ID, cost breakdown, transcript, and provider/model info from Vapi response.
     
     Vapi provides detailed costBreakdown with:
     - transport: Twilio/Vonage telephony cost
@@ -174,6 +189,10 @@ def extract_vapi_call_info(response: Any) -> dict:
     - vapi: Vapi platform fee
     - total: Total cost
     - llmPromptTokens, llmCompletionTokens, ttsCharacters
+    
+    Also attempts to extract provider/model info from:
+    - Call response (if available)
+    - Assistant configuration (via assistant_id)
     """
     info = {
         'call_id': None,
@@ -181,6 +200,12 @@ def extract_vapi_call_info(response: Any) -> dict:
         'assistant_id': None,
         'cost_breakdown': None,
         'transcript': None,
+        'stt_provider': None,
+        'stt_model': None,
+        'tts_provider': None,
+        'tts_model': None,
+        'llm_provider': None,
+        'llm_model': None,
     }
     
     try:
@@ -297,6 +322,87 @@ def extract_vapi_call_info(response: Any) -> dict:
                 }
             elif not info['cost_breakdown'] and response.get('cost'):
                 info['cost_breakdown'] = {"total": response.get('cost')}
+            
+            # Try to extract provider/model info from call response
+            # Vapi may include assistant config or provider info in the call response
+            if response.get('assistant'):
+                assistant = response.get('assistant')
+                if isinstance(assistant, dict):
+                    # Extract STT provider/model
+                    if assistant.get('transcriber'):
+                        transcriber = assistant.get('transcriber')
+                        if isinstance(transcriber, dict):
+                            info['stt_provider'] = transcriber.get('provider')
+                            info['stt_model'] = transcriber.get('model')
+                    
+                    # Extract TTS provider/model
+                    if assistant.get('voice'):
+                        voice = assistant.get('voice')
+                        if isinstance(voice, dict):
+                            info['tts_provider'] = voice.get('provider')
+                            info['tts_model'] = voice.get('model') or voice.get('voiceId')
+                    
+                    # Extract LLM provider/model
+                    if assistant.get('model'):
+                        model_config = assistant.get('model')
+                        if isinstance(model_config, dict):
+                            info['llm_provider'] = model_config.get('provider')
+                            info['llm_model'] = model_config.get('model')
+                    elif assistant.get('llm'):
+                        llm_config = assistant.get('llm')
+                        if isinstance(llm_config, dict):
+                            info['llm_provider'] = llm_config.get('provider')
+                            info['llm_model'] = llm_config.get('model')
+            
+            # Also check direct fields on response (some APIs expose this directly)
+            if response.get('transcriber'):
+                transcriber = response.get('transcriber')
+                if isinstance(transcriber, dict):
+                    info['stt_provider'] = info['stt_provider'] or transcriber.get('provider')
+                    info['stt_model'] = info['stt_model'] or transcriber.get('model')
+            
+            if response.get('voice'):
+                voice = response.get('voice')
+                if isinstance(voice, dict):
+                    info['tts_provider'] = info['tts_provider'] or voice.get('provider')
+                    info['tts_model'] = info['tts_model'] or voice.get('model') or voice.get('voiceId')
+            
+            if response.get('model'):
+                model_config = response.get('model')
+                if isinstance(model_config, dict):
+                    info['llm_provider'] = info['llm_provider'] or model_config.get('provider')
+                    info['llm_model'] = info['llm_model'] or model_config.get('model')
+        
+        # Try object attributes for provider/model
+        if hasattr(response, 'assistant') and response.assistant:
+            assistant = response.assistant
+            try:
+                if hasattr(assistant, 'transcriber') and assistant.transcriber:
+                    if hasattr(assistant.transcriber, 'provider'):
+                        info['stt_provider'] = assistant.transcriber.provider
+                    if hasattr(assistant.transcriber, 'model'):
+                        info['stt_model'] = assistant.transcriber.model
+                
+                if hasattr(assistant, 'voice') and assistant.voice:
+                    if hasattr(assistant.voice, 'provider'):
+                        info['tts_provider'] = assistant.voice.provider
+                    if hasattr(assistant.voice, 'model'):
+                        info['tts_model'] = assistant.voice.model
+                    elif hasattr(assistant.voice, 'voiceId'):
+                        info['tts_model'] = assistant.voice.voiceId
+                
+                if hasattr(assistant, 'model') and assistant.model:
+                    if hasattr(assistant.model, 'provider'):
+                        info['llm_provider'] = assistant.model.provider
+                    if hasattr(assistant.model, 'model'):
+                        info['llm_model'] = assistant.model.model
+                elif hasattr(assistant, 'llm') and assistant.llm:
+                    if hasattr(assistant.llm, 'provider'):
+                        info['llm_provider'] = assistant.llm.provider
+                    if hasattr(assistant.llm, 'model'):
+                        info['llm_model'] = assistant.llm.model
+            except:
+                pass
                 
     except Exception:
         pass
@@ -332,6 +438,12 @@ def create_calls_wrapper(original_method: Callable, method_name: str) -> Callabl
                 is_voice_call=is_voice_call,
                 cost_breakdown=info['cost_breakdown'],
                 transcript=info['transcript'],
+                stt_provider=info.get('stt_provider'),
+                stt_model=info.get('stt_model'),
+                tts_provider=info.get('tts_provider'),
+                tts_model=info.get('tts_model'),
+                llm_provider=info.get('llm_provider'),
+                llm_model=info.get('llm_model'),
             )
             
             return result
