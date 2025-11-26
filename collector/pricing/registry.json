@@ -516,6 +516,66 @@
     "per_minute": 0.0021,
     "_comment": "Default: Gemini 2.0 Flash - cheapest option for Vapi Google transcriber"
   },
+  "speechmatics:realtime_standard": {
+    "per_minute": 0.0053,
+    "_comment": "Real-time STT Standard: $0.318/hr"
+  },
+  "speechmatics:realtime_enhanced": {
+    "per_minute": 0.0093,
+    "_comment": "Real-time STT Enhanced: $0.558/hr"
+  },
+  "speechmatics:batch_standard": {
+    "per_minute": 0.0040,
+    "_comment": "Batch STT Standard: $0.24/hr"
+  },
+  "speechmatics:batch_enhanced": {
+    "per_minute": 0.0067,
+    "_comment": "Batch STT Enhanced: $0.402/hr"
+  },
+  "speechmatics:realtime_standard_discount": {
+    "per_minute": 0.00355,
+    "_comment": "Real-time STT Standard with 33% model training discount"
+  },
+  "speechmatics:realtime_enhanced_discount": {
+    "per_minute": 0.00623,
+    "_comment": "Real-time STT Enhanced with 33% model training discount"
+  },
+  "speechmatics:batch_standard_discount": {
+    "per_minute": 0.00268,
+    "_comment": "Batch STT Standard with 33% model training discount"
+  },
+  "speechmatics:batch_enhanced_discount": {
+    "per_minute": 0.00449,
+    "_comment": "Batch STT Enhanced with 33% model training discount"
+  },
+  "speechmatics:addon_translation": {
+    "per_minute": 0.0108,
+    "_comment": "Translation bolt-on feature"
+  },
+  "speechmatics:addon_summaries": {
+    "per_minute": 0.0020,
+    "_comment": "Summaries bolt-on feature"
+  },
+  "speechmatics:addon_chapters": {
+    "per_minute": 0.0067,
+    "_comment": "Chapters bolt-on feature"
+  },
+  "speechmatics:addon_sentiment": {
+    "per_minute": 0.0020,
+    "_comment": "Sentiment bolt-on feature"
+  },
+  "speechmatics:addon_topics": {
+    "per_minute": 0.0033,
+    "_comment": "Topics bolt-on feature"
+  },
+  "speechmatics:tts": {
+    "per_1k_chars": 0.011,
+    "_comment": "TTS: $0.011/1K chars (~$0.66/hr of audio)"
+  },
+  "speechmatics:default": {
+    "per_minute": 0.0053,
+    "_comment": "Default: Real-time Standard (what Vapi uses)"
+  },
   "deepgram:flux_streaming": {
     "per_minute": 0.0077,
     "_comment": "Streaming - Pay As You Go"

@@ -264,3 +264,9 @@ try:
 except ImportError:
     logger.debug("[llmobserve] Google STT instrumentor not available")
 
+try:
+    from llmobserve.instrumentation.speechmatics_instrumentor import instrument_speechmatics
+    register_instrumentor("speechmatics", instrument_speechmatics)
+except ImportError:
+    logger.debug("[llmobserve] Speechmatics instrumentor not available")
+

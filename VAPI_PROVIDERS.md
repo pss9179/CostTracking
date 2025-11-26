@@ -17,7 +17,7 @@ Vapi supports **10 STT providers** with access to all their models:
 | **Gladia** | ✅ Fast, Accurate, Solaria | Gladia transcription API |
 | **Google** | ✅ Gemini 2.0 Flash, Gemini 2.0 Flash Lite, Gemini 1.5 Pro | Uses Gemini multimodal (NOT Speech-to-Text V1/V2) - audio token pricing |
 | **OpenAI** | ✅ GPT-4o Transcribe, GPT-4o Mini Transcribe, Whisper | Whisper ($0.006/min) or GPT-4o audio token pricing |
-| **Speechmatics** | ✅ All Speechmatics models | Speechmatics transcription |
+| **Speechmatics** | ✅ Standard, Enhanced (Operating Points) | Real-time STT for Vapi. 33% discount with model training enabled |
 | **Talkscriber** | ✅ All Talkscriber models | Talkscriber transcription |
 | **Cartesia** | ✅ All Ink models | Cartesia Ink STT |
 
