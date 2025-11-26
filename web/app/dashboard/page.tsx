@@ -263,6 +263,33 @@ function DashboardPageContent() {
     }
   });
 
+  // Calculate model breakdown
+  const modelCosts = new Map<string, { cost: number; calls: number; provider: string }>();
+  recentEvents.forEach((event) => {
+    const model = event.model || 'unknown';
+    const provider = event.provider || 'unknown';
+    if (model && model !== 'unknown') {
+      const existing = modelCosts.get(model) || { cost: 0, calls: 0, provider };
+      existing.cost += event.cost_usd || 0;
+      existing.calls += 1;
+      modelCosts.set(model, existing);
+    }
+  });
+
+  // Sort model costs by cost descending
+  const sortedModelCosts = Array.from(modelCosts.entries())
+    .map(([model, stats]) => ({
+      model,
+      cost: stats.cost,
+      calls: stats.calls,
+      provider: stats.provider,
+      percentage: total_cost_24h_from_providers > 0
+        ? (stats.cost / total_cost_24h_from_providers) * 100
+        : 0,
+    }))
+    .sort((a, b) => b.cost - a.cost)
+    .slice(0, 10); // Top 10 models
+
   // Sort semantic costs by cost descending
   const sortedSemanticCosts = Array.from(semanticCosts.entries())
     .map(([label, stats]) => ({
@@ -546,7 +573,7 @@ function DashboardPageContent() {
           </Card>
         )}
 
-        <div className="grid grid-cols-1 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Provider Breakdown Table */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Provider Breakdown</h3>
@@ -619,6 +646,66 @@ function DashboardPageContent() {
                         </TableRow>
                       );
                     })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* Model Breakdown Table */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Model Breakdown</h3>
+            <div className="rounded-lg border border-gray-100 bg-white overflow-hidden">
+              <Table>
+                <TableHeader className="bg-gray-50/50">
+                  <TableRow className="border-gray-100 hover:bg-transparent">
+                    <TableHead className="font-medium text-gray-500">
+                      Model
+                    </TableHead>
+                    <TableHead className="text-right font-medium text-gray-500">
+                      Calls
+                    </TableHead>
+                    <TableHead className="text-right font-medium text-gray-500">
+                      Cost
+                    </TableHead>
+                    <TableHead className="text-right font-medium text-gray-500">
+                      %
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedModelCosts.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={4}
+                        className="text-center py-8 text-muted-foreground"
+                      >
+                        No model data
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedModelCosts.map((model) => (
+                      <TableRow
+                        key={model.model}
+                        className="border-gray-50 hover:bg-gray-50/50"
+                      >
+                        <TableCell className="font-medium text-gray-900">
+                          <div className="flex flex-col">
+                            <span className="text-sm">{model.model}</span>
+                            <span className="text-xs text-gray-400 capitalize">{model.provider}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right text-gray-600">
+                          {model.calls}
+                        </TableCell>
+                        <TableCell className="text-right text-gray-600">
+                          {formatCost(model.cost)}
+                        </TableCell>
+                        <TableCell className="text-right text-gray-600">
+                          {model.percentage.toFixed(1)}%
+                        </TableCell>
+                      </TableRow>
+                    ))
                   )}
                 </TableBody>
               </Table>
