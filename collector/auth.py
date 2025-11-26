@@ -14,6 +14,12 @@ from models import APIKey, User
 
 logger = logging.getLogger(__name__)
 
+# Debug: Print when module loads
+print("[AUTH MODULE] auth.py module loaded!", flush=True)
+import sys
+sys.stderr.write("[AUTH MODULE] auth.py module loaded (stderr)!\n")
+sys.stderr.flush()
+
 
 def generate_api_key() -> str:
     """
@@ -58,8 +64,9 @@ async def get_current_user(
         def protected_route(user: User = Depends(get_current_user)):
             return {"user_id": user.id}
     """
+    print("[AUTH FUNC] get_current_user FUNCTION CALLED!", flush=True)
     import sys
-    sys.stderr.write(f"[AUTH] get_current_user called! authorization={authorization[:50] if authorization else None}...\n")
+    sys.stderr.write(f"[AUTH FUNC] get_current_user called! authorization={authorization[:50] if authorization else None}...\n")
     sys.stderr.flush()
     if not authorization:
         raise HTTPException(
@@ -79,14 +86,13 @@ async def get_current_user(
     
     token = parts[1]
     
-    import sys
-    print(f"[AUTH DEBUG] Token received: {token[:30]}...", flush=True)
-    print(f"[AUTH DEBUG] Starts with llmo_sk_: {token.startswith('llmo_sk_')}", flush=True)
-    sys.stdout.flush()
-    sys.stderr.flush()
+    # Log to stderr and logger
+    logger.error(f"[AUTH] Token received: {token[:30]}...")
+    logger.error(f"[AUTH] Starts with llmo_sk_: {token.startswith('llmo_sk_')}")
     
     # Check if it's an API key (starts with llmo_sk_)
     if token.startswith("llmo_sk_"):
+        logger.error(f"[AUTH] Detected API key, validating...")
         print(f"[AUTH DEBUG] Validating API key...", flush=True)
         logger.info(f"[Auth] Validating API key: {token[:20]}...")
         # Validate API key
@@ -105,7 +111,7 @@ async def get_current_user(
             logger.warning(f"[Auth] API key not found in database")
             raise HTTPException(
                 status_code=401,
-                detail="Invalid or revoked API key",
+                detail="API_KEY_AUTH_FAILED: Invalid or revoked API key",
             )
         
         # Update last_used_at

@@ -110,8 +110,8 @@ async def get_current_clerk_user(
         clerk_data = await verify_clerk_token(token)
         logger.info(f"[Clerk Auth] verify_clerk_token returned: {clerk_data}")
         if not clerk_data:
-            logger.error("[Clerk Auth] verify_clerk_token returned None - token verification failed")
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
+            logger.error(f"[Clerk Auth] verify_clerk_token returned None - token verification failed. Token starts with: {token[:20] if token else 'None'}...")
+            raise HTTPException(status_code=401, detail=f"CLERK_AUTH_FAILED: Invalid or expired token (token starts with: {token[:20] if token else 'None'}...)")
         
         clerk_user_id = clerk_data["clerk_user_id"]
         logger.info(f"[Clerk Auth] Token verified, Clerk user ID: {clerk_user_id}")
