@@ -3,24 +3,34 @@
 **Track every LLM API call. Know exactly what you're spending. Optimize what matters.**
 
 > Zero-config cost tracking for OpenAI, Anthropic, Google, and 40+ LLM providers.  
-> AI-powered instrumentation included. $5/month.
+> Just 2 lines of code. $5/month.
 
 ---
 
-## 🚀 Quick Start (2 lines of code)
+## 🚀 Quick Start (60 seconds)
 
+### 1. Install
+```bash
+pip install llmobserve
+```
+
+### 2. Get Your API Key
+Go to **https://llmobserve.com/settings** → Create API Key
+
+### 3. Add to Your Code (2 lines!)
 ```python
 import llmobserve
 
 llmobserve.observe(
-    collector_url="https://llmobserve-production.up.railway.app",
-    api_key="your-api-key-here"  # Get from llmobserve.com/settings
+    collector_url="https://llmobserve-api-production-d791.up.railway.app",
+    api_key="YOUR_API_KEY_HERE"  # Get from https://llmobserve.com/settings
 )
 
 # That's it! All your LLM calls are now tracked automatically.
 ```
 
-**Get your API key:** https://llmobserve.com/settings
+### 4. View Your Dashboard
+**https://llmobserve.com/dashboard**
 
 ---
 
@@ -31,40 +41,49 @@ llmobserve.observe(
 - Real-time cost calculation with up-to-date pricing
 - Works with ANY HTTP-based API (LLMs, vector DBs, custom APIs)
 
-### 2. **AI-Powered Instrumentation** (NEW)
-- One command labels all your agents automatically
-- No manual wrapping needed
-- Creates `.bak` backup before changes
-- **Included in subscription - no extra cost**
-
-```bash
-llmobserve preview my_agent.py         # See suggestions
-llmobserve instrument --auto-apply     # Apply changes
-```
-
-### 3. **Beautiful Dashboard**
-- See costs by agent, provider, customer, time
-- Real-time updates every 30 seconds
+### 2. **Beautiful Dashboard**
+- See costs by provider, model, agent, customer, time
+- Real-time updates
 - Export to CSV/JSON
 - "Untracked" bucket shows unlabeled costs (nothing hidden)
 
-### 4. **Multi-Tenant Support**
+### 3. **Multi-Tenant Support**
 - Track costs per customer (perfect for SaaS)
 - Isolated data views
 - Customer-level analytics
 
+### 4. **Spending Caps**
+- Set per-customer, per-agent, or global caps
+- Proactive blocking before overspend
+- Configurable limits
+
 ---
 
-## 📦 Installation
+## 📦 Complete Example
 
-```bash
-pip install llmobserve
-```
+```python
+# Step 1: Initialize llmobserve (add this at the top of your main file)
+import llmobserve
 
-**Set credentials:**
-```bash
-export LLMOBSERVE_COLLECTOR_URL="https://llmobserve-production.up.railway.app"
-export LLMOBSERVE_API_KEY="your-api-key-here"
+llmobserve.observe(
+    collector_url="https://llmobserve-api-production-d791.up.railway.app",
+    api_key="llmo_sk_your_key_here"  # Get from https://llmobserve.com/settings
+)
+
+# Step 2: Use your LLM libraries normally - they're tracked automatically!
+from openai import OpenAI
+
+client = OpenAI(api_key="your-openai-key")
+
+# This call is automatically tracked - no changes needed!
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+
+print(response.choices[0].message.content)
+
+# View your costs at: https://llmobserve.com/dashboard
 ```
 
 ---
@@ -78,7 +97,10 @@ We patch Python HTTP clients (`httpx`, `requests`, `aiohttp`, `urllib3`) to inje
 import llmobserve
 from openai import OpenAI
 
-llmobserve.observe(collector_url="...", api_key="...")
+llmobserve.observe(
+    collector_url="https://llmobserve-api-production-d791.up.railway.app",
+    api_key="your-key"
+)
 
 client = OpenAI()
 response = client.chat.completions.create(...)  # ← Automatically tracked!
@@ -88,65 +110,36 @@ response = client.chat.completions.create(...)  # ← Automatically tracked!
 Add labels to see which agents/tools cost the most:
 
 ```python
-from llmobserve import agent, section
+from llmobserve import section
 
-@agent("researcher")
-def research_agent(query):
-    # All API calls here labeled as "agent:researcher"
-    return openai_call()
+# Track costs by feature
+with section("user_query"):
+    response = client.chat.completions.create(...)
 
-# Or use context manager
-with section("agent:writer"):
-    response = openai_call()
+with section("data_processing"):
+    response = client.chat.completions.create(...)
+
+# View breakdown by section in dashboard!
 ```
 
-### **AI Auto-Instrumentation**
-Let AI add labels for you:
+### **Multi-Tenant Tracking**
+Track costs per customer for SaaS applications:
 
-```bash
-llmobserve preview my_code.py           # Preview suggestions
-llmobserve instrument --auto-apply      # Apply automatically
+```python
+from llmobserve import set_customer_id
+
+set_customer_id("customer_123")
+response = client.chat.completions.create(...)
+
+# View per-customer costs in dashboard!
 ```
-
----
-
-## 🏗️ Architecture
-
-```
-┌──────────────────────────────────────────────────────┐
-│ Your Code + llmobserve SDK                           │
-│  → Patches HTTP clients (httpx, requests, aiohttp)  │
-│  → Injects tracking headers                          │
-└─────────────────┬────────────────────────────────────┘
-                  │
-                  ↓ POST /events (batch, every 500ms)
-┌──────────────────────────────────────────────────────┐
-│ Collector API (Railway)                              │
-│  → Calculates costs (pricing database)              │
-│  → Stores events (PostgreSQL)                        │
-│  → Serves analytics endpoints                        │
-└─────────────────┬────────────────────────────────────┘
-                  │
-                  ↓ GET /runs, /events, /stats
-┌──────────────────────────────────────────────────────┐
-│ Dashboard (Next.js on Vercel)                        │
-│  → Shows costs, trends, breakdowns                   │
-│  → Real-time updates (30s polling)                   │
-│  → Export to CSV/JSON                                │
-└──────────────────────────────────────────────────────┘
-```
-
-**Key Design:**
-- **HTTP Interception:** Universal, SDK-agnostic, stable
-- **No Monkey-Patching:** Works when SDKs update
-- **Fail-Open:** If tracking breaks, your app continues
 
 ---
 
 ## 📊 What We Track
 
 ### ✅ **Automatically Tracked**
-- **LLM Providers:** OpenAI, Anthropic, Google, Cohere, Together, Hugging Face, Perplexity, Groq, Mistral, etc.
+- **LLM Providers:** OpenAI, Anthropic, Google, Cohere, Together, Hugging Face, Perplexity, Groq, Mistral, and 40+ more
 - **Vector DBs:** Pinecone, Weaviate, Qdrant, Chroma (any HTTP-based)
 - **Custom APIs:** Any HTTP API your code calls
 - **Protocols:** HTTP/HTTPS, gRPC, WebSockets
@@ -171,10 +164,10 @@ llmobserve instrument --auto-apply      # Apply automatically
 - Automatic pricing updates
 
 ### **Agent Tracking**
-- Label agents with `@agent("name")` or `section("agent:name")`
+- Label agents with `section("agent:name")`
 - Hierarchical tracking (agent → tool → step)
 - "Untracked" bucket for unlabeled costs
-- AI can auto-label your code
+- Nothing hidden
 
 ### **Multi-Tenancy**
 - Track costs per end-customer
@@ -203,11 +196,10 @@ from llmobserve import set_customer_id
 set_customer_id("customer_123")  # Track this customer's costs
 ```
 
-### **Spending Caps**
-Set in dashboard → Settings → Spending Caps
-
 ### **Hierarchical Tracing**
 ```python
+from llmobserve import section
+
 with section("agent:researcher"):
     with section("tool:web_search"):
         # Tracked as "agent:researcher/tool:web_search"
@@ -219,13 +211,60 @@ with section("agent:researcher"):
 
 ### **Framework Integration**
 ```python
-from llmobserve import wrap_all_tools
-
-# LangChain, CrewAI, AutoGen, etc.
-tools = [search_tool, calculator]
-wrapped_tools = wrap_all_tools(tools)
-agent = Agent(tools=wrapped_tools)
+# Works with:
+# - LangChain
+# - CrewAI
+# - AutoGen
+# - LlamaIndex
+# - Any framework that uses HTTP APIs
 ```
+
+---
+
+## 🏗️ Architecture
+
+```
+┌──────────────────────────────────────────────────────┐
+│ Your Code + llmobserve SDK                           │
+│  → Patches HTTP clients (httpx, requests, aiohttp)  │
+│  → Injects tracking headers                          │
+└─────────────────┬────────────────────────────────────┘
+                  │
+                  ↓ POST /events (batch, every 500ms)
+┌──────────────────────────────────────────────────────┐
+│ Collector API (Railway)                              │
+│  → Calculates costs (pricing database)              │
+│  → Stores events (PostgreSQL)                        │
+│  → Serves analytics endpoints                        │
+└─────────────────┬────────────────────────────────────┘
+                  │
+                  ↓ GET /runs, /events, /stats
+┌──────────────────────────────────────────────────────┐
+│ Dashboard (Next.js on Vercel)                        │
+│  → Shows costs, trends, breakdowns                   │
+│  → Real-time updates                                 │
+│  → Export to CSV/JSON                                │
+└──────────────────────────────────────────────────────┘
+```
+
+**Key Design:**
+- **HTTP Interception:** Universal, SDK-agnostic, stable
+- **No Monkey-Patching:** Works when SDKs update
+- **Fail-Open:** If tracking breaks, your app continues
+
+---
+
+## 💰 Pricing
+
+**$5/month** - Unlimited tracking, all features included:
+- ✅ Unlimited API calls tracked
+- ✅ All providers (40+)
+- ✅ Multi-tenant support
+- ✅ Spending caps
+- ✅ Export to CSV/JSON
+- ✅ Priority support
+
+**Try it:** https://llmobserve.com
 
 ---
 
@@ -241,7 +280,7 @@ agent = Agent(tools=wrapped_tools)
 ```bash
 # Run collector locally
 cd collector
-python -m uvicorn main:app --reload
+python -m uvicorn main:app --reload --port 8000
 
 # Run web dashboard
 cd web
@@ -252,44 +291,29 @@ npm run dev
 ### **Environment Variables**
 ```bash
 # SDK
-LLMOBSERVE_COLLECTOR_URL=https://llmobserve-production.up.railway.app
+LLMOBSERVE_COLLECTOR_URL=https://llmobserve-api-production-d791.up.railway.app
 LLMOBSERVE_API_KEY=your-api-key
 
 # Backend (Railway)
 DATABASE_URL=postgresql://...
 CLERK_SECRET_KEY=sk_...
-ANTHROPIC_API_KEY=sk-ant-...  # For AI instrumentation
 
 # Frontend (Vercel)
-NEXT_PUBLIC_COLLECTOR_URL=https://llmobserve-production.up.railway.app
+NEXT_PUBLIC_COLLECTOR_URL=https://llmobserve-api-production-d791.up.railway.app
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
 CLERK_SECRET_KEY=sk_...
-ANTHROPIC_API_KEY=sk-ant-...  # For AI instrumentation
 ```
 
 ---
 
 ## 📚 Documentation
 
-- **Full Docs:** https://llmobserve.com/docs
-- **API Reference:** https://llmobserve.com/docs#api-reference
-- **How It Works:** See `HOW_TRACKING_WORKS.md`
-- **Example Flow:** See `EXAMPLE_USER_FLOW.md`
-
----
-
-## 💰 Pricing
-
-**$5/month** - Unlimited tracking, all features included:
-- ✅ Unlimited API calls tracked
-- ✅ All providers (40+)
-- ✅ Multi-tenant support
-- ✅ AI auto-instrumentation
-- ✅ Spending caps
-- ✅ Export to CSV/JSON
-- ✅ Priority support
-
-**Try it:** https://llmobserve.com
+- **Quick Start (Copy & Paste):** [QUICKSTART_COPY_PASTE.md](./QUICKSTART_COPY_PASTE.md)
+- **Simple README:** [README_SIMPLE.md](./README_SIMPLE.md)
+- **Full API Reference:** https://llmobserve.com/docs/api
+- **How It Works:** [HOW_TRACKING_WORKS.md](./HOW_TRACKING_WORKS.md)
+- **Example Flow:** [EXAMPLE_USER_FLOW.md](./EXAMPLE_USER_FLOW.md)
+- **Integration Guides:** https://llmobserve.com/docs/integrations
 
 ---
 
@@ -297,7 +321,8 @@ ANTHROPIC_API_KEY=sk-ant-...  # For AI instrumentation
 
 - **Email:** support@llmobserve.com
 - **Docs:** https://llmobserve.com/docs
-- **Issues:** GitHub Issues
+- **Discord:** https://discord.gg/llmobserve
+- **GitHub Issues:** https://github.com/yourusername/llmobserve/issues
 
 ---
 
@@ -323,9 +348,9 @@ MIT License - see LICENSE file for details
 
 ### **The Difference**
 - **HTTP Interception:** Works with ANY API, not just specific SDKs
-- **AI Labeling:** One command auto-instruments your code
 - **Transparent:** "Untracked" bucket shows all costs (nothing hidden)
 - **Simple:** 2 lines to start, optional labeling for organization
+- **Fail-Safe:** Doesn't break your app if tracking fails
 
 ---
 
@@ -335,8 +360,8 @@ MIT License - see LICENSE file for details
 import llmobserve
 
 llmobserve.observe(
-    collector_url="https://llmobserve-production.up.railway.app",
-    api_key="your-api-key"
+    collector_url="https://llmobserve-api-production-d791.up.railway.app",
+    api_key="YOUR_API_KEY_HERE"
 )
 
 # You're done. Start building.
