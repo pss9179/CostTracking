@@ -129,7 +129,7 @@ export function MainMetricChart({
                               ${total.toFixed(4)}
                             </span>
                           </div>
-                          {payload.reverse().map((p, i) => (
+                          {[...payload].reverse().map((p, i) => (
                             <div key={i} className="flex items-center justify-between gap-4">
                               <div className="flex items-center gap-2">
                                 <div 
