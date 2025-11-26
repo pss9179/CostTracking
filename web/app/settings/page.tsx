@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Settings, DollarSign, Check, Loader2 } from "lucide-react";
-import Sidebar from "@/components/Sidebar";
+import { Sidebar } from "@/components/Sidebar";
 
 // Format plan name for display
 function formatPlanName(plan: string): string {
