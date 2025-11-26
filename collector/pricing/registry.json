@@ -131,22 +131,33 @@
     "per_minute": 0.006
   },
   "openai:gpt-4o-transcribe": {
-    "per_1m_audio_tokens": 2.50,
-    "tokens_per_second": 16.67,
-    "per_minute": 0.0025,
-    "_comment": "GPT-4o Transcribe: $2.50/1M audio tokens, ~1000 tokens/min"
+    "per_1m_audio_tokens": 6.00,
+    "per_minute": 0.006,
+    "_comment": "GPT-4o Transcribe: $6.00/1M audio input tokens = $0.006/min"
+  },
+  "openai:gpt-4o-transcribe-diarize": {
+    "per_1m_audio_tokens": 6.00,
+    "per_minute": 0.006,
+    "_comment": "GPT-4o Transcribe with diarization: $6.00/1M audio input tokens = $0.006/min"
   },
   "openai:gpt-4o-mini-transcribe": {
-    "per_1m_audio_tokens": 0.60,
-    "tokens_per_second": 16.67,
-    "per_minute": 0.0006,
-    "_comment": "GPT-4o Mini Transcribe: $0.60/1M audio tokens, ~1000 tokens/min"
+    "per_1m_audio_tokens": 3.00,
+    "per_minute": 0.003,
+    "_comment": "GPT-4o Mini Transcribe: $3.00/1M audio input tokens = $0.003/min"
   },
-  "openai:tts-1": {
-    "per_character": 1.5e-05
+  "openai:gpt-4o-mini-tts": {
+    "per_1m_audio_tokens_output": 12.00,
+    "per_minute": 0.015,
+    "_comment": "GPT-4o Mini TTS: $12.00/1M audio output tokens = $0.015/min"
   },
   "openai:tts-1-hd": {
-    "per_character": 3e-05
+    "per_1m_chars": 30.00,
+    "_comment": "TTS HD: $30.00/1M characters"
+  },
+  "openai:tts-1": {
+    "per_character": 1.5e-05,
+    "per_1m_chars": 15.00,
+    "_comment": "TTS: $15.00/1M characters"
   },
   "openai:dall-e-3": {
     "standard_1024": 0.04,
