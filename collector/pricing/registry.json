@@ -291,10 +291,25 @@
     "output": 0
   },
   "elevenlabs:eleven_multilingual_v2": {
-    "per_1k_chars": 0.18
+    "per_1k_chars": 0.24
+  },
+  "elevenlabs:eleven_multilingual_v3": {
+    "per_1k_chars": 0.24
   },
   "elevenlabs:eleven_turbo_v2": {
     "per_1k_chars": 0.18
+  },
+  "elevenlabs:eleven_flash_v2": {
+    "per_1k_chars": 0.12
+  },
+  "elevenlabs:eleven_flash_v2_5": {
+    "per_1k_chars": 0.12
+  },
+  "elevenlabs:scribe_v1": {
+    "per_minute": 0.0067
+  },
+  "elevenlabs:scribe_v2_realtime": {
+    "per_minute": 0.0088
   },
   "mistral:mistral-large-latest": {
     "input": 2e-06,
