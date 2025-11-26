@@ -18,21 +18,36 @@ logger = logging.getLogger("llmobserve")
 from llmobserve import buffer, context, config
 
 
-# AssemblyAI pricing (as of 2024)
+# AssemblyAI pricing (2024 - verified from official pricing page)
 ASSEMBLYAI_PRICING = {
-    # Core transcription
-    "best": 0.00062,  # $0.00062/min - Best tier
-    "nano": 0.00018,  # $0.00018/min - Nano tier (faster, less accurate)
-    "default": 0.00062,  # Default to best
+    # Core transcription models (per minute)
+    "universal": 0.0025,  # $0.15/hr - Pre-recorded and streaming
+    "universal-streaming": 0.0025,  # $0.15/hr - Streaming
+    "universal-streaming-multilingual": 0.0025,  # $0.15/hr - Multilingual streaming
+    "slam-1": 0.0045,  # $0.27/hr - Highest accuracy (English only, Beta)
+    "best": 0.0025,  # Legacy alias - maps to universal
+    "nano": 0.0025,  # Legacy alias - maps to universal
+    "default": 0.0025,  # Default to universal
     
-    # Add-ons (per minute, on top of base)
-    "speaker_labels": 0.00006,  # Speaker diarization
-    "content_moderation": 0.00006,  # Content safety
-    "iab_categories": 0.00002,  # Topic detection
-    "sentiment_analysis": 0.00003,  # Sentiment
-    "entity_detection": 0.00006,  # PII/Entity detection
-    "summarization": 0.00024,  # Summarization
-    "auto_chapters": 0.00024,  # Auto chapters
+    # Add-ons (per minute, on top of base transcription)
+    "keyterms_prompting": 0.00067,  # $0.04/hr - Keyterms prompting add-on
+    
+    # Speech Understanding add-ons (per minute)
+    "speaker_identification": 0.00033,  # $0.02/hr - Speaker identification
+    "translation": 0.001,  # $0.06/hr - Translation
+    "custom_formatting": 0.0005,  # $0.03/hr - Custom formatting
+    "entity_detection": 0.00133,  # $0.08/hr - Entity detection
+    "sentiment_analysis": 0.00033,  # $0.02/hr - Sentiment analysis
+    "auto_chapters": 0.00133,  # $0.08/hr - Auto chapters
+    "key_phrases": 0.00017,  # $0.01/hr - Key phrases
+    "topic_detection": 0.0025,  # $0.15/hr - Topic detection
+    "summarization": 0.0005,  # $0.03/hr - Summarization
+    
+    # Guardrails add-ons (per minute)
+    "profanity_filtering": 0.00017,  # $0.01/hr - Profanity filtering
+    "pii_audio_redaction": 0.00083,  # $0.05/hr - PII audio redaction
+    "pii_redaction": 0.00133,  # $0.08/hr - PII redaction
+    "content_moderation": 0.0025,  # $0.15/hr - Content moderation
 }
 
 

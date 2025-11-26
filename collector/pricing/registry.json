@@ -391,11 +391,33 @@
     "input": 2.65e-06,
     "output": 3.5e-06
   },
+  "assemblyai:universal": {
+    "per_minute": 0.0025,
+    "_comment": "$0.15/hr for pre-recorded and streaming"
+  },
+  "assemblyai:universal-streaming": {
+    "per_minute": 0.0025,
+    "_comment": "$0.15/hr for streaming"
+  },
+  "assemblyai:universal-streaming-multilingual": {
+    "per_minute": 0.0025,
+    "_comment": "$0.15/hr for multilingual streaming"
+  },
+  "assemblyai:slam-1": {
+    "per_minute": 0.0045,
+    "_comment": "$0.27/hr for highest accuracy (English only, Beta)"
+  },
+  "assemblyai:keyterms-prompting": {
+    "per_minute": 0.00067,
+    "_comment": "$0.04/hr add-on for keyterms prompting"
+  },
   "assemblyai:best": {
-    "per_minute": 0.00062
+    "per_minute": 0.0025,
+    "_comment": "Legacy alias - use assemblyai:universal"
   },
   "assemblyai:nano": {
-    "per_minute": 0.00018
+    "per_minute": 0.0025,
+    "_comment": "Legacy alias - use assemblyai:universal"
   },
   "deepgram:nova-2": {
     "per_minute": 0.0043
