@@ -130,6 +130,18 @@
   "openai:whisper-1": {
     "per_minute": 0.006
   },
+  "openai:gpt-4o-transcribe": {
+    "per_1m_audio_tokens": 2.50,
+    "tokens_per_second": 16.67,
+    "per_minute": 0.0025,
+    "_comment": "GPT-4o Transcribe: $2.50/1M audio tokens, ~1000 tokens/min"
+  },
+  "openai:gpt-4o-mini-transcribe": {
+    "per_1m_audio_tokens": 0.60,
+    "tokens_per_second": 16.67,
+    "per_minute": 0.0006,
+    "_comment": "GPT-4o Mini Transcribe: $0.60/1M audio tokens, ~1000 tokens/min"
+  },
   "openai:tts-1": {
     "per_character": 1.5e-05
   },
