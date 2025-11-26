@@ -64,10 +64,14 @@ async def get_current_user(
         def protected_route(user: User = Depends(get_current_user)):
             return {"user_id": user.id}
     """
-    print("[AUTH FUNC] get_current_user FUNCTION CALLED!", flush=True)
     import sys
-    sys.stderr.write(f"[AUTH FUNC] get_current_user called! authorization={authorization[:50] if authorization else None}...\n")
+    sys.stderr.write("=" * 80 + "\n")
+    sys.stderr.write("[AUTH FUNC] ===== get_current_user FUNCTION CALLED! =====\n")
+    sys.stderr.write(f"[AUTH FUNC] authorization header: {authorization}\n")
+    sys.stderr.write("=" * 80 + "\n")
     sys.stderr.flush()
+    print("[AUTH FUNC] get_current_user FUNCTION CALLED!", flush=True)
+    print(f"[AUTH FUNC] authorization={authorization}", flush=True)
     if not authorization:
         raise HTTPException(
             status_code=401,
@@ -87,51 +91,80 @@ async def get_current_user(
     token = parts[1]
     
     # Log to stderr and logger
+    import sys
+    sys.stderr.write(f"[AUTH] Token extracted: {token}\n")
+    sys.stderr.write(f"[AUTH] Token length: {len(token)}\n")
+    sys.stderr.write(f"[AUTH] Starts with llmo_sk_: {token.startswith('llmo_sk_')}\n")
+    sys.stderr.flush()
     logger.error(f"[AUTH] Token received: {token[:30]}...")
     logger.error(f"[AUTH] Starts with llmo_sk_: {token.startswith('llmo_sk_')}")
     
     # Check if it's an API key (starts with llmo_sk_)
     if token.startswith("llmo_sk_"):
+        sys.stderr.write("[AUTH] ✅ Detected API key - entering API key validation branch\n")
+        sys.stderr.flush()
         logger.error(f"[AUTH] Detected API key, validating...")
         print(f"[AUTH DEBUG] Validating API key...", flush=True)
         logger.info(f"[Auth] Validating API key: {token[:20]}...")
         # Validate API key
-        statement = select(APIKey).where(APIKey.revoked_at.is_(None))
-        api_keys = session.exec(statement).all()
-        logger.info(f"[Auth] Found {len(api_keys)} non-revoked API keys in database")
-        
-        matched_key = None
-        for key in api_keys:
-            if verify_api_key_hash(token, key.key_hash):
-                matched_key = key
-                logger.info(f"[Auth] API key matched! User ID: {key.user_id}")
-                break
-        
-        if not matched_key:
-            logger.warning(f"[Auth] API key not found in database")
+        try:
+            logger.error(f"[AUTH] Executing database query...")
+            statement = select(APIKey).where(APIKey.revoked_at.is_(None))
+            api_keys = session.exec(statement).all()
+            logger.error(f"[AUTH] Found {len(api_keys)} non-revoked API keys in database")
+            
+            matched_key = None
+            logger.error(f"[AUTH] Checking {len(api_keys)} keys...")
+            for i, key in enumerate(api_keys):
+                logger.error(f"[AUTH] Checking key {i+1}/{len(api_keys)}: {key.key_prefix}")
+                if verify_api_key_hash(token, key.key_hash):
+                    matched_key = key
+                    logger.error(f"[AUTH] ✅ API key MATCHED! User ID: {key.user_id}")
+                    break
+            
+            if not matched_key:
+                logger.error(f"[AUTH] ❌ API key NOT found in database after checking {len(api_keys)} keys")
+                raise HTTPException(
+                    status_code=401,
+                    detail="API_KEY_AUTH_FAILED: Invalid or revoked API key",
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[AUTH] ❌ Exception during API key validation: {type(e).__name__}: {e}", exc_info=True)
             raise HTTPException(
                 status_code=401,
-                detail="API_KEY_AUTH_FAILED: Invalid or revoked API key",
+                detail=f"API_KEY_AUTH_ERROR: {str(e)}",
             )
         
         # Update last_used_at
+        logger.error(f"[AUTH] ✅ Updating last_used_at for matched key...")
         matched_key.last_used_at = datetime.utcnow()
         session.add(matched_key)
         session.commit()
         
         # Get user
+        logger.error(f"[AUTH] ✅ Getting user from database...")
         user = session.get(User, matched_key.user_id)
         if not user:
+            logger.error(f"[AUTH] ❌ User not found for ID: {matched_key.user_id}")
             raise HTTPException(
                 status_code=401,
                 detail="User not found",
             )
+        logger.error(f"[AUTH] ✅✅✅ SUCCESS! Returning user: {user.email}")
         return user
     
     else:
         # Assume it's a Clerk JWT
+        import sys
+        sys.stderr.write("[AUTH] ⚠️ Token does NOT start with llmo_sk_ - falling back to Clerk Auth\n")
+        sys.stderr.write(f"[AUTH] Token was: {token[:50]}...\n")
+        sys.stderr.flush()
         # Import locally to avoid circular import
         from clerk_auth import get_current_clerk_user
+        sys.stderr.write("[AUTH] Calling get_current_clerk_user...\n")
+        sys.stderr.flush()
         return await get_current_clerk_user(request, session)
 
 
