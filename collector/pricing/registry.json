@@ -419,6 +419,58 @@
     "per_minute": 0.0025,
     "_comment": "Legacy alias - use assemblyai:universal"
   },
+  "gladia:fast_realtime_selfserve": {
+    "per_minute": 0.0125,
+    "_comment": "Fast model, Real-time, Self-Serve tier ($0.75/hr)"
+  },
+  "gladia:fast_async_selfserve": {
+    "per_minute": 0.01017,
+    "_comment": "Fast model, Async, Self-Serve tier ($0.61/hr)"
+  },
+  "gladia:fast_realtime_scaling": {
+    "per_minute": 0.00917,
+    "_comment": "Fast model, Real-time, Scaling tier ($0.55/hr)"
+  },
+  "gladia:fast_async_scaling": {
+    "per_minute": 0.00833,
+    "_comment": "Fast model, Async, Scaling tier ($0.50/hr)"
+  },
+  "gladia:accurate_realtime_selfserve": {
+    "per_minute": 0.0125,
+    "_comment": "Accurate model, Real-time, Self-Serve tier ($0.75/hr)"
+  },
+  "gladia:accurate_async_selfserve": {
+    "per_minute": 0.01017,
+    "_comment": "Accurate model, Async, Self-Serve tier ($0.61/hr)"
+  },
+  "gladia:accurate_realtime_scaling": {
+    "per_minute": 0.00917,
+    "_comment": "Accurate model, Real-time, Scaling tier ($0.55/hr)"
+  },
+  "gladia:accurate_async_scaling": {
+    "per_minute": 0.00833,
+    "_comment": "Accurate model, Async, Scaling tier ($0.50/hr)"
+  },
+  "gladia:solaria_realtime_selfserve": {
+    "per_minute": 0.0125,
+    "_comment": "Solaria model, Real-time, Self-Serve tier ($0.75/hr)"
+  },
+  "gladia:solaria_async_selfserve": {
+    "per_minute": 0.01017,
+    "_comment": "Solaria model, Async, Self-Serve tier ($0.61/hr)"
+  },
+  "gladia:solaria_realtime_scaling": {
+    "per_minute": 0.00917,
+    "_comment": "Solaria model, Real-time, Scaling tier ($0.55/hr)"
+  },
+  "gladia:solaria_async_scaling": {
+    "per_minute": 0.00833,
+    "_comment": "Solaria model, Async, Scaling tier ($0.50/hr)"
+  },
+  "gladia:default": {
+    "per_minute": 0.0125,
+    "_comment": "Default: Fast model, Real-time, Self-Serve"
+  },
   "deepgram:flux_streaming": {
     "per_minute": 0.0077,
     "_comment": "Streaming - Pay As You Go"

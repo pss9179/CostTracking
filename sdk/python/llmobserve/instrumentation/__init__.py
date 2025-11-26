@@ -252,3 +252,9 @@ try:
 except ImportError:
     logger.debug("[llmobserve] Azure Speech instrumentor not available")
 
+try:
+    from llmobserve.instrumentation.gladia_instrumentor import instrument_gladia
+    register_instrumentor("gladia", instrument_gladia)
+except ImportError:
+    logger.debug("[llmobserve] Gladia instrumentor not available")
+

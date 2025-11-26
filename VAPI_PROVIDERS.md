@@ -14,7 +14,7 @@ Vapi supports **10 STT providers** with access to all their models:
 | **Azure** | ✅ All Azure Speech models | Microsoft Azure Speech-to-Text |
 | **Deepgram** | ✅ All Deepgram models (Nova 3, Nova 2, etc.) | Primary transcription provider |
 | **ElevenLabs** | ✅ All Scribe models | ElevenLabs STT (Scribe v1, v2, etc.) |
-| **Gladia** | ✅ All Gladia models | Gladia transcription API |
+| **Gladia** | ✅ Fast, Accurate, Solaria | Gladia transcription API |
 | **Google** | ✅ All Google Speech models | Google Cloud Speech-to-Text |
 | **OpenAI** | ✅ All Whisper models | OpenAI Whisper API |
 | **Speechmatics** | ✅ All Speechmatics models | Speechmatics transcription |
