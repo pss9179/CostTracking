@@ -6,16 +6,12 @@ Handles user preferences including pricing plan settings for accurate cost track
 from fastapi import APIRouter, HTTPException, Depends
 from sqlmodel import Session, select
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
+from pydantic import BaseModel
 
-from collector.database import get_session
-from collector.models import (
-    PricingSettings,
-    PricingSettingsUpdate,
-    PricingSettingsResponse,
-    User,
-)
-from collector.auth import get_current_user
+from db import get_session
+from models import User
+from clerk_auth import get_current_clerk_user
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -28,6 +24,8 @@ VALID_PLANS = {
     ],
     "elevenlabs": ["creator", "pro", "scale", "business"],
     "playht": ["creator", "pro", "growth", "business"],
+    "deepgram": ["payg", "growth"],
+    "speechmatics": ["selfserve", "scaling"],
 }
 
 # Pricing lookup tables (cost per 1K chars/credits)
@@ -55,40 +53,64 @@ PLAYHT_PRICING = {
 }
 
 
-@router.get("/pricing", response_model=PricingSettingsResponse)
+class PricingSettingsUpdate(BaseModel):
+    cartesia_plan: Optional[str] = None
+    elevenlabs_tier: Optional[str] = None
+    playht_plan: Optional[str] = None
+    deepgram_tier: Optional[str] = None
+    speechmatics_tier: Optional[str] = None
+
+
+class PricingSettingsResponse(BaseModel):
+    cartesia_plan: str = "startup-yearly"
+    elevenlabs_tier: str = "pro"
+    playht_plan: str = "pro"
+    deepgram_tier: str = "payg"
+    speechmatics_tier: str = "selfserve"
+    updated_at: datetime
+
+
+# In-memory storage for now (would be in DB in production)
+_user_settings: Dict[str, Dict[str, Any]] = {}
+
+
+@router.get("/pricing")
 async def get_pricing_settings(
-    user: User = Depends(get_current_user),
+    current_user = Depends(get_current_clerk_user),
     session: Session = Depends(get_session),
 ):
     """
     Get user's pricing settings for all providers.
     Returns defaults if no settings exist.
     """
-    settings = session.exec(
-        select(PricingSettings).where(PricingSettings.user_id == user.id)
-    ).first()
+    user_id = str(current_user.id)
     
-    if not settings:
-        # Return defaults
+    if user_id in _user_settings:
+        settings = _user_settings[user_id]
         return PricingSettingsResponse(
-            cartesia_plan="startup-yearly",
-            elevenlabs_tier="pro",
-            playht_plan="pro",
-            updated_at=datetime.utcnow(),
+            cartesia_plan=settings.get("cartesia_plan", "startup-yearly"),
+            elevenlabs_tier=settings.get("elevenlabs_tier", "pro"),
+            playht_plan=settings.get("playht_plan", "pro"),
+            deepgram_tier=settings.get("deepgram_tier", "payg"),
+            speechmatics_tier=settings.get("speechmatics_tier", "selfserve"),
+            updated_at=settings.get("updated_at", datetime.utcnow()),
         )
     
+    # Return defaults
     return PricingSettingsResponse(
-        cartesia_plan=settings.cartesia_plan,
-        elevenlabs_tier=settings.elevenlabs_tier,
-        playht_plan=settings.playht_plan,
-        updated_at=settings.updated_at,
+        cartesia_plan="startup-yearly",
+        elevenlabs_tier="pro",
+        playht_plan="pro",
+        deepgram_tier="payg",
+        speechmatics_tier="selfserve",
+        updated_at=datetime.utcnow(),
     )
 
 
-@router.post("/pricing", response_model=PricingSettingsResponse)
+@router.post("/pricing")
 async def update_pricing_settings(
     updates: PricingSettingsUpdate,
-    user: User = Depends(get_current_user),
+    current_user = Depends(get_current_clerk_user),
     session: Session = Depends(get_session),
 ):
     """
@@ -114,33 +136,54 @@ async def update_pricing_settings(
             detail=f"Invalid PlayHT plan. Valid options: {VALID_PLANS['playht']}"
         )
     
-    # Get or create settings
-    settings = session.exec(
-        select(PricingSettings).where(PricingSettings.user_id == user.id)
-    ).first()
+    if updates.deepgram_tier and updates.deepgram_tier not in VALID_PLANS["deepgram"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid Deepgram tier. Valid options: {VALID_PLANS['deepgram']}"
+        )
     
-    if not settings:
-        settings = PricingSettings(user_id=user.id)
-        session.add(settings)
+    if updates.speechmatics_tier and updates.speechmatics_tier not in VALID_PLANS["speechmatics"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid Speechmatics tier. Valid options: {VALID_PLANS['speechmatics']}"
+        )
+    
+    user_id = str(current_user.id)
+    
+    # Get or create settings
+    if user_id not in _user_settings:
+        _user_settings[user_id] = {
+            "cartesia_plan": "startup-yearly",
+            "elevenlabs_tier": "pro",
+            "playht_plan": "pro",
+            "deepgram_tier": "payg",
+            "speechmatics_tier": "selfserve",
+            "updated_at": datetime.utcnow(),
+        }
+    
+    settings = _user_settings[user_id]
     
     # Update fields
     if updates.cartesia_plan:
-        settings.cartesia_plan = updates.cartesia_plan
+        settings["cartesia_plan"] = updates.cartesia_plan
     if updates.elevenlabs_tier:
-        settings.elevenlabs_tier = updates.elevenlabs_tier
+        settings["elevenlabs_tier"] = updates.elevenlabs_tier
     if updates.playht_plan:
-        settings.playht_plan = updates.playht_plan
+        settings["playht_plan"] = updates.playht_plan
+    if updates.deepgram_tier:
+        settings["deepgram_tier"] = updates.deepgram_tier
+    if updates.speechmatics_tier:
+        settings["speechmatics_tier"] = updates.speechmatics_tier
     
-    settings.updated_at = datetime.utcnow()
-    
-    session.commit()
-    session.refresh(settings)
+    settings["updated_at"] = datetime.utcnow()
     
     return PricingSettingsResponse(
-        cartesia_plan=settings.cartesia_plan,
-        elevenlabs_tier=settings.elevenlabs_tier,
-        playht_plan=settings.playht_plan,
-        updated_at=settings.updated_at,
+        cartesia_plan=settings["cartesia_plan"],
+        elevenlabs_tier=settings["elevenlabs_tier"],
+        playht_plan=settings["playht_plan"],
+        deepgram_tier=settings["deepgram_tier"],
+        speechmatics_tier=settings["speechmatics_tier"],
+        updated_at=settings["updated_at"],
     )
 
 
@@ -169,5 +212,12 @@ async def get_pricing_options():
             "unit": "per 1K characters",
             "description": "PlayHT TTS pricing by plan",
         },
+        "deepgram": {
+            "options": VALID_PLANS["deepgram"],
+            "description": "Deepgram Pay As You Go vs Growth tier",
+        },
+        "speechmatics": {
+            "options": VALID_PLANS["speechmatics"],
+            "description": "Speechmatics Self-Serve vs Scaling tier",
+        },
     }
-
