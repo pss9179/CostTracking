@@ -345,6 +345,10 @@ async def check_caps(
     Called by SDK before making API calls to enforce hard blocks.
     Returns list of exceeded caps (empty if all clear).
     """
+    print(f"[CHECK_CAPS] check_caps function CALLED! user={user.email if user else None}", flush=True)
+    import sys
+    sys.stderr.write(f"[CHECK_CAPS] check_caps function CALLED! user={user.email if user else None}\n")
+    sys.stderr.flush()
     # Get all active hard_block caps for this user
     caps = session.exec(
         select(SpendingCap).where(
