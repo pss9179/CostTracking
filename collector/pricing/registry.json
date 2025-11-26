@@ -419,11 +419,213 @@
     "per_minute": 0.0025,
     "_comment": "Legacy alias - use assemblyai:universal"
   },
+  "deepgram:flux_streaming": {
+    "per_minute": 0.0077,
+    "_comment": "Streaming - Pay As You Go"
+  },
+  "deepgram:flux_streaming_growth": {
+    "per_minute": 0.0065,
+    "_comment": "Streaming - Growth tier"
+  },
+  "deepgram:nova-3_mono_streaming": {
+    "per_minute": 0.0077,
+    "_comment": "Nova-3 Monolingual Streaming - Pay As You Go"
+  },
+  "deepgram:nova-3_mono_streaming_growth": {
+    "per_minute": 0.0065,
+    "_comment": "Nova-3 Monolingual Streaming - Growth tier"
+  },
+  "deepgram:nova-3_multi_streaming": {
+    "per_minute": 0.0092,
+    "_comment": "Nova-3 Multilingual Streaming - Pay As You Go"
+  },
+  "deepgram:nova-3_multi_streaming_growth": {
+    "per_minute": 0.0078,
+    "_comment": "Nova-3 Multilingual Streaming - Growth tier"
+  },
+  "deepgram:nova-1-2_streaming": {
+    "per_minute": 0.0058,
+    "_comment": "Nova-1 & 2 Streaming - Pay As You Go"
+  },
+  "deepgram:nova-1-2_streaming_growth": {
+    "per_minute": 0.0047,
+    "_comment": "Nova-1 & 2 Streaming - Growth tier"
+  },
+  "deepgram:enhanced_streaming": {
+    "per_minute": 0.0165,
+    "_comment": "Enhanced Streaming - Pay As You Go"
+  },
+  "deepgram:enhanced_streaming_growth": {
+    "per_minute": 0.0136,
+    "_comment": "Enhanced Streaming - Growth tier"
+  },
+  "deepgram:base_streaming": {
+    "per_minute": 0.0145,
+    "_comment": "Base Streaming - Pay As You Go"
+  },
+  "deepgram:base_streaming_growth": {
+    "per_minute": 0.0105,
+    "_comment": "Base Streaming - Growth tier"
+  },
+  "deepgram:nova-3_mono_prerecorded": {
+    "per_minute": 0.0043,
+    "_comment": "Nova-3 Monolingual Pre-Recorded - Pay As You Go"
+  },
+  "deepgram:nova-3_mono_prerecorded_growth": {
+    "per_minute": 0.0036,
+    "_comment": "Nova-3 Monolingual Pre-Recorded - Growth tier"
+  },
+  "deepgram:nova-3_multi_prerecorded": {
+    "per_minute": 0.0052,
+    "_comment": "Nova-3 Multilingual Pre-Recorded - Pay As You Go"
+  },
+  "deepgram:nova-3_multi_prerecorded_growth": {
+    "per_minute": 0.0043,
+    "_comment": "Nova-3 Multilingual Pre-Recorded - Growth tier"
+  },
+  "deepgram:nova-1-2_prerecorded": {
+    "per_minute": 0.0043,
+    "_comment": "Nova-1 & 2 Pre-Recorded - Pay As You Go"
+  },
+  "deepgram:nova-1-2_prerecorded_growth": {
+    "per_minute": 0.0035,
+    "_comment": "Nova-1 & 2 Pre-Recorded - Growth tier"
+  },
+  "deepgram:enhanced_prerecorded": {
+    "per_minute": 0.0145,
+    "_comment": "Enhanced Pre-Recorded - Pay As You Go"
+  },
+  "deepgram:enhanced_prerecorded_growth": {
+    "per_minute": 0.0115,
+    "_comment": "Enhanced Pre-Recorded - Growth tier"
+  },
+  "deepgram:base_prerecorded": {
+    "per_minute": 0.0125,
+    "_comment": "Base Pre-Recorded - Pay As You Go"
+  },
+  "deepgram:base_prerecorded_growth": {
+    "per_minute": 0.0095,
+    "_comment": "Base Pre-Recorded - Growth tier"
+  },
+  "deepgram:whisper-large": {
+    "per_minute": 0.0048,
+    "_comment": "Whisper Large - same for PAYG and Growth"
+  },
+  "deepgram:addon_redaction": {
+    "per_minute": 0.0020,
+    "_comment": "Redaction Add-on - Pay As You Go"
+  },
+  "deepgram:addon_redaction_growth": {
+    "per_minute": 0.0017,
+    "_comment": "Redaction Add-on - Growth tier"
+  },
+  "deepgram:addon_keyterm": {
+    "per_minute": 0.0013,
+    "_comment": "Keyterm Prompting Add-on - Pay As You Go"
+  },
+  "deepgram:addon_keyterm_growth": {
+    "per_minute": 0.0012,
+    "_comment": "Keyterm Prompting Add-on - Growth tier"
+  },
+  "deepgram:addon_diarization": {
+    "per_minute": 0.0020,
+    "_comment": "Speaker Diarization Add-on - Pay As You Go"
+  },
+  "deepgram:addon_diarization_growth": {
+    "per_minute": 0.0017,
+    "_comment": "Speaker Diarization Add-on - Growth tier"
+  },
+  "deepgram:addon_entity_detection": {
+    "per_minute": 0.0017,
+    "_comment": "Entity Detection Add-on - same for PAYG and Growth"
+  },
+  "deepgram:aura-2": {
+    "per_1k_chars": 0.030,
+    "_comment": "Aura-2 TTS - Pay As You Go"
+  },
+  "deepgram:aura-2_growth": {
+    "per_1k_chars": 0.027,
+    "_comment": "Aura-2 TTS - Growth tier"
+  },
+  "deepgram:aura-1": {
+    "per_1k_chars": 0.015,
+    "_comment": "Aura-1 TTS - Pay As You Go"
+  },
+  "deepgram:aura-1_growth": {
+    "per_1k_chars": 0.0135,
+    "_comment": "Aura-1 TTS - Growth tier"
+  },
+  "deepgram:audio_intelligence_input": {
+    "per_1k_tokens": 0.0003,
+    "_comment": "Summarization/Topic/Sentiment/Intent - input tokens PAYG"
+  },
+  "deepgram:audio_intelligence_output": {
+    "per_1k_tokens": 0.0006,
+    "_comment": "Summarization/Topic/Sentiment/Intent - output tokens PAYG"
+  },
+  "deepgram:audio_intelligence_input_growth": {
+    "per_1k_tokens": 0.00024,
+    "_comment": "Audio Intelligence - input tokens Growth tier"
+  },
+  "deepgram:audio_intelligence_output_growth": {
+    "per_1k_tokens": 0.00048,
+    "_comment": "Audio Intelligence - output tokens Growth tier"
+  },
+  "deepgram:voice_agent_standard": {
+    "per_minute": 0.08,
+    "_comment": "Voice Agent API Standard - Pay As You Go"
+  },
+  "deepgram:voice_agent_standard_growth": {
+    "per_minute": 0.07,
+    "_comment": "Voice Agent API Standard - Growth tier"
+  },
+  "deepgram:voice_agent_standard_byo_tts": {
+    "per_minute": 0.06,
+    "_comment": "Voice Agent API Standard BYO TTS - Pay As You Go"
+  },
+  "deepgram:voice_agent_standard_byo_tts_growth": {
+    "per_minute": 0.05,
+    "_comment": "Voice Agent API Standard BYO TTS - Growth tier"
+  },
+  "deepgram:voice_agent_custom_byo_llm": {
+    "per_minute": 0.07,
+    "_comment": "Voice Agent API Custom BYO LLM - Pay As You Go"
+  },
+  "deepgram:voice_agent_custom_byo_llm_growth": {
+    "per_minute": 0.06,
+    "_comment": "Voice Agent API Custom BYO LLM - Growth tier"
+  },
+  "deepgram:voice_agent_custom_byo_all": {
+    "per_minute": 0.05,
+    "_comment": "Voice Agent API Custom BYO LLM + TTS - Pay As You Go"
+  },
+  "deepgram:voice_agent_custom_byo_all_growth": {
+    "per_minute": 0.04,
+    "_comment": "Voice Agent API Custom BYO LLM + TTS - Growth tier"
+  },
+  "deepgram:voice_agent_advanced": {
+    "per_minute": 0.16,
+    "_comment": "Voice Agent API Advanced - Pay As You Go"
+  },
+  "deepgram:voice_agent_advanced_growth": {
+    "per_minute": 0.15,
+    "_comment": "Voice Agent API Advanced - Growth tier"
+  },
+  "deepgram:voice_agent_advanced_byo_tts": {
+    "per_minute": 0.12,
+    "_comment": "Voice Agent API Advanced BYO TTS - Pay As You Go"
+  },
+  "deepgram:voice_agent_advanced_byo_tts_growth": {
+    "per_minute": 0.11,
+    "_comment": "Voice Agent API Advanced BYO TTS - Growth tier"
+  },
   "deepgram:nova-2": {
-    "per_minute": 0.0043
+    "per_minute": 0.0043,
+    "_comment": "Legacy alias - use nova-1-2_prerecorded"
   },
   "deepgram:base": {
-    "per_minute": 0.0125
+    "per_minute": 0.0125,
+    "_comment": "Legacy alias - use base_prerecorded"
   },
   "playht:standard": {
     "per_1k_chars": 0.4
@@ -797,22 +999,24 @@
     "text_output": 2e-05
   },
   "deepgram:nova-2-general": {
-    "per_minute": 0.0043
+    "per_minute": 0.0043,
+    "_comment": "Legacy alias - use nova-1-2_prerecorded"
   },
   "deepgram:nova-2-meeting": {
-    "per_minute": 0.0043
+    "per_minute": 0.0043,
+    "_comment": "Legacy alias - use nova-1-2_prerecorded"
   },
   "deepgram:nova-2-phonecall": {
-    "per_minute": 0.0043
+    "per_minute": 0.0043,
+    "_comment": "Legacy alias - use nova-1-2_prerecorded"
   },
   "deepgram:nova-2-medical": {
-    "per_minute": 0.0073
-  },
-  "deepgram:whisper-large": {
-    "per_minute": 0.0048
+    "per_minute": 0.0073,
+    "_comment": "Medical specialty model (pre-recorded)"
   },
   "deepgram:aura-tts": {
-    "per_1k_chars": 0.015
+    "per_1k_chars": 0.015,
+    "_comment": "Legacy alias - use aura-1 or aura-2"
   },
   "cartesia:sonic": {
     "per_1k_chars": 0.031,

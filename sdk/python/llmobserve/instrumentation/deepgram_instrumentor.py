@@ -6,16 +6,129 @@ Supports:
 - client.listen.prerecorded.transcribe_url() - URL transcription
 - client.listen.live() - Live/streaming transcription
 - client.speak.tts() - Text-to-Speech (Aura)
+- Voice Agent API - Full voice agent platform
 """
 import functools
 import time
 import uuid
+import os
 import logging
 from typing import Any, Callable, Optional
 
 logger = logging.getLogger("llmobserve")
 
 from llmobserve import buffer, context, config
+
+
+# Deepgram pricing (2024 - verified from official pricing page)
+# All prices in per-minute (STT) or per-1K-chars (TTS)
+
+DEEPGRAM_STT_STREAMING_PAYG = {
+    "flux": 0.0077,
+    "nova-3": 0.0077,  # Monolingual
+    "nova-3-mono": 0.0077,
+    "nova-3-multi": 0.0092,  # Multilingual
+    "nova-1": 0.0058,
+    "nova-2": 0.0058,
+    "nova": 0.0058,  # Default to nova-1/2
+    "enhanced": 0.0165,
+    "base": 0.0145,
+}
+
+DEEPGRAM_STT_STREAMING_GROWTH = {
+    "flux": 0.0065,
+    "nova-3": 0.0065,
+    "nova-3-mono": 0.0065,
+    "nova-3-multi": 0.0078,
+    "nova-1": 0.0047,
+    "nova-2": 0.0047,
+    "nova": 0.0047,
+    "enhanced": 0.0136,
+    "base": 0.0105,
+}
+
+DEEPGRAM_STT_PRERECORDED_PAYG = {
+    "nova-3": 0.0043,  # Monolingual
+    "nova-3-mono": 0.0043,
+    "nova-3-multi": 0.0052,  # Multilingual
+    "nova-1": 0.0043,
+    "nova-2": 0.0043,
+    "nova": 0.0043,
+    "nova-2-general": 0.0043,
+    "nova-2-meeting": 0.0043,
+    "nova-2-phonecall": 0.0043,
+    "nova-2-medical": 0.0073,
+    "enhanced": 0.0145,
+    "base": 0.0125,
+    "whisper-large": 0.0048,
+}
+
+DEEPGRAM_STT_PRERECORDED_GROWTH = {
+    "nova-3": 0.0036,
+    "nova-3-mono": 0.0036,
+    "nova-3-multi": 0.0043,
+    "nova-1": 0.0035,
+    "nova-2": 0.0035,
+    "nova": 0.0035,
+    "nova-2-general": 0.0035,
+    "nova-2-meeting": 0.0035,
+    "nova-2-phonecall": 0.0035,
+    "nova-2-medical": 0.0058,  # Estimated ~85% of PAYG
+    "enhanced": 0.0115,
+    "base": 0.0095,
+    "whisper-large": 0.0048,  # Same for PAYG and Growth
+}
+
+DEEPGRAM_STT_ADDONS_PAYG = {
+    "redaction": 0.0020,
+    "keyterm": 0.0013,
+    "diarization": 0.0020,
+    "entity_detection": 0.0017,
+}
+
+DEEPGRAM_STT_ADDONS_GROWTH = {
+    "redaction": 0.0017,
+    "keyterm": 0.0012,
+    "diarization": 0.0017,
+    "entity_detection": 0.0017,  # Same for both
+}
+
+DEEPGRAM_TTS_PAYG = {
+    "aura-2": 0.030,
+    "aura-1": 0.015,
+    "aura": 0.015,  # Default to aura-1
+    "default": 0.030,  # Default to aura-2
+}
+
+DEEPGRAM_TTS_GROWTH = {
+    "aura-2": 0.027,
+    "aura-1": 0.0135,
+    "aura": 0.0135,
+    "default": 0.027,
+}
+
+DEEPGRAM_VOICE_AGENT_PAYG = {
+    "standard": 0.08,
+    "standard-byo-tts": 0.06,
+    "custom-byo-llm": 0.07,
+    "custom-byo-all": 0.05,
+    "advanced": 0.16,
+    "advanced-byo-tts": 0.12,
+}
+
+DEEPGRAM_VOICE_AGENT_GROWTH = {
+    "standard": 0.07,
+    "standard-byo-tts": 0.05,
+    "custom-byo-llm": 0.06,
+    "custom-byo-all": 0.04,
+    "advanced": 0.15,
+    "advanced-byo-tts": 0.11,
+}
+
+
+def get_pricing_tier() -> str:
+    """Get the pricing tier from environment. Default is 'payg'."""
+    return os.environ.get("DEEPGRAM_TIER", "payg").lower()
 
 
 def track_deepgram_call(
@@ -26,32 +139,51 @@ def track_deepgram_call(
     status: str = "ok",
     error: Optional[str] = None,
     is_tts: bool = False,
+    is_streaming: bool = False,
     character_count: int = 0,
     transcript: Optional[str] = None,
+    addons: Optional[list] = None,
 ) -> None:
     """Track a Deepgram API call with voice-specific fields."""
     
+    tier = get_pricing_tier()
+    is_growth = tier == "growth"
+    
     # Determine pricing based on model and type
     if is_tts:
-        # Deepgram Aura TTS: $0.015 per 1K chars
-        cost_usd = (character_count / 1000) * 0.015
+        # TTS pricing per 1K chars
+        tts_pricing = DEEPGRAM_TTS_GROWTH if is_growth else DEEPGRAM_TTS_PAYG
+        model_key = (model or "").lower().split("-")[0] if model else "default"
+        if "aura-2" in (model or "").lower():
+            model_key = "aura-2"
+        elif "aura" in (model or "").lower():
+            model_key = "aura-1"
+        rate_per_1k = tts_pricing.get(model_key, tts_pricing["default"])
+        cost_usd = (character_count / 1000) * rate_per_1k
         voice_segment_type = "tts"
         span_type = "tts_call"
     else:
-        # STT pricing: varies by model
-        pricing = {
-            "nova-2": 0.0043,
-            "nova-2-general": 0.0043,
-            "nova-2-meeting": 0.0043,
-            "nova-2-phonecall": 0.0043,
-            "nova-2-medical": 0.0073,
-            "nova": 0.0043,
-            "whisper-large": 0.0048,
-            "base": 0.0125,
-        }
-        rate_per_minute = pricing.get(model or "nova-2", 0.0043)
+        # STT pricing: varies by model, streaming vs prerecorded, and tier
+        if is_streaming:
+            stt_pricing = DEEPGRAM_STT_STREAMING_GROWTH if is_growth else DEEPGRAM_STT_STREAMING_PAYG
+        else:
+            stt_pricing = DEEPGRAM_STT_PRERECORDED_GROWTH if is_growth else DEEPGRAM_STT_PRERECORDED_PAYG
+        
+        model_key = (model or "nova-2").lower()
+        rate_per_minute = stt_pricing.get(model_key, stt_pricing.get("nova", 0.0043))
         duration_minutes = (audio_duration_seconds or 0) / 60.0
-        cost_usd = duration_minutes * rate_per_minute
+        base_cost = duration_minutes * rate_per_minute
+        
+        # Add addon costs
+        addon_cost = 0.0
+        if addons:
+            addon_pricing = DEEPGRAM_STT_ADDONS_GROWTH if is_growth else DEEPGRAM_STT_ADDONS_PAYG
+            for addon in addons:
+                addon_key = addon.lower().replace("_", "")
+                if addon_key in addon_pricing:
+                    addon_cost += duration_minutes * addon_pricing[addon_key]
+        
+        cost_usd = base_cost + addon_cost
         voice_segment_type = "stt"
         span_type = "stt_call"
     
