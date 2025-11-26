@@ -515,3 +515,70 @@ export async function fetchVoiceForecast(token?: string): Promise<VoiceForecast>
   return response.json();
 }
 
+// Pricing Settings Types
+export interface PricingSettings {
+  cartesia_plan: string;
+  elevenlabs_tier: string;
+  playht_plan: string;
+  updated_at: string;
+}
+
+export interface PricingOptions {
+  [provider: string]: {
+    options: string[];
+    rates: { [plan: string]: number };
+    unit: string;
+    description: string;
+  };
+}
+
+// Fetch user's pricing settings
+export async function fetchPricingSettings(token?: string): Promise<PricingSettings> {
+  const headers = await getDashboardAuthHeaders(token);
+  const response = await fetch(`${COLLECTOR_URL}/settings/pricing`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch pricing settings: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+// Update user's pricing settings
+export async function updatePricingSettings(
+  settings: Partial<PricingSettings>,
+  token?: string
+): Promise<PricingSettings> {
+  const headers = await getDashboardAuthHeaders(token);
+  const response = await fetch(`${COLLECTOR_URL}/settings/pricing`, {
+    method: "POST",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(settings),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to update pricing settings: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+// Fetch pricing options (plans and rates)
+export async function fetchPricingOptions(token?: string): Promise<PricingOptions> {
+  const headers = await getDashboardAuthHeaders(token);
+  const response = await fetch(`${COLLECTOR_URL}/settings/pricing/options`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch pricing options: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+

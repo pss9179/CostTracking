@@ -11,6 +11,7 @@ import {
   DollarSign,
   LineChart,
   Settings2,
+  Settings,
   Cog,
   Activity,
   FileCode2,
@@ -82,6 +83,15 @@ const navigation = [
     icon: Users,
     group: "Tenants",
     iconColor: "text-orange-500",
+  },
+
+  // Settings
+  {
+    name: "Settings",
+    href: "/settings",
+    icon: Settings,
+    group: "Settings",
+    iconColor: "text-gray-500",
   },
 
   // Resources

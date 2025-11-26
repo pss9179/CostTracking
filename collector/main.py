@@ -16,6 +16,7 @@ from routers import (
     pricing,
     stats,
     voice_stats,
+    settings,
     dashboard,
     api_keys,
     users,
@@ -159,5 +160,6 @@ app.include_router(insights.router)
 app.include_router(pricing.router)
 app.include_router(stats.router)
 app.include_router(voice_stats.router)  # Voice AI stats
+app.include_router(settings.router)  # User settings (pricing plans)
 app.include_router(projects.router)  # Projects
 

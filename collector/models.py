@@ -223,6 +223,51 @@ class AlertResponse(SQLModel):
     created_at: datetime
 
 
+class PricingSettings(SQLModel, table=True):
+    """
+    User-specific pricing settings for providers with tiered/plan-based pricing.
+    Allows users to configure their actual plan for accurate cost tracking.
+    """
+    __tablename__ = "pricing_settings"
+    
+    id: Optional[UUID] = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="users.id", unique=True, index=True, description="User ID")
+    
+    # Cartesia settings
+    cartesia_plan: str = Field(default="startup-yearly", description="Cartesia plan: pro-monthly, pro-yearly, startup-monthly, startup-yearly, scale-monthly, scale-yearly")
+    
+    # ElevenLabs settings  
+    elevenlabs_tier: str = Field(default="pro", description="ElevenLabs tier: creator, pro, scale, business")
+    
+    # PlayHT settings
+    playht_plan: str = Field(default="pro", description="PlayHT plan: creator, pro, growth, business")
+    
+    # Future providers can be added here
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        indexes = [
+            Index("idx_pricing_settings_user_id", "user_id"),
+        ]
+
+
+class PricingSettingsUpdate(SQLModel):
+    """Schema for updating pricing settings."""
+    cartesia_plan: Optional[str] = None
+    elevenlabs_tier: Optional[str] = None
+    playht_plan: Optional[str] = None
+
+
+class PricingSettingsResponse(SQLModel):
+    """Response schema for pricing settings."""
+    cartesia_plan: str
+    elevenlabs_tier: str
+    playht_plan: str
+    updated_at: datetime
+
+
 class TraceEvent(SQLModel, table=True):
     """
     Represents a single traced operation (LLM call, vector DB query, etc.).
