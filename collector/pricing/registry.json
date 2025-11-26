@@ -675,16 +675,25 @@
     "per_1k_chars": 0.015
   },
   "cartesia:sonic": {
-    "per_1k_chars": 0.040
+    "per_1k_chars": 0.039
   },
   "cartesia:sonic-english": {
-    "per_1k_chars": 0.040
+    "per_1k_chars": 0.039
   },
   "cartesia:sonic-multilingual": {
-    "per_1k_chars": 0.040
+    "per_1k_chars": 0.039
   },
-  "cartesia:sonic-turbo": {
-    "per_1k_chars": 0.015
+  "cartesia:ink": {
+    "per_minute": 0.00235
+  },
+  "cartesia:ink-whisper": {
+    "per_minute": 0.00217
+  },
+  "cartesia:line": {
+    "per_minute": 0.06
+  },
+  "cartesia:line-telephony": {
+    "per_minute": 0.014
   },
   "rime:tts": {
     "per_1k_chars": 0.006

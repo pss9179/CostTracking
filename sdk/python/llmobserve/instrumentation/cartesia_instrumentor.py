@@ -20,13 +20,13 @@ logger = logging.getLogger("llmobserve")
 
 from llmobserve import buffer, context, config
 
-# Pricing per 1K characters
+# Pricing per 1K characters (Startup tier rates)
 CARTESIA_PRICING = {
-    "sonic-english": 0.040,
-    "sonic-multilingual": 0.040,
-    "sonic": 0.040,
-    "sonic-turbo": 0.015,
-    "default": 0.040,
+    "sonic-english": 0.039,
+    "sonic-multilingual": 0.039,
+    "sonic": 0.039,
+    "sonic-2": 0.039,
+    "default": 0.039,
 }
 
 
