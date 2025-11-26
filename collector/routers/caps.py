@@ -23,6 +23,7 @@ from models import (
 )
 from db import get_session
 from clerk_auth import get_current_clerk_user
+from auth import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/caps", tags=["caps"])
@@ -329,7 +330,7 @@ async def check_caps(
     model: Optional[str] = Query(default=None, description="Model ID (e.g., 'gpt-4o')"),
     customer_id: Optional[str] = Query(default=None, description="Customer ID"),
     agent: Optional[str] = Query(default=None, description="Agent name"),
-    user: User = Depends(get_current_clerk_user),
+    user: User = Depends(get_current_user),  # Support both API key and Clerk JWT
     session: Session = Depends(get_session),
 ):
     """

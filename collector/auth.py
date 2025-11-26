@@ -1,6 +1,7 @@
 """
 Authentication utilities for API key validation.
 """
+import logging
 import secrets
 import bcrypt
 from datetime import datetime
@@ -10,6 +11,8 @@ from fastapi import Header, HTTPException, Depends, Request
 from sqlmodel import Session, select
 from db import get_session
 from models import APIKey, User
+
+logger = logging.getLogger(__name__)
 
 
 def generate_api_key() -> str:
@@ -55,6 +58,9 @@ async def get_current_user(
         def protected_route(user: User = Depends(get_current_user)):
             return {"user_id": user.id}
     """
+    import sys
+    sys.stderr.write(f"[AUTH] get_current_user called! authorization={authorization[:50] if authorization else None}...\n")
+    sys.stderr.flush()
     if not authorization:
         raise HTTPException(
             status_code=401,
@@ -73,19 +79,30 @@ async def get_current_user(
     
     token = parts[1]
     
+    import sys
+    print(f"[AUTH DEBUG] Token received: {token[:30]}...", flush=True)
+    print(f"[AUTH DEBUG] Starts with llmo_sk_: {token.startswith('llmo_sk_')}", flush=True)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    
     # Check if it's an API key (starts with llmo_sk_)
     if token.startswith("llmo_sk_"):
+        print(f"[AUTH DEBUG] Validating API key...", flush=True)
+        logger.info(f"[Auth] Validating API key: {token[:20]}...")
         # Validate API key
         statement = select(APIKey).where(APIKey.revoked_at.is_(None))
         api_keys = session.exec(statement).all()
+        logger.info(f"[Auth] Found {len(api_keys)} non-revoked API keys in database")
         
         matched_key = None
         for key in api_keys:
             if verify_api_key_hash(token, key.key_hash):
                 matched_key = key
+                logger.info(f"[Auth] API key matched! User ID: {key.user_id}")
                 break
         
         if not matched_key:
+            logger.warning(f"[Auth] API key not found in database")
             raise HTTPException(
                 status_code=401,
                 detail="Invalid or revoked API key",
