@@ -577,5 +577,98 @@
   },
   "vapi:webhook": {
     "per_call": 0.0001
+  },
+  "vapi:transcription": {
+    "per_minute": 0.01
+  },
+  "vapi:voice": {
+    "per_minute": 0.05
+  },
+  "retell:voice_agent": {
+    "per_minute": 0.07
+  },
+  "retell:llm": {
+    "per_minute": 0.05
+  },
+  "retell:telephony": {
+    "per_minute": 0.01
+  },
+  "retell:transcription": {
+    "per_minute": 0.01
+  },
+  "retell:voice": {
+    "per_minute": 0.02
+  },
+  "bland:call": {
+    "per_minute": 0.09
+  },
+  "bland:enterprise": {
+    "per_minute": 0.05
+  },
+  "bland:transcription": {
+    "per_minute": 0.01
+  },
+  "bland:voice": {
+    "per_minute": 0.02
+  },
+  "livekit:voice_agent": {
+    "per_minute": 0.04
+  },
+  "livekit:stt": {
+    "per_minute": 0.01
+  },
+  "livekit:tts": {
+    "per_minute": 0.02
+  },
+  "livekit:room": {
+    "per_minute": 0.004
+  },
+  "google:gemini-2.0-flash-live": {
+    "audio_input_per_minute": 0.04,
+    "audio_output_per_minute": 0.16,
+    "text_input": 1e-07,
+    "text_output": 4e-07
+  },
+  "google:gemini-2.5-flash-live": {
+    "audio_input_per_minute": 0.04,
+    "audio_output_per_minute": 0.16,
+    "text_input": 1e-07,
+    "text_output": 4e-07
+  },
+  "openai:realtime-preview": {
+    "audio_input_per_minute": 0.06,
+    "audio_output_per_minute": 0.24,
+    "text_input": 5e-06,
+    "text_output": 2e-05
+  },
+  "deepgram:nova-2-general": {
+    "per_minute": 0.0043
+  },
+  "deepgram:nova-2-meeting": {
+    "per_minute": 0.0043
+  },
+  "deepgram:nova-2-phonecall": {
+    "per_minute": 0.0043
+  },
+  "deepgram:nova-2-medical": {
+    "per_minute": 0.0073
+  },
+  "deepgram:whisper-large": {
+    "per_minute": 0.0048
+  },
+  "deepgram:aura-tts": {
+    "per_1k_chars": 0.015
+  },
+  "cartesia:sonic": {
+    "per_1k_chars": 0.015
+  },
+  "cartesia:sonic-turbo": {
+    "per_1k_chars": 0.025
+  },
+  "rime:tts": {
+    "per_1k_chars": 0.01
+  },
+  "resemble:tts": {
+    "per_1k_chars": 0.02
   }
 }

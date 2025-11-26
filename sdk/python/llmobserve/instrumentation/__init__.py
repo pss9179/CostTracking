@@ -142,12 +142,57 @@ try:
 except ImportError:
     logger.debug("[llmobserve] Cohere instrumentor not available")
 
-# Voice AI
+# Voice AI - TTS
 try:
     from llmobserve.instrumentation.elevenlabs_instrumentor import instrument_elevenlabs
     register_instrumentor("elevenlabs", instrument_elevenlabs)
 except ImportError:
     logger.debug("[llmobserve] ElevenLabs instrumentor not available")
+
+# Voice AI - STT
+try:
+    from llmobserve.instrumentation.deepgram_instrumentor import instrument_deepgram
+    register_instrumentor("deepgram", instrument_deepgram)
+except ImportError:
+    logger.debug("[llmobserve] Deepgram instrumentor not available")
+
+# Voice AI - Full Platforms
+try:
+    from llmobserve.instrumentation.retell_instrumentor import instrument_retell
+    register_instrumentor("retell", instrument_retell)
+except ImportError:
+    logger.debug("[llmobserve] Retell instrumentor not available")
+
+try:
+    from llmobserve.instrumentation.vapi_instrumentor import instrument_vapi
+    register_instrumentor("vapi", instrument_vapi)
+except ImportError:
+    logger.debug("[llmobserve] Vapi instrumentor not available")
+
+try:
+    from llmobserve.instrumentation.livekit_instrumentor import instrument_livekit
+    register_instrumentor("livekit", instrument_livekit)
+except ImportError:
+    logger.debug("[llmobserve] LiveKit instrumentor not available")
+
+try:
+    from llmobserve.instrumentation.bland_instrumentor import instrument_bland
+    register_instrumentor("bland", instrument_bland)
+except ImportError:
+    logger.debug("[llmobserve] Bland AI instrumentor not available")
+
+# Voice AI - STT
+try:
+    from llmobserve.instrumentation.assemblyai_instrumentor import instrument_assemblyai
+    register_instrumentor("assemblyai", instrument_assemblyai)
+except ImportError:
+    logger.debug("[llmobserve] AssemblyAI instrumentor not available")
+
+try:
+    from llmobserve.instrumentation.openai_realtime_instrumentor import instrument_openai_realtime
+    register_instrumentor("openai_realtime", instrument_openai_realtime)
+except ImportError:
+    logger.debug("[llmobserve] OpenAI Realtime instrumentor not available")
 
 # Embeddings
 try:

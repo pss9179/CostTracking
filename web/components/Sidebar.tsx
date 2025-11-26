@@ -25,6 +25,7 @@ import {
   Globe,
   Inbox,
   Mail,
+  Phone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -65,7 +66,16 @@ const navigation = [
     iconColor: "text-green-500",
   },
 
-  // Feature 4: Customer/tenant tracking
+  // Feature 4: Voice AI tracking
+  {
+    name: "Voice Agents",
+    href: "/voice-agents",
+    icon: Phone,
+    group: "Analytics",
+    iconColor: "text-teal-500",
+  },
+
+  // Feature 5: Customer/tenant tracking
   {
     name: "Customers",
     href: "/customers",

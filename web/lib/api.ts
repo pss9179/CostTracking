@@ -376,3 +376,142 @@ export async function deleteCap(capId: string, token?: string): Promise<void> {
   }
 }
 
+// Voice AI Types
+export interface VoiceCall {
+  voice_call_id: string;
+  customer_id: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  total_cost: number;
+  total_duration_seconds: number;
+  total_latency_ms: number;
+  cost_per_minute: number;
+  segments: {
+    [key: string]: {
+      cost: number;
+      duration_seconds: number;
+      latency_ms: number;
+      event_count: number;
+    };
+  };
+}
+
+export interface VoiceProviderStats {
+  provider: string;
+  total_cost: number;
+  total_duration_seconds: number;
+  total_duration_minutes: number;
+  call_count: number;
+  event_count: number;
+  avg_latency_ms: number;
+  cost_per_minute: number;
+  percentage: number;
+}
+
+export interface VoiceSegmentStats {
+  segment_type: string;
+  total_cost: number;
+  total_duration_seconds: number;
+  event_count: number;
+  avg_latency_ms: number;
+  cost_per_minute: number;
+  percentage: number;
+}
+
+export interface VoiceCostPerMinute {
+  total_cost: number;
+  total_duration_seconds: number;
+  total_duration_minutes: number;
+  total_calls: number;
+  total_events: number;
+  cost_per_minute: number;
+  cost_per_call: number;
+  avg_call_duration_seconds: number;
+  time_window_hours: number;
+}
+
+export interface VoiceForecast {
+  last_7_days: {
+    total_cost: number;
+    total_duration_minutes: number;
+    total_calls: number;
+  };
+  daily_average: {
+    cost: number;
+    duration_minutes: number;
+    calls: number;
+  };
+  monthly_projection: {
+    cost: number;
+    duration_minutes: number;
+    calls: number;
+  };
+  note: string;
+}
+
+// Voice AI API Functions
+export async function fetchVoiceCalls(hours: number = 24, limit: number = 50, token?: string): Promise<VoiceCall[]> {
+  const headers = await getDashboardAuthHeaders(token);
+  const response = await fetch(`${COLLECTOR_URL}/stats/voice/calls?hours=${hours}&limit=${limit}`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch voice calls: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchVoiceProviderStats(hours: number = 24, token?: string): Promise<VoiceProviderStats[]> {
+  const headers = await getDashboardAuthHeaders(token);
+  const response = await fetch(`${COLLECTOR_URL}/stats/voice/by-provider?hours=${hours}`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch voice provider stats: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchVoiceSegmentStats(hours: number = 24, token?: string): Promise<VoiceSegmentStats[]> {
+  const headers = await getDashboardAuthHeaders(token);
+  const response = await fetch(`${COLLECTOR_URL}/stats/voice/by-segment?hours=${hours}`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch voice segment stats: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchVoiceCostPerMinute(hours: number = 24, token?: string): Promise<VoiceCostPerMinute> {
+  const headers = await getDashboardAuthHeaders(token);
+  const response = await fetch(`${COLLECTOR_URL}/stats/voice/cost-per-minute?hours=${hours}`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch voice cost per minute: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchVoiceForecast(token?: string): Promise<VoiceForecast> {
+  const headers = await getDashboardAuthHeaders(token);
+  const response = await fetch(`${COLLECTOR_URL}/stats/voice/forecast`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch voice forecast: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+

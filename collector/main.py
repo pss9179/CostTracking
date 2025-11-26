@@ -15,6 +15,7 @@ from routers import (
     insights,
     pricing,
     stats,
+    voice_stats,
     dashboard,
     api_keys,
     users,
@@ -157,27 +158,6 @@ app.include_router(runs.router)
 app.include_router(insights.router)
 app.include_router(pricing.router)
 app.include_router(stats.router)
-
-
-@app.get("/health", tags=["health"])
-def health_check():
-    """Health check endpoint."""
-    return {"status": "ok", "service": "llmobserve-collector", "version": "0.2.0"}
-
-
-# Include routers
-app.include_router(clerk_webhook.router)  # Clerk webhook (no auth required)
-app.include_router(clerk_api_keys.router)  # Clerk-authenticated API keys
-app.include_router(provider_tiers.router)  # Provider tier configuration
-app.include_router(auth_simple.router)  # Simple email/password auth (legacy)
-app.include_router(users.router)  # User management
-app.include_router(api_keys.router)  # API key management
-app.include_router(caps.router)  # Spending caps & alerts
-app.include_router(stripe.router)  # Stripe subscription management
-app.include_router(dashboard.router)
-app.include_router(events.router)
-app.include_router(runs.router)
-app.include_router(insights.router)
-app.include_router(pricing.router)
-app.include_router(stats.router)
+app.include_router(voice_stats.router)  # Voice AI stats
+app.include_router(projects.router)  # Projects
 

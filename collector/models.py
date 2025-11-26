@@ -269,6 +269,11 @@ class TraceEvent(SQLModel, table=True):
     # Semantic labeling
     semantic_label: Optional[str] = Field(default=None, index=True, description="Semantic label from CLI analysis (e.g., 'Summarization', 'Botting')")
     
+    # Voice AI tracking fields
+    voice_call_id: Optional[str] = Field(default=None, index=True, description="Groups STT + LLM + TTS events as one voice call")
+    audio_duration_seconds: Optional[float] = Field(default=None, description="Audio duration in seconds (for STT/TTS)")
+    voice_segment_type: Optional[str] = Field(default=None, description="Voice segment: 'stt', 'llm', 'tts', 'telephony'")
+    
     # Arbitrary metadata (renamed from 'metadata' to avoid SQLAlchemy reserved word)
     event_metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON), description="Arbitrary details (tenant_id, user_id, etc.)")
     
@@ -286,6 +291,7 @@ class TraceEvent(SQLModel, table=True):
             Index("idx_tenant_created", "tenant_id", "created_at"),
             Index("idx_tenant_customer", "tenant_id", "customer_id"),
             Index("idx_user_created", "user_id", "created_at"),
+            Index("idx_voice_call_id", "voice_call_id"),
         ]
 
 
@@ -361,6 +367,10 @@ class TraceEventCreate(SQLModel):
     stream_cancelled: bool = False
     event_metadata: Optional[dict] = None
     semantic_label: Optional[str] = None  # Semantic label from CLI analysis
+    # Voice AI tracking fields
+    voice_call_id: Optional[str] = None  # Groups STT + LLM + TTS events as one voice call
+    audio_duration_seconds: Optional[float] = None  # Audio duration in seconds
+    voice_segment_type: Optional[str] = None  # 'stt', 'llm', 'tts', 'telephony'
     # Note: tenant_id and user_id can be extracted from API key/auth, or sent explicitly
 
 

@@ -14,6 +14,9 @@ _customer_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar
 _tenant_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("tenant_id", default=None)
 _section_stack_var: contextvars.ContextVar[List[Dict[str, Any]]] = contextvars.ContextVar("section_stack", default=None)
 _trace_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("trace_id", default=None)
+# Voice AI tracking
+_voice_call_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("voice_call_id", default=None)
+_voice_call_start_var: contextvars.ContextVar[Optional[float]] = contextvars.ContextVar("voice_call_start", default=None)
 
 
 def _ensure_run_id() -> str:
@@ -269,17 +272,135 @@ def section(name: str):
             pass
 
 
+def get_voice_call_id() -> Optional[str]:
+    """Get the current voice call ID for grouping STT + LLM + TTS events."""
+    return _voice_call_id_var.get()
+
+
+def set_voice_call_id(voice_call_id: Optional[str] = None) -> None:
+    """
+    Set the voice call ID for grouping voice pipeline events.
+    
+    Args:
+        voice_call_id: Unique identifier for the voice call, or None to auto-generate
+    """
+    _voice_call_id_var.set(voice_call_id if voice_call_id else str(uuid.uuid4()))
+
+
+@contextmanager
+def voice_call(call_id: Optional[str] = None, customer_id: Optional[str] = None):
+    """
+    Context manager to group all voice pipeline events (STT + LLM + TTS) as one call.
+    
+    This allows you to track the complete cost and latency breakdown of a voice
+    agent interaction, seeing exactly how much each component (STT, LLM, TTS,
+    telephony) contributed to the total.
+    
+    Usage:
+        with voice_call() as call_id:
+            # STT event will be tagged with this call_id
+            transcript = transcribe_audio(audio)
+            
+            # LLM event will be tagged with this call_id  
+            response = llm.generate(transcript)
+            
+            # TTS event will be tagged with this call_id
+            audio_out = synthesize_speech(response)
+    
+    Args:
+        call_id: Custom call ID (auto-generated if None)
+        customer_id: Optional customer ID to associate with this call
+    
+    Yields:
+        The voice call ID being used
+    """
+    from llmobserve import buffer
+    
+    # Generate or use provided call_id
+    actual_call_id = call_id if call_id else str(uuid.uuid4())
+    
+    # Store previous values
+    previous_call_id = _voice_call_id_var.get()
+    previous_customer_id = _customer_id_var.get()
+    previous_call_start = _voice_call_start_var.get()
+    
+    # Set new values
+    _voice_call_id_var.set(actual_call_id)
+    _voice_call_start_var.set(time.time())
+    
+    if customer_id:
+        _customer_id_var.set(customer_id)
+    
+    # Track status
+    status = "ok"
+    error_message = None
+    
+    try:
+        yield actual_call_id
+    except Exception as e:
+        status = "error"
+        error_message = str(e)
+        raise
+    finally:
+        # Calculate total call duration
+        call_start = _voice_call_start_var.get()
+        call_duration_ms = max(0.0, (time.time() - call_start) * 1000) if call_start else 0.0
+        
+        # Emit voice call summary event
+        try:
+            from llmobserve.config import is_enabled, get_tenant_id
+            if is_enabled():
+                event = {
+                    "id": str(uuid.uuid4()),
+                    "run_id": get_run_id(),
+                    "span_id": str(uuid.uuid4()),
+                    "parent_span_id": get_current_span_id(),
+                    "section": get_current_section(),
+                    "section_path": get_section_path(),
+                    "span_type": "voice_call",
+                    "provider": "voice_pipeline",
+                    "endpoint": "call_summary",
+                    "model": None,
+                    "cost_usd": 0.0,  # Actual costs are in child events
+                    "latency_ms": call_duration_ms,
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "status": status,
+                    "customer_id": get_customer_id(),
+                    "voice_call_id": actual_call_id,
+                    "audio_duration_seconds": call_duration_ms / 1000.0,
+                    "voice_segment_type": "call_summary",
+                    "event_metadata": {
+                        "error": error_message,
+                        "total_duration_ms": call_duration_ms,
+                    } if error_message else {"total_duration_ms": call_duration_ms},
+                    "is_streaming": False,
+                    "stream_cancelled": False,
+                    "tenant_id": get_tenant_id(),
+                }
+                buffer.add_event(event)
+        except Exception:
+            pass  # Fail silently
+        
+        # Restore previous values
+        _voice_call_id_var.set(previous_call_id)
+        _voice_call_start_var.set(previous_call_start)
+        if customer_id:
+            _customer_id_var.set(previous_customer_id)
+
+
 def export() -> Dict[str, Any]:
     """
     Export current context for serialization (e.g., for Celery/background workers).
     
     Returns:
-        Dictionary with trace_id, run_id, customer_id, and section_stack
+        Dictionary with trace_id, run_id, customer_id, voice_call_id, and section_stack
     """
     return {
         "trace_id": _trace_id_var.get(),
         "run_id": _run_id_var.get(),
         "customer_id": _customer_id_var.get(),
+        "voice_call_id": _voice_call_id_var.get(),
         "section_stack": _section_stack_var.get() or [],
     }
 
@@ -289,7 +410,7 @@ def import_context(data: Dict[str, Any]) -> None:
     Import context from dictionary (e.g., from Celery/background workers).
     
     Args:
-        data: Dictionary with trace_id, run_id, customer_id, and section_stack
+        data: Dictionary with trace_id, run_id, customer_id, voice_call_id, and section_stack
     
     Example:
         >>> context_data = context.export()
@@ -304,6 +425,9 @@ def import_context(data: Dict[str, Any]) -> None:
     
     if "customer_id" in data:
         _customer_id_var.set(data.get("customer_id"))
+    
+    if "voice_call_id" in data:
+        _voice_call_id_var.set(data.get("voice_call_id"))
     
     if "section_stack" in data:
         _section_stack_var.set(data["section_stack"] or [])

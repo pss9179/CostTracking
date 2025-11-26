@@ -30,6 +30,10 @@ from llmobserve.context import (
     get_trace_id,
     export as export_context,
     import_context,
+    # Voice AI tracking
+    voice_call,
+    get_voice_call_id,
+    set_voice_call_id,
 )
 from llmobserve.agent_wrapper import agent
 from llmobserve.tool_wrapper import tool, wrap_tool
@@ -128,6 +132,10 @@ __all__ = [
     # gRPC cost configuration
     "configure_grpc_cost",
     "clear_grpc_costs",
+    # Voice AI tracking
+    "voice_call",
+    "get_voice_call_id",
+    "set_voice_call_id",
     # Static analysis (preview before execution)
     "preview_agent_tree",
     "analyze_code_file",
