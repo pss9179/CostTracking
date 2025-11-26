@@ -23,12 +23,12 @@ from models import (
 )
 from db import get_session
 from clerk_auth import get_current_clerk_user
-from auth import get_current_user
+from auth import get_current_user as auth_get_current_user  # Explicit import for API key auth
 
 # Verify import worked
 import sys
-sys.stderr.write(f"[CAPS IMPORT] get_current_user imported: {get_current_user}\n")
-sys.stderr.write(f"[CAPS IMPORT] get_current_user location: {get_current_user.__module__}\n")
+sys.stderr.write(f"[CAPS IMPORT] auth_get_current_user imported: {auth_get_current_user}\n")
+sys.stderr.write(f"[CAPS IMPORT] auth_get_current_user location: {auth_get_current_user.__module__}\n")
 sys.stderr.flush()
 
 logger = logging.getLogger(__name__)
@@ -334,9 +334,6 @@ async def list_alerts(
 
 
 @router.get("/check")
-# Force import to ensure we're using the right function
-from auth import get_current_user as auth_get_current_user
-
 async def check_caps(
     provider: Optional[str] = Query(default=None, description="Provider name (e.g., 'openai')"),
     model: Optional[str] = Query(default=None, description="Model ID (e.g., 'gpt-4o')"),
