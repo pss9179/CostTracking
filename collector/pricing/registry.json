@@ -675,19 +675,43 @@
     "per_1k_chars": 0.015
   },
   "cartesia:sonic": {
+    "per_1k_chars": 0.031,
+    "_comment": "Default: Startup yearly. See cartesia:sonic-* for other tiers"
+  },
+  "cartesia:sonic-pro-monthly": {
+    "per_1k_chars": 0.050
+  },
+  "cartesia:sonic-pro-yearly": {
+    "per_1k_chars": 0.040
+  },
+  "cartesia:sonic-startup-monthly": {
     "per_1k_chars": 0.039
   },
-  "cartesia:sonic-english": {
-    "per_1k_chars": 0.039
+  "cartesia:sonic-startup-yearly": {
+    "per_1k_chars": 0.031
   },
-  "cartesia:sonic-multilingual": {
-    "per_1k_chars": 0.039
+  "cartesia:sonic-scale-monthly": {
+    "per_1k_chars": 0.037
+  },
+  "cartesia:sonic-scale-yearly": {
+    "per_1k_chars": 0.030
   },
   "cartesia:ink": {
-    "per_minute": 0.00235
+    "per_minute": 0.00186,
+    "_comment": "Default: Startup yearly (60 credits/min × $0.031/1K)"
+  },
+  "cartesia:ink-pro-monthly": {
+    "per_minute": 0.003
+  },
+  "cartesia:ink-startup-yearly": {
+    "per_minute": 0.00186
+  },
+  "cartesia:ink-scale-yearly": {
+    "per_minute": 0.0018
   },
   "cartesia:ink-whisper": {
-    "per_minute": 0.00217
+    "per_minute": 0.00217,
+    "_comment": "From pricing page: $0.13/hr on Scale"
   },
   "cartesia:line": {
     "per_minute": 0.06

@@ -20,13 +20,32 @@ logger = logging.getLogger("llmobserve")
 
 from llmobserve import buffer, context, config
 
-# Pricing per 1K characters (Startup tier rates)
+# Cartesia uses credits: 1 credit = 1 character for TTS
+# Pricing varies by plan. Set CARTESIA_PLAN env var to override.
+# Options: pro-monthly, pro-yearly, startup-monthly, startup-yearly, scale-monthly, scale-yearly
+import os
+
+CARTESIA_PLAN_PRICING = {
+    # Plan: cost per 1K credits (= per 1K chars for TTS)
+    "pro-monthly": 0.050,      # $5/100K
+    "pro-yearly": 0.040,       # $4/100K
+    "startup-monthly": 0.039,  # $49/1.25M
+    "startup-yearly": 0.031,   # $39/1.25M (DEFAULT - most common for production)
+    "scale-monthly": 0.037,    # $299/8M
+    "scale-yearly": 0.030,     # $239/8M
+}
+
+def get_cartesia_price_per_1k() -> float:
+    """Get Cartesia price based on user's plan (from env var or default)."""
+    plan = os.environ.get("CARTESIA_PLAN", "startup-yearly").lower()
+    return CARTESIA_PLAN_PRICING.get(plan, CARTESIA_PLAN_PRICING["startup-yearly"])
+
 CARTESIA_PRICING = {
-    "sonic-english": 0.039,
-    "sonic-multilingual": 0.039,
-    "sonic": 0.039,
-    "sonic-2": 0.039,
-    "default": 0.039,
+    "sonic-english": get_cartesia_price_per_1k(),
+    "sonic-multilingual": get_cartesia_price_per_1k(),
+    "sonic": get_cartesia_price_per_1k(),
+    "sonic-2": get_cartesia_price_per_1k(),
+    "default": get_cartesia_price_per_1k(),
 }
 
 
