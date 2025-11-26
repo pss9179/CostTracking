@@ -208,10 +208,41 @@ try:
 except ImportError:
     logger.debug("[llmobserve] Stripe instrumentor not available")
 
-# Communication
+# Communication - Telephony
 try:
     from llmobserve.instrumentation.twilio_instrumentor import instrument_twilio
     register_instrumentor("twilio", instrument_twilio)
 except ImportError:
     logger.debug("[llmobserve] Twilio instrumentor not available")
+
+try:
+    from llmobserve.instrumentation.vonage_instrumentor import instrument_vonage
+    register_instrumentor("vonage", instrument_vonage)
+except ImportError:
+    logger.debug("[llmobserve] Vonage instrumentor not available")
+
+try:
+    from llmobserve.instrumentation.telnyx_instrumentor import instrument_telnyx
+    register_instrumentor("telnyx", instrument_telnyx)
+except ImportError:
+    logger.debug("[llmobserve] Telnyx instrumentor not available")
+
+# Voice AI - Additional TTS Providers
+try:
+    from llmobserve.instrumentation.cartesia_instrumentor import instrument_cartesia
+    register_instrumentor("cartesia", instrument_cartesia)
+except ImportError:
+    logger.debug("[llmobserve] Cartesia instrumentor not available")
+
+try:
+    from llmobserve.instrumentation.playht_instrumentor import instrument_playht
+    register_instrumentor("playht", instrument_playht)
+except ImportError:
+    logger.debug("[llmobserve] PlayHT instrumentor not available")
+
+try:
+    from llmobserve.instrumentation.rime_instrumentor import instrument_rime
+    register_instrumentor("rime", instrument_rime)
+except ImportError:
+    logger.debug("[llmobserve] Rime instrumentor not available")
 

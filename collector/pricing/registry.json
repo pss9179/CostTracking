@@ -660,15 +660,57 @@
     "per_1k_chars": 0.015
   },
   "cartesia:sonic": {
-    "per_1k_chars": 0.015
+    "per_1k_chars": 0.040
+  },
+  "cartesia:sonic-english": {
+    "per_1k_chars": 0.040
+  },
+  "cartesia:sonic-multilingual": {
+    "per_1k_chars": 0.040
   },
   "cartesia:sonic-turbo": {
-    "per_1k_chars": 0.025
+    "per_1k_chars": 0.015
   },
   "rime:tts": {
-    "per_1k_chars": 0.01
+    "per_1k_chars": 0.006
   },
   "resemble:tts": {
     "per_1k_chars": 0.02
+  },
+  "playht:play3.0-mini": {
+    "per_1k_chars": 0.030
+  },
+  "playht:play3.0-mini-ws": {
+    "per_1k_chars": 0.030
+  },
+  "playht:playht2.0-turbo": {
+    "per_1k_chars": 0.050
+  },
+  "playht:playht2.0": {
+    "per_1k_chars": 0.050
+  },
+  "playht:playht1.0": {
+    "per_1k_chars": 0.050
+  },
+  "vonage:voice_outbound": {
+    "per_minute": 0.0127
+  },
+  "vonage:voice_inbound": {
+    "per_minute": 0.0085
+  },
+  "vonage:sms_outbound": {
+    "per_message": 0.0076
+  },
+  "telnyx:voice_outbound": {
+    "per_minute": 0.007
+  },
+  "telnyx:voice_inbound": {
+    "per_minute": 0.005
+  },
+  "telnyx:sms_outbound": {
+    "per_message": 0.004
+  },
+  "twilio:voice_inbound": {
+    "per_minute": 0.0085
   }
 }
