@@ -178,7 +178,51 @@ def track_vapi_call(
     buffer.add_event(event)
 
 
-def extract_vapi_call_info(response: Any) -> dict:
+def fetch_vapi_assistant(assistant_id: str, vapi_client: Any = None) -> Optional[dict]:
+    """Fetch assistant configuration from Vapi API to get provider/model info.
+    
+    Returns assistant dict with transcriber, voice, and model fields.
+    """
+    if not assistant_id:
+        return None
+    
+    try:
+        # Try to use Vapi client if available
+        if vapi_client and hasattr(vapi_client, 'assistants'):
+            try:
+                assistants_obj = vapi_client.assistants
+                if hasattr(assistants_obj, 'get'):
+                    assistant = assistants_obj.get(assistant_id)
+                elif callable(assistants_obj):
+                    assistant = assistants_obj(assistant_id)
+                else:
+                    assistant = None
+                
+                if assistant:
+                    # Convert to dict if it's an object
+                    if isinstance(assistant, dict):
+                        return {
+                            'transcriber': assistant.get('transcriber'),
+                            'voice': assistant.get('voice'),
+                            'model': assistant.get('model'),
+                        }
+                    elif hasattr(assistant, 'transcriber') or hasattr(assistant, 'voice') or hasattr(assistant, 'model'):
+                        return {
+                            'transcriber': getattr(assistant, 'transcriber', None),
+                            'voice': getattr(assistant, 'voice', None),
+                            'model': getattr(assistant, 'model', None),
+                        }
+            except Exception as e:
+                logger.debug(f"[llmobserve] Failed to fetch assistant {assistant_id}: {e}")
+                pass
+    except Exception as e:
+        logger.debug(f"[llmobserve] Error in fetch_vapi_assistant: {e}")
+        pass
+    
+    return None
+
+
+def extract_vapi_call_info(response: Any, vapi_client: Any = None) -> dict:
     """Extract call ID, duration, assistant ID, cost breakdown, transcript, and provider/model info from Vapi response.
     
     Vapi provides detailed costBreakdown with:
@@ -403,6 +447,38 @@ def extract_vapi_call_info(response: Any) -> dict:
                         info['llm_model'] = assistant.llm.model
             except:
                 pass
+        
+        # If we have assistant_id but no assistant object, try to fetch it
+        if info['assistant_id'] and not any([info['stt_provider'], info['tts_provider'], info['llm_provider']]):
+            assistant_config = fetch_vapi_assistant(info['assistant_id'], vapi_client)
+            if assistant_config:
+                # Extract from fetched assistant
+                if assistant_config.get('transcriber'):
+                    transcriber = assistant_config['transcriber']
+                    if isinstance(transcriber, dict):
+                        info['stt_provider'] = transcriber.get('provider')
+                        info['stt_model'] = transcriber.get('model')
+                    elif hasattr(transcriber, 'provider'):
+                        info['stt_provider'] = transcriber.provider
+                        info['stt_model'] = getattr(transcriber, 'model', None)
+                
+                if assistant_config.get('voice'):
+                    voice = assistant_config['voice']
+                    if isinstance(voice, dict):
+                        info['tts_provider'] = voice.get('provider')
+                        info['tts_model'] = voice.get('model') or voice.get('voiceId')
+                    elif hasattr(voice, 'provider'):
+                        info['tts_provider'] = voice.provider
+                        info['tts_model'] = getattr(voice, 'model', None) or getattr(voice, 'voiceId', None)
+                
+                if assistant_config.get('model'):
+                    model_config = assistant_config['model']
+                    if isinstance(model_config, dict):
+                        info['llm_provider'] = model_config.get('provider')
+                        info['llm_model'] = model_config.get('model')
+                    elif hasattr(model_config, 'provider'):
+                        info['llm_provider'] = model_config.provider
+                        info['llm_model'] = getattr(model_config, 'model', None)
                 
     except Exception:
         pass
@@ -423,7 +499,10 @@ def create_calls_wrapper(original_method: Callable, method_name: str) -> Callabl
             result = original_method(*args, **kwargs)
             latency_ms = (time.time() - start_time) * 1000
             
-            info = extract_vapi_call_info(result)
+            # Get Vapi client instance (first arg is usually self)
+            vapi_client = args[0] if args else None
+            
+            info = extract_vapi_call_info(result, vapi_client)
             
             # Determine if this is a voice call with duration
             is_voice_call = method_name in ["calls.create", "calls.get"] and info['duration'] is not None
