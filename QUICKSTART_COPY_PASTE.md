@@ -21,17 +21,28 @@ pip install llmobserve
 
 ---
 
-## ⚡ Step 3: Add to Your Code (2 lines!)
+## ⚡ Step 3: Add to Your Code
 
+## 🐍 Python
 **Copy this to the TOP of your main file:**
 
 ```python
 import llmobserve
 
 llmobserve.observe(
-    collector_url="https://llmobserve-api-production-d791.up.railway.app",
-    api_key="YOUR_API_KEY_HERE"  # Replace with your key from Step 2
+    collector_url="http://localhost:8000",
+    api_key="YOUR_API_KEY"
 )
+```
+
+## 📦 Node.js / TypeScript
+```typescript
+import { observe } from 'llmobserve';
+
+observe({
+  collectorUrl: "http://localhost:8000",
+  apiKey: "YOUR_API_KEY"
+});
 ```
 
 **That's it!** All your LLM API calls are now tracked automatically.

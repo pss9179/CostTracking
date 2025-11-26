@@ -14,6 +14,11 @@
 pip install llmobserve
 ```
 
+### Node.js / TypeScript
+```bash
+npm install llmobserve
+```
+
 ### 2. Get Your API Key
 Go to **https://llmobserve.com/settings** → Create API Key
 
@@ -27,6 +32,21 @@ llmobserve.observe(
 )
 
 # That's it! All your LLM calls are now tracked automatically.
+```
+
+### Node.js / TypeScript
+```typescript
+import { observe } from 'llmobserve';
+
+observe({
+  collectorUrl: "http://localhost:8000", // Or your production URL
+  apiKey: "YOUR_API_KEY_HERE"
+});
+
+// Now use OpenAI/Anthropic/etc as normal
+import OpenAI from 'openai';
+const client = new OpenAI();
+// ...
 ```
 
 ### 4. View Your Dashboard

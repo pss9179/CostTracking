@@ -1,0 +1,24 @@
+{
+    "name": "llmobserve",
+    "version": "0.1.0",
+    "description": "Zero-config LLM cost tracking for Node.js",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsc",
+        "prepublishOnly": "npm run build"
+    },
+    "keywords": [
+        "llm",
+        "observability",
+        "cost",
+        "openai",
+        "anthropic"
+    ],
+    "author": "LLMObserve",
+    "license": "MIT",
+    "devDependencies": {
+        "typescript": "^5.0.0",
+        "@types/node": "^18.0.0"
+    }
+}
