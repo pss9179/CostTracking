@@ -27,6 +27,7 @@ from routers import (
     provider_tiers,
     stripe,
     projects,
+    migrations,
 )
 from cap_monitor import run_cap_monitor
 
@@ -162,4 +163,5 @@ app.include_router(stats.router)
 app.include_router(voice_stats.router)  # Voice AI stats
 app.include_router(settings.router)  # User settings (pricing plans)
 app.include_router(projects.router)  # Projects
+app.include_router(migrations.router)  # Database migrations
 

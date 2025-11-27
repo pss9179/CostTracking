@@ -89,6 +89,7 @@ def track_cartesia_call(
         "voice_call_id": context.get_voice_call_id(),
         "audio_duration_seconds": estimated_duration,
         "voice_segment_type": "tts",
+        "voice_platform": context.get_voice_platform(),  # Cross-platform tracking
         "event_metadata": {
             "character_count": character_count,
             "voice_id": voice_id,

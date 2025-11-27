@@ -209,6 +209,7 @@ def track_deepgram_call(
         "voice_call_id": context.get_voice_call_id(),
         "audio_duration_seconds": audio_duration_seconds,
         "voice_segment_type": voice_segment_type,
+        "voice_platform": context.get_voice_platform(),  # Cross-platform tracking (diy, vapi, etc.)
         "event_metadata": {
             "error": error,
             "audio_duration_seconds": audio_duration_seconds,

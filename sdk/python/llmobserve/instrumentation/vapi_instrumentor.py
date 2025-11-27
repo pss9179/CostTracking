@@ -62,11 +62,21 @@ def track_vapi_call(
             "telephony": ("vapi", None),  # Telephony is always Vapi/Twilio/Vonage
         }
         
+        # Get usage metrics for recalculation
+        llm_prompt_tokens = cost_breakdown.get("llm_prompt_tokens") or 0
+        llm_completion_tokens = cost_breakdown.get("llm_completion_tokens") or 0
+        tts_characters = cost_breakdown.get("tts_characters") or 0
+        
         segments = [
-            ("stt", cost_breakdown.get("stt"), "stt_call", None, None),  # STT: no tokens, uses audio duration
-            ("llm", cost_breakdown.get("llm"), "llm_call", cost_breakdown.get("llm_prompt_tokens"), cost_breakdown.get("llm_completion_tokens")),
-            ("tts", cost_breakdown.get("tts"), "tts_call", cost_breakdown.get("tts_characters"), None),  # TTS: characters as input
-            ("telephony", cost_breakdown.get("transport"), "telephony_call", None, None),
+            # (segment_type, cost, span_type, input_tokens, output_tokens)
+            # STT: uses audio duration (stored in audio_duration_seconds field)
+            ("stt", cost_breakdown.get("stt"), "stt_call", 0, 0),
+            # LLM: uses prompt/completion tokens
+            ("llm", cost_breakdown.get("llm"), "llm_call", int(llm_prompt_tokens), int(llm_completion_tokens)),
+            # TTS: uses characters (stored in input_tokens for now, TODO: add tts_characters field)
+            ("tts", cost_breakdown.get("tts"), "tts_call", int(tts_characters), 0),
+            # Telephony: uses audio duration
+            ("telephony", cost_breakdown.get("transport"), "telephony_call", 0, 0),
         ]
         
         for segment_type, segment_cost, span_type, input_tokens, output_tokens in segments:
@@ -93,6 +103,7 @@ def track_vapi_call(
                     "voice_call_id": voice_call_id,
                     "audio_duration_seconds": call_duration_seconds,
                     "voice_segment_type": segment_type,
+                    "voice_platform": "vapi",  # Cross-platform tracking
                     "event_metadata": {
                         "call_id": call_id,
                         "assistant_id": assistant_id,
@@ -125,6 +136,7 @@ def track_vapi_call(
                 "voice_call_id": voice_call_id,
                 "audio_duration_seconds": call_duration_seconds,
                 "voice_segment_type": "platform",
+                "voice_platform": "vapi",  # Cross-platform tracking
                 "event_metadata": {"call_id": call_id},
             }
             buffer.add_event(event)

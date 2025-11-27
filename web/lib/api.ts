@@ -515,6 +515,101 @@ export async function fetchVoiceForecast(token?: string): Promise<VoiceForecast>
   return response.json();
 }
 
+// Cross-Platform Tracking Types
+export interface PlatformStats {
+  platform: string;
+  total_cost: number;
+  total_duration_minutes: number;
+  call_count: number;
+  event_count: number;
+  avg_latency_ms: number;
+  cost_per_minute: number;
+  cost_per_call: number;
+  percentage: number;
+}
+
+export interface VoicePlatformComparison {
+  time_window_hours: number;
+  summary: {
+    total_cost: number;
+    total_calls: number;
+    platform_count: number;
+  };
+  platforms: PlatformStats[];
+  insights: {
+    cheapest_platform: string | null;
+    cheapest_cost_per_minute: number;
+    most_expensive_platform: string | null;
+    most_expensive_cost_per_minute: number;
+    potential_monthly_savings: number;
+    recommendation: string | null;
+  };
+}
+
+export async function fetchVoicePlatformComparison(hours: number = 24, token?: string): Promise<VoicePlatformComparison> {
+  const headers = await getDashboardAuthHeaders(token);
+  const response = await fetch(`${COLLECTOR_URL}/stats/voice/by-platform?hours=${hours}`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch voice platform comparison: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+// Alternative Cost Calculation Types
+export interface AlternativeProvider {
+  provider: string;
+  name: string;
+  projected_cost: number;
+  savings: number;
+  savings_percent: number;
+}
+
+export interface VoiceAlternativeCosts {
+  time_window_hours: number;
+  usage: {
+    stt_minutes: number;
+    llm_input_tokens: number;
+    llm_output_tokens: number;
+    tts_characters: number;
+  };
+  actual_costs: {
+    stt: number;
+    llm: number;
+    tts: number;
+    total: number;
+  };
+  alternatives: {
+    stt: AlternativeProvider[];
+    llm: AlternativeProvider[];
+    tts: AlternativeProvider[];
+  };
+  best_diy_stack: {
+    stt: string | null;
+    llm: string | null;
+    tts: string | null;
+    total_cost: number;
+    total_savings: number;
+    savings_percent: number;
+  };
+}
+
+export async function fetchVoiceAlternativeCosts(hours: number = 24, token?: string): Promise<VoiceAlternativeCosts> {
+  const headers = await getDashboardAuthHeaders(token);
+  const response = await fetch(`${COLLECTOR_URL}/stats/voice/alternative-costs?hours=${hours}`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch voice alternative costs: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
 // Pricing Settings Types
 export interface PricingSettings {
   cartesia_plan: string;

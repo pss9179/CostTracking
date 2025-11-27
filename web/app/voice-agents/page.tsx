@@ -14,11 +14,15 @@ import {
   fetchVoiceSegmentStats,
   fetchVoiceCostPerMinute,
   fetchVoiceForecast,
+  fetchVoiceAlternativeCosts,
+  fetchVoicePlatformComparison,
   type VoiceCall,
   type VoiceProviderStats,
   type VoiceSegmentStats,
   type VoiceCostPerMinute,
   type VoiceForecast,
+  type VoiceAlternativeCosts,
+  type VoicePlatformComparison,
 } from "@/lib/api";
 import { Suspense } from "react";
 
@@ -38,14 +42,11 @@ const SEGMENT_ICONS: { [key: string]: any } = {
   telephony: Phone,
 };
 
-// Provider pricing for "What If" calculator
-const PROVIDER_PRICING: { [key: string]: { name: string; perMinute: number; description: string } } = {
-  vapi: { name: "Vapi", perMinute: 0.05, description: "All-in-one platform" },
-  retell: { name: "Retell", perMinute: 0.07, description: "Voice agent platform" },
-  bland: { name: "Bland AI", perMinute: 0.09, description: "Enterprise voice" },
-  diy_cheap: { name: "DIY (Budget)", perMinute: 0.02, description: "Deepgram + GPT-4o-mini + PlayHT" },
-  diy_premium: { name: "DIY (Premium)", perMinute: 0.08, description: "Whisper + GPT-4o + ElevenLabs" },
-  openai_realtime: { name: "OpenAI Realtime", perMinute: 0.30, description: "GPT-4o Realtime API" },
+// Segment labels for alternative costs
+const SEGMENT_LABELS: { [key: string]: string } = {
+  stt: "Speech-to-Text",
+  llm: "Language Model",
+  tts: "Text-to-Speech",
 };
 
 // Timeline visualization component
@@ -57,15 +58,27 @@ function CallTimeline({ call }: { call: VoiceCall }) {
     .map(type => ({ type, ...segments[type] }));
   
   const totalLatency = orderedSegments.reduce((sum, seg) => sum + (seg.latency_ms || 0), 0);
+  const totalCost = orderedSegments.reduce((sum, seg) => sum + (seg.cost || 0), 0);
+  
+  // Find bottleneck (segment with highest latency or cost)
+  const latencyBottleneck = orderedSegments.length > 0 
+    ? orderedSegments.reduce((max, seg) => (seg.latency_ms || 0) > (max.latency_ms || 0) ? seg : max)
+    : null;
+  const costBottleneck = orderedSegments.length > 0
+    ? orderedSegments.reduce((max, seg) => (seg.cost || 0) > (max.cost || 0) ? seg : max)
+    : null;
   
   if (orderedSegments.length === 0) return null;
   
   return (
     <div className="mt-3 pt-3 border-t border-gray-100">
+      {/* Pipeline Flow Header */}
       <div className="text-xs text-gray-500 mb-2 flex items-center gap-1">
         <Zap className="w-3 h-3" /> Pipeline Flow ({totalLatency.toFixed(0)}ms total)
       </div>
-      <div className="flex items-center gap-1">
+      
+      {/* Visual Pipeline */}
+      <div className="flex items-center gap-1 mb-3">
         {orderedSegments.map((segment, idx) => {
           const Icon = SEGMENT_ICONS[segment.type] || Radio;
           const widthPercent = totalLatency > 0 ? (segment.latency_ms / totalLatency) * 100 : 25;
@@ -98,29 +111,64 @@ function CallTimeline({ call }: { call: VoiceCall }) {
           );
         })}
       </div>
+      
+      {/* Waterfall Timeline (if latency data exists) */}
+      {totalLatency > 0 && (
+        <div className="space-y-1 mb-3">
+          {orderedSegments.map((segment, idx) => {
+            const startPercent = orderedSegments
+              .slice(0, idx)
+              .reduce((sum, s) => sum + ((s.latency_ms || 0) / totalLatency) * 100, 0);
+            const widthPercent = ((segment.latency_ms || 0) / totalLatency) * 100;
+            const isBottleneck = segment.type === latencyBottleneck?.type && widthPercent > 40;
+            
+            return (
+              <div key={segment.type} className="flex items-center gap-2 text-xs">
+                <div className="w-12 text-gray-500 uppercase font-medium">{segment.type}</div>
+                <div className="flex-1 h-4 bg-gray-100 rounded relative overflow-hidden">
+                  <div
+                    className="absolute h-full rounded transition-all"
+                    style={{
+                      left: `${startPercent}%`,
+                      width: `${Math.max(widthPercent, 2)}%`,
+                      backgroundColor: SEGMENT_COLORS[segment.type] || SEGMENT_COLORS.unknown,
+                    }}
+                  />
+                </div>
+                <div className={`w-16 text-right ${isBottleneck ? 'text-red-600 font-bold' : 'text-gray-600'}`}>
+                  {segment.latency_ms?.toFixed(0) || 0}ms
+                  {isBottleneck && ' ⚠️'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      
+      {/* Bottleneck Insights */}
+      {(latencyBottleneck || costBottleneck) && (
+        <div className="flex flex-wrap gap-2 text-xs">
+          {latencyBottleneck && totalLatency > 0 && (latencyBottleneck.latency_ms || 0) / totalLatency > 0.4 && (
+            <div className="px-2 py-1 bg-amber-50 text-amber-700 rounded-full border border-amber-200">
+              ⏱️ {latencyBottleneck.type.toUpperCase()} is {((latencyBottleneck.latency_ms || 0) / totalLatency * 100).toFixed(0)}% of latency
+            </div>
+          )}
+          {costBottleneck && totalCost > 0 && (costBottleneck.cost || 0) / totalCost > 0.4 && (
+            <div className="px-2 py-1 bg-rose-50 text-rose-700 rounded-full border border-rose-200">
+              💰 {costBottleneck.type.toUpperCase()} is {((costBottleneck.cost || 0) / totalCost * 100).toFixed(0)}% of cost
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-// Provider "What If" Calculator
-function ProviderCalculator({ totalMinutes, currentCost }: { totalMinutes: number; currentCost: number }) {
-  const [selectedProviders, setSelectedProviders] = useState<string[]>(['vapi', 'retell', 'diy_cheap']);
+// Provider "What If" Calculator - Uses actual usage metrics
+function ProviderCalculator({ altCosts }: { altCosts: VoiceAlternativeCosts | null }) {
+  const [selectedSegment, setSelectedSegment] = useState<'stt' | 'llm' | 'tts'>('tts');
   
-  const comparisons = Object.entries(PROVIDER_PRICING).map(([key, provider]) => {
-    const projectedCost = totalMinutes * provider.perMinute;
-    const savings = currentCost - projectedCost;
-    const savingsPercent = currentCost > 0 ? (savings / currentCost) * 100 : 0;
-    
-    return {
-      key,
-      ...provider,
-      projectedCost,
-      savings,
-      savingsPercent,
-    };
-  }).sort((a, b) => a.projectedCost - b.projectedCost);
-  
-  if (totalMinutes === 0) {
+  if (!altCosts || !altCosts.usage) {
     return (
       <div className="py-4 text-center text-gray-400">
         Track voice calls to see provider cost comparisons
@@ -128,35 +176,85 @@ function ProviderCalculator({ totalMinutes, currentCost }: { totalMinutes: numbe
     );
   }
   
+  const { usage, actual_costs, alternatives, best_diy_stack } = altCosts;
+  
+  // Show usage metrics
+  const usageDisplay = {
+    stt: `${usage.stt_minutes.toFixed(1)} minutes`,
+    llm: `${(usage.llm_input_tokens + usage.llm_output_tokens).toLocaleString()} tokens`,
+    tts: `${usage.tts_characters.toLocaleString()} characters`,
+  };
+  
+  const currentAlternatives = alternatives[selectedSegment] || [];
+  const currentActual = actual_costs[selectedSegment] || 0;
+  
   return (
-    <div className="space-y-3">
-      <div className="text-sm text-gray-500 mb-3">
-        Based on <span className="font-medium">{totalMinutes.toFixed(1)} minutes</span> of voice usage:
-      </div>
-      {comparisons.map((provider) => (
-        <div
-          key={provider.key}
-          className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-            provider.savings > 0 ? 'border-green-200 bg-green-50' :
-            provider.savings < 0 ? 'border-red-100 bg-red-50' :
-            'border-gray-200 bg-gray-50'
-          }`}
-        >
-          <div>
-            <div className="font-medium text-gray-900">{provider.name}</div>
-            <div className="text-xs text-gray-500">{provider.description}</div>
-            <div className="text-xs text-gray-400 mt-1">${provider.perMinute.toFixed(3)}/min</div>
+    <div className="space-y-4">
+      {/* Best DIY Stack Summary */}
+      {best_diy_stack.total_savings > 0 && (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div className="text-sm font-medium text-green-800">💡 Best DIY Stack</div>
+          <div className="text-xs text-green-700 mt-1">
+            {best_diy_stack.stt} + {best_diy_stack.llm} + {best_diy_stack.tts}
           </div>
-          <div className="text-right">
-            <div className="text-lg font-bold">${provider.projectedCost.toFixed(2)}</div>
-            {provider.savings !== 0 && (
-              <div className={`text-xs font-medium ${provider.savings > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {provider.savings > 0 ? '↓' : '↑'} ${Math.abs(provider.savings).toFixed(2)} ({Math.abs(provider.savingsPercent).toFixed(0)}%)
-              </div>
-            )}
+          <div className="text-lg font-bold text-green-600 mt-1">
+            Save ${best_diy_stack.total_savings.toFixed(2)} ({best_diy_stack.savings_percent.toFixed(0)}%)
           </div>
         </div>
-      ))}
+      )}
+      
+      {/* Segment Selector */}
+      <div className="flex gap-2">
+        {(['stt', 'llm', 'tts'] as const).map((seg) => (
+          <button
+            key={seg}
+            onClick={() => setSelectedSegment(seg)}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              selectedSegment === seg
+                ? 'bg-gray-900 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {SEGMENT_LABELS[seg]}
+          </button>
+        ))}
+      </div>
+      
+      {/* Usage info */}
+      <div className="text-sm text-gray-500">
+        Based on <span className="font-medium">{usageDisplay[selectedSegment]}</span> of {SEGMENT_LABELS[selectedSegment]}:
+      </div>
+      
+      {/* Alternatives List */}
+      <div className="space-y-2 max-h-64 overflow-y-auto">
+        {currentAlternatives.map((provider) => (
+          <div
+            key={provider.provider}
+            className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+              provider.savings > 0 ? 'border-green-200 bg-green-50' :
+              provider.savings < 0 ? 'border-red-100 bg-red-50' :
+              'border-gray-200 bg-gray-50'
+            }`}
+          >
+            <div>
+              <div className="font-medium text-gray-900">{provider.name}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-bold">${provider.projected_cost.toFixed(4)}</div>
+              {provider.savings !== 0 && (
+                <div className={`text-xs font-medium ${provider.savings > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {provider.savings > 0 ? '↓' : '↑'} ${Math.abs(provider.savings).toFixed(4)} ({Math.abs(provider.savings_percent).toFixed(0)}%)
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      {/* Current Cost */}
+      <div className="text-xs text-gray-400 border-t pt-2">
+        Your current {SEGMENT_LABELS[selectedSegment]} cost: ${currentActual.toFixed(4)}
+      </div>
     </div>
   );
 }
@@ -168,6 +266,8 @@ function VoiceAgentsContent() {
   const [segmentStats, setSegmentStats] = useState<VoiceSegmentStats[]>([]);
   const [costPerMinute, setCostPerMinute] = useState<VoiceCostPerMinute | null>(null);
   const [forecast, setForecast] = useState<VoiceForecast | null>(null);
+  const [alternativeCosts, setAlternativeCosts] = useState<VoiceAlternativeCosts | null>(null);
+  const [platformComparison, setPlatformComparison] = useState<VoicePlatformComparison | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeWindow, setTimeWindow] = useState<string>("24");
 
@@ -184,12 +284,14 @@ function VoiceAgentsContent() {
         const hours = parseInt(timeWindow);
 
         // Fetch all voice stats in parallel
-        const [callsData, providersData, segmentsData, cpmData, forecastData] = await Promise.all([
+        const [callsData, providersData, segmentsData, cpmData, forecastData, altCostsData, platformData] = await Promise.all([
           fetchVoiceCalls(hours, 50, token).catch(() => []),
           fetchVoiceProviderStats(hours, token).catch(() => []),
           fetchVoiceSegmentStats(hours, token).catch(() => []),
           fetchVoiceCostPerMinute(hours, token).catch(() => null),
           fetchVoiceForecast(token).catch(() => null),
+          fetchVoiceAlternativeCosts(hours, token).catch(() => null),
+          fetchVoicePlatformComparison(hours, token).catch(() => null),
         ]);
 
         setCalls(callsData);
@@ -197,6 +299,8 @@ function VoiceAgentsContent() {
         setSegmentStats(segmentsData);
         setCostPerMinute(cpmData);
         setForecast(forecastData);
+        setAlternativeCosts(altCostsData);
+        setPlatformComparison(platformData);
       } catch (error) {
         console.error("Failed to load voice stats:", error);
       } finally {
@@ -388,6 +492,100 @@ function VoiceAgentsContent() {
           </Card>
         </div>
 
+        {/* Pipeline Insights - Bottleneck Detection */}
+        <Card className="border-2 border-dashed border-amber-200 bg-amber-50/30">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Zap className="w-5 h-5 text-amber-500" />
+              Pipeline Insights
+            </CardTitle>
+            <CardDescription>Bottleneck detection and optimization opportunities</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {segmentStats.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Cost Bottleneck */}
+                {(() => {
+                  const totalCost = segmentStats.reduce((sum, s) => sum + s.total_cost, 0);
+                  const costBottleneck = segmentStats.reduce((max, s) => s.total_cost > max.total_cost ? s : max);
+                  const costPercent = totalCost > 0 ? (costBottleneck.total_cost / totalCost) * 100 : 0;
+                  
+                  return (
+                    <div className="p-4 bg-white rounded-lg border">
+                      <div className="text-xs text-gray-500 uppercase mb-1">💰 Cost Bottleneck</div>
+                      <div className="text-xl font-bold" style={{ color: SEGMENT_COLORS[costBottleneck.segment_type] }}>
+                        {costBottleneck.segment_type.toUpperCase()}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {costPercent.toFixed(0)}% of total cost (${costBottleneck.total_cost.toFixed(4)})
+                      </div>
+                      {costPercent > 50 && (
+                        <div className="mt-2 text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded">
+                          💡 Consider switching {costBottleneck.segment_type.toUpperCase()} provider
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+                
+                {/* Latency Bottleneck */}
+                {(() => {
+                  const totalLatency = segmentStats.reduce((sum, s) => sum + s.avg_latency_ms, 0);
+                  const latencyBottleneck = segmentStats.reduce((max, s) => s.avg_latency_ms > max.avg_latency_ms ? s : max);
+                  const latencyPercent = totalLatency > 0 ? (latencyBottleneck.avg_latency_ms / totalLatency) * 100 : 0;
+                  
+                  return (
+                    <div className="p-4 bg-white rounded-lg border">
+                      <div className="text-xs text-gray-500 uppercase mb-1">⏱️ Latency Bottleneck</div>
+                      <div className="text-xl font-bold" style={{ color: SEGMENT_COLORS[latencyBottleneck.segment_type] }}>
+                        {latencyBottleneck.segment_type.toUpperCase()}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {latencyPercent.toFixed(0)}% of latency ({latencyBottleneck.avg_latency_ms.toFixed(0)}ms avg)
+                      </div>
+                      {latencyPercent > 50 && latencyBottleneck.segment_type === 'tts' && (
+                        <div className="mt-2 text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded">
+                          💡 Try streaming TTS or faster provider (Cartesia)
+                        </div>
+                      )}
+                      {latencyPercent > 50 && latencyBottleneck.segment_type === 'llm' && (
+                        <div className="mt-2 text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded">
+                          💡 Try GPT-4o-mini or Groq for faster responses
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+                
+                {/* Quick Stats */}
+                <div className="p-4 bg-white rounded-lg border">
+                  <div className="text-xs text-gray-500 uppercase mb-1">📊 Pipeline Efficiency</div>
+                  <div className="space-y-2">
+                    {segmentStats.map(seg => {
+                      const totalCost = segmentStats.reduce((sum, s) => sum + s.total_cost, 0);
+                      const percent = totalCost > 0 ? (seg.total_cost / totalCost) * 100 : 0;
+                      return (
+                        <div key={seg.segment_type} className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: SEGMENT_COLORS[seg.segment_type] }}
+                          />
+                          <div className="text-xs uppercase flex-1">{seg.segment_type}</div>
+                          <div className="text-xs font-medium">{percent.toFixed(0)}%</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="py-8 text-center text-gray-400">
+                Track voice calls to see pipeline insights
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Provider Comparison & Calculator Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Actual Provider Usage (Bar Chart) */}
@@ -430,10 +628,7 @@ function VoiceAgentsContent() {
               <CardDescription>What if you switched providers?</CardDescription>
             </CardHeader>
             <CardContent>
-              <ProviderCalculator 
-                totalMinutes={totalMinutes} 
-                currentCost={totalCost} 
-              />
+              <ProviderCalculator altCosts={alternativeCosts} />
             </CardContent>
           </Card>
         </div>
@@ -606,6 +801,64 @@ function VoiceAgentsContent() {
                     ~{forecast.monthly_projection.calls} calls • ~{forecast.monthly_projection.duration_minutes.toFixed(0)} min
                   </div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Cross-Platform Comparison */}
+        {platformComparison && platformComparison.platforms.length > 0 && (
+          <Card className="border-2 border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                🔀 Cross-Platform Comparison
+              </CardTitle>
+              <CardDescription>Compare costs across Vapi, Retell, DIY, and other platforms</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Platform Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {platformComparison.platforms.map((platform) => (
+                    <div 
+                      key={platform.platform}
+                      className={`p-4 rounded-lg border ${
+                        platform.platform === platformComparison.insights.cheapest_platform
+                          ? 'border-green-300 bg-green-50'
+                          : platform.platform === platformComparison.insights.most_expensive_platform
+                          ? 'border-red-200 bg-red-50'
+                          : 'border-gray-200 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold text-lg uppercase">{platform.platform}</span>
+                        {platform.platform === platformComparison.insights.cheapest_platform && (
+                          <Badge className="bg-green-500">Cheapest</Badge>
+                        )}
+                      </div>
+                      <div className="text-2xl font-bold">${platform.total_cost.toFixed(2)}</div>
+                      <div className="text-sm text-gray-600">
+                        {platform.call_count} calls • {platform.total_duration_minutes.toFixed(1)} min
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        ${platform.cost_per_minute.toFixed(4)}/min • ${platform.cost_per_call.toFixed(4)}/call
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Insights */}
+                {platformComparison.insights.recommendation && (
+                  <div className="p-4 bg-amber-100 border border-amber-300 rounded-lg">
+                    <div className="font-medium text-amber-800">💡 Optimization Opportunity</div>
+                    <div className="text-sm text-amber-700 mt-1">
+                      {platformComparison.insights.recommendation}
+                    </div>
+                    <div className="text-lg font-bold text-amber-900 mt-2">
+                      Potential monthly savings: ${platformComparison.insights.potential_monthly_savings.toFixed(2)}
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

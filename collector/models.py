@@ -318,6 +318,7 @@ class TraceEvent(SQLModel, table=True):
     voice_call_id: Optional[str] = Field(default=None, index=True, description="Groups STT + LLM + TTS events as one voice call")
     audio_duration_seconds: Optional[float] = Field(default=None, description="Audio duration in seconds (for STT/TTS)")
     voice_segment_type: Optional[str] = Field(default=None, description="Voice segment: 'stt', 'llm', 'tts', 'telephony'")
+    voice_platform: Optional[str] = Field(default=None, index=True, description="Platform: 'vapi', 'retell', 'bland', 'livekit', 'diy', 'direct'")
     
     # Arbitrary metadata (renamed from 'metadata' to avoid SQLAlchemy reserved word)
     event_metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON), description="Arbitrary details (tenant_id, user_id, etc.)")
@@ -416,6 +417,7 @@ class TraceEventCreate(SQLModel):
     voice_call_id: Optional[str] = None  # Groups STT + LLM + TTS events as one voice call
     audio_duration_seconds: Optional[float] = None  # Audio duration in seconds
     voice_segment_type: Optional[str] = None  # 'stt', 'llm', 'tts', 'telephony'
+    voice_platform: Optional[str] = None  # 'vapi', 'retell', 'bland', 'livekit', 'diy', 'direct'
     # Note: tenant_id and user_id can be extracted from API key/auth, or sent explicitly
 
 

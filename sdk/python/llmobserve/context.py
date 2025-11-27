@@ -17,6 +17,7 @@ _trace_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("t
 # Voice AI tracking
 _voice_call_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("voice_call_id", default=None)
 _voice_call_start_var: contextvars.ContextVar[Optional[float]] = contextvars.ContextVar("voice_call_start", default=None)
+_voice_platform_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("voice_platform", default=None)
 
 
 def _ensure_run_id() -> str:
@@ -287,8 +288,23 @@ def set_voice_call_id(voice_call_id: Optional[str] = None) -> None:
     _voice_call_id_var.set(voice_call_id if voice_call_id else str(uuid.uuid4()))
 
 
+def get_voice_platform() -> Optional[str]:
+    """Get the current voice platform (vapi, retell, diy, etc.)."""
+    return _voice_platform_var.get()
+
+
+def set_voice_platform(platform: Optional[str] = None) -> None:
+    """
+    Set the voice platform for cross-platform tracking.
+    
+    Args:
+        platform: Platform identifier ('vapi', 'retell', 'bland', 'livekit', 'diy', 'direct')
+    """
+    _voice_platform_var.set(platform)
+
+
 @contextmanager
-def voice_call(call_id: Optional[str] = None, customer_id: Optional[str] = None):
+def voice_call(call_id: Optional[str] = None, customer_id: Optional[str] = None, platform: Optional[str] = None):
     """
     Context manager to group all voice pipeline events (STT + LLM + TTS) as one call.
     
@@ -310,6 +326,7 @@ def voice_call(call_id: Optional[str] = None, customer_id: Optional[str] = None)
     Args:
         call_id: Custom call ID (auto-generated if None)
         customer_id: Optional customer ID to associate with this call
+        platform: Voice platform ('vapi', 'retell', 'bland', 'livekit', 'diy', 'direct')
     
     Yields:
         The voice call ID being used
@@ -323,6 +340,7 @@ def voice_call(call_id: Optional[str] = None, customer_id: Optional[str] = None)
     previous_call_id = _voice_call_id_var.get()
     previous_customer_id = _customer_id_var.get()
     previous_call_start = _voice_call_start_var.get()
+    previous_platform = _voice_platform_var.get()
     
     # Set new values
     _voice_call_id_var.set(actual_call_id)
@@ -330,6 +348,9 @@ def voice_call(call_id: Optional[str] = None, customer_id: Optional[str] = None)
     
     if customer_id:
         _customer_id_var.set(customer_id)
+    
+    if platform:
+        _voice_platform_var.set(platform)
     
     # Track status
     status = "ok"
@@ -370,6 +391,7 @@ def voice_call(call_id: Optional[str] = None, customer_id: Optional[str] = None)
                     "voice_call_id": actual_call_id,
                     "audio_duration_seconds": call_duration_ms / 1000.0,
                     "voice_segment_type": "call_summary",
+                    "voice_platform": platform or previous_platform,  # Cross-platform tracking
                     "event_metadata": {
                         "error": error_message,
                         "total_duration_ms": call_duration_ms,
@@ -385,8 +407,39 @@ def voice_call(call_id: Optional[str] = None, customer_id: Optional[str] = None)
         # Restore previous values
         _voice_call_id_var.set(previous_call_id)
         _voice_call_start_var.set(previous_call_start)
+        _voice_platform_var.set(previous_platform)
         if customer_id:
             _customer_id_var.set(previous_customer_id)
+
+
+@contextmanager
+def diy_voice_call(call_id: Optional[str] = None, customer_id: Optional[str] = None):
+    """
+    Convenience context manager for DIY voice calls (sets platform='diy').
+    
+    Use this when you're orchestrating your own voice pipeline with separate
+    STT, LLM, and TTS providers (e.g., Deepgram + OpenAI + ElevenLabs).
+    
+    Usage:
+        with diy_voice_call() as call_id:
+            # STT with Deepgram
+            transcript = deepgram.transcribe(audio)
+            
+            # LLM with OpenAI
+            response = openai.chat.completions.create(...)
+            
+            # TTS with ElevenLabs
+            audio_out = elevenlabs.generate(transcript)
+    
+    Args:
+        call_id: Custom call ID (auto-generated if None)
+        customer_id: Optional customer ID to associate with this call
+    
+    Yields:
+        The voice call ID being used
+    """
+    with voice_call(call_id=call_id, customer_id=customer_id, platform="diy") as call_id:
+        yield call_id
 
 
 def export() -> Dict[str, Any]:

@@ -32,8 +32,11 @@ from llmobserve.context import (
     import_context,
     # Voice AI tracking
     voice_call,
+    diy_voice_call,
     get_voice_call_id,
     set_voice_call_id,
+    get_voice_platform,
+    set_voice_platform,
 )
 from llmobserve.agent_wrapper import agent
 from llmobserve.tool_wrapper import tool, wrap_tool
@@ -134,8 +137,11 @@ __all__ = [
     "clear_grpc_costs",
     # Voice AI tracking
     "voice_call",
+    "diy_voice_call",
     "get_voice_call_id",
     "set_voice_call_id",
+    "get_voice_platform",
+    "set_voice_platform",
     # Static analysis (preview before execution)
     "preview_agent_tree",
     "analyze_code_file",

@@ -79,6 +79,7 @@ def track_retell_call(
         "voice_call_id": call_id or context.get_voice_call_id(),
         "audio_duration_seconds": call_duration_seconds,
         "voice_segment_type": voice_segment_type,
+        "voice_platform": "retell",  # Cross-platform tracking
         "event_metadata": {
             "error": error,
             "call_id": call_id,
@@ -131,6 +132,7 @@ def track_retell_call(
                 "voice_call_id": call_id,
                 "audio_duration_seconds": call_duration_seconds if segment_type in ["stt", "tts"] else None,
                 "voice_segment_type": segment_type,
+                "voice_platform": "retell",  # Cross-platform tracking
                 "event_metadata": None,
             }
             buffer.add_event(segment_event)
