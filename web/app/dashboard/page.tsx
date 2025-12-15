@@ -107,11 +107,17 @@ function DashboardPageContent() {
             console.warn("[Dashboard] Failed to fetch provider stats:", err);
             return []; // Return empty array on error
           }),
-          fetchModelStats(24, null, token).catch((err) => {
+          fetchModelStats(24, null, token).then((data) => {
+            console.log("[Dashboard] Model stats fetched:", data?.length || 0, "models");
+            return data;
+          }).catch((err) => {
             console.warn("[Dashboard] Failed to fetch model stats:", err);
             return []; // Return empty array on error
           }),
-          fetchDailyStats(7, null, token).catch((err) => {
+          fetchDailyStats(7, null, token).then((data) => {
+            console.log("[Dashboard] Daily stats fetched:", data?.length || 0, "days");
+            return data;
+          }).catch((err) => {
             console.warn("[Dashboard] Failed to fetch daily stats:", err);
             return []; // Return empty array on error
           }),
