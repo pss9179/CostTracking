@@ -56,6 +56,59 @@ def migrate_semantic_label(session: Session = Depends(get_session)):
         raise HTTPException(status_code=500, detail=f"Migration failed: {str(e)}")
 
 
+@router.post("/voice-columns")
+def migrate_voice_columns(session: Session = Depends(get_session)):
+    """
+    Add voice-related columns to trace_events table.
+    Columns: voice_call_id, audio_duration_seconds, voice_segment_type
+    Safe to run multiple times.
+    """
+    try:
+        inspector = inspect(engine)
+        columns = [col['name'] for col in inspector.get_columns('trace_events')]
+        
+        # Define all voice columns to add
+        voice_columns = [
+            ("voice_call_id", "VARCHAR(255)", True),  # name, type, create_index
+            ("audio_duration_seconds", "FLOAT", False),
+            ("voice_segment_type", "VARCHAR(50)", False),
+        ]
+        
+        added = []
+        skipped = []
+        
+        with engine.connect() as conn:
+            trans = conn.begin()
+            try:
+                for col_name, col_type, create_index in voice_columns:
+                    if col_name in columns:
+                        skipped.append(col_name)
+                        continue
+                    
+                    if IS_POSTGRESQL:
+                        conn.execute(text(f"ALTER TABLE trace_events ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                    else:
+                        conn.execute(text(f"ALTER TABLE trace_events ADD COLUMN {col_name} {col_type};"))
+                    
+                    if create_index:
+                        conn.execute(text(f"CREATE INDEX IF NOT EXISTS idx_trace_events_{col_name} ON trace_events({col_name});"))
+                    
+                    added.append(col_name)
+                
+                trans.commit()
+                logger.info(f"✅ voice columns migration: added={added}, skipped={skipped}")
+                return {"status": "success", "added": added, "skipped": skipped}
+            except Exception as e:
+                trans.rollback()
+                error_msg = str(e).lower()
+                if "already exists" in error_msg or "duplicate" in error_msg:
+                    return {"status": "success", "message": "Columns already exist", "added": added, "skipped": skipped}
+                raise
+    except Exception as e:
+        logger.error(f"voice columns migration failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Migration failed: {str(e)}")
+
+
 @router.post("/all")
 def migrate_all(session: Session = Depends(get_session)):
     """
@@ -70,6 +123,13 @@ def migrate_all(session: Session = Depends(get_session)):
         results["semantic_label"] = result
     except Exception as e:
         results["semantic_label"] = {"status": "error", "message": str(e)}
+    
+    # Run voice columns migration
+    try:
+        result = migrate_voice_columns(session)
+        results["voice_columns"] = result
+    except Exception as e:
+        results["voice_columns"] = {"status": "error", "message": str(e)}
     
     # Run voice_platform migration
     try:
