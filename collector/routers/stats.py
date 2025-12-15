@@ -246,6 +246,74 @@ async def get_costs_by_model(
     return models
 
 
+@router.get("/daily")
+async def get_daily_costs(
+    days: int = Query(7, description="Number of days to return"),
+    tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
+    session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user)
+) -> List[Dict[str, Any]]:
+    """
+    Get daily aggregated costs for the chart.
+    Returns costs per day with provider breakdown.
+    """
+    user_id = current_user.id
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    
+    # Get daily aggregations with provider breakdown
+    statement = select(
+        func.date(TraceEvent.created_at).label("date"),
+        TraceEvent.provider,
+        func.sum(TraceEvent.cost_usd).label("total_cost"),
+        func.count(TraceEvent.id).label("call_count")
+    ).where(TraceEvent.created_at >= cutoff)
+    
+    # Filter by user_id
+    if tenant_id:
+        statement = statement.where(TraceEvent.tenant_id == tenant_id)
+    elif user_id:
+        statement = statement.where(
+            and_(
+                TraceEvent.user_id == user_id,
+                TraceEvent.user_id.isnot(None)
+            )
+        )
+    
+    # Exclude internal
+    statement = statement.where(TraceEvent.provider != "internal")
+    
+    statement = statement.group_by(
+        func.date(TraceEvent.created_at),
+        TraceEvent.provider
+    ).order_by(func.date(TraceEvent.created_at))
+    
+    results = session.exec(statement).all()
+    
+    # Group by date
+    daily_data = {}
+    for r in results:
+        date_str = str(r.date)
+        if date_str not in daily_data:
+            daily_data[date_str] = {"date": date_str, "total": 0, "providers": {}}
+        daily_data[date_str]["total"] += r.total_cost or 0
+        daily_data[date_str]["providers"][r.provider] = {
+            "cost": r.total_cost or 0,
+            "calls": r.call_count
+        }
+    
+    # Fill in missing days with zeros
+    result_list = []
+    for i in range(days):
+        date = (datetime.utcnow() - timedelta(days=days-1-i)).date()
+        date_str = str(date)
+        if date_str in daily_data:
+            result_list.append(daily_data[date_str])
+        else:
+            result_list.append({"date": date_str, "total": 0, "providers": {}})
+    
+    return result_list
+
+
 @router.get("/by-customer")
 async def get_costs_by_customer(
     hours: int = Query(720, description="Time window in hours (default 30 days)"),
