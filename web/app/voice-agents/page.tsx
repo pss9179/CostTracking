@@ -426,7 +426,7 @@ function VoiceAgentsContent() {
                         cx="50%"
                         cy="50%"
                         outerRadius={100}
-                        label={({ name, percentage }) => `${name} ${percentage.toFixed(0)}%`}
+                        label={({ name, percent }: any) => `${name || ''} ${((percent || 0) * 100).toFixed(0)}%`}
                       >
                         {segmentPieData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
