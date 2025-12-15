@@ -16,8 +16,8 @@ import OpenAI from 'openai';
 
 // Initialize LLMObserve (do this once at app startup)
 observe({
-  collectorUrl: 'http://localhost:8000',  // Or your deployed collector URL
-  apiKey: 'llmo_sk_xxx'  // Get from Settings page
+  collectorUrl: 'https://llmobserve-api-production-d791.up.railway.app',  // Production URL
+  apiKey: 'llmo_sk_xxx'  // Get from Settings page at llmobserve.com
 });
 
 // Use OpenAI normally - costs are tracked automatically!
@@ -36,8 +36,8 @@ console.log(response.choices[0].message.content);
 ```typescript
 observe({
   // Required
-  collectorUrl: 'http://localhost:8000',
-  apiKey: 'llmo_sk_xxx',
+  collectorUrl: 'https://llmobserve-api-production-d791.up.railway.app',
+  apiKey: 'llmo_sk_xxx',  // Get from Settings page
   
   // Optional
   tenantId: 'my-tenant',        // For multi-tenant apps
