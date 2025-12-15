@@ -19,9 +19,13 @@ import {
 import {
   fetchRuns,
   fetchProviderStats,
+  fetchModelStats,
+  fetchDailyStats,
   fetchRunDetail,
   type Run,
   type ProviderStats,
+  type ModelStats,
+  type DailyStats,
 } from "@/lib/api";
 import { formatCost, calculatePercentage } from "@/lib/stats";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
@@ -42,6 +46,8 @@ function DashboardPageContent() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [allEvents, setAllEvents] = useState<any[]>([]);
   const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
+  const [modelStats, setModelStats] = useState<ModelStats[]>([]);
+  const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
@@ -86,7 +92,7 @@ function DashboardPageContent() {
           process.env.NEXT_PUBLIC_COLLECTOR_URL || "http://localhost:8000";
 
         // Fetch user data and main data in parallel - with error handling
-        const [userResponse, runsData, providersData] = await Promise.all([
+        const [userResponse, runsData, providersData, modelsData, dailyData] = await Promise.all([
           fetch(`${collectorUrl}/clerk/api-keys/me`, {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -99,6 +105,14 @@ function DashboardPageContent() {
           }),
           fetchProviderStats(24, null, token).catch((err) => {
             console.warn("[Dashboard] Failed to fetch provider stats:", err);
+            return []; // Return empty array on error
+          }),
+          fetchModelStats(24, null, token).catch((err) => {
+            console.warn("[Dashboard] Failed to fetch model stats:", err);
+            return []; // Return empty array on error
+          }),
+          fetchDailyStats(7, null, token).catch((err) => {
+            console.warn("[Dashboard] Failed to fetch daily stats:", err);
             return []; // Return empty array on error
           }),
         ]);
@@ -125,6 +139,8 @@ function DashboardPageContent() {
         // Set data immediately - even if empty, show the dashboard
         setRuns(runsData || []);
         setProviderStats(providersData || []);
+        setModelStats(modelsData || []);
+        setDailyStats(dailyData || []);
 
         // IMPORTANT: Set loading to false IMMEDIATELY after getting main data
         // Don't wait for events - they load in background
@@ -276,18 +292,15 @@ function DashboardPageContent() {
     }
   });
 
-  // Sort model costs by cost descending
-  const sortedModelCosts = Array.from(modelCosts.entries())
-    .map(([model, stats]) => ({
-      model,
-      cost: stats.cost,
-      calls: stats.calls,
-      provider: stats.provider,
-      percentage: total_cost_24h_from_providers > 0
-        ? (stats.cost / total_cost_24h_from_providers) * 100
-        : 0,
+  // Use model stats from API (more reliable than calculating from limited events)
+  const sortedModelCosts = modelStats
+    .map((stat) => ({
+      model: stat.model,
+      cost: stat.total_cost,
+      calls: stat.call_count,
+      provider: stat.provider,
+      percentage: stat.percentage,
     }))
-    .sort((a, b) => b.cost - a.cost)
     .slice(0, 10); // Top 10 models
 
   // Sort semantic costs by cost descending
@@ -367,51 +380,21 @@ function DashboardPageContent() {
     };
   })();
 
-  // Prepare daily chart data for MainMetricChart with provider breakdown
-  const dailyChartData = (() => {
-    const dateRangeMs = getDateRangeMs(dateRange);
-    const startDate = new Date(Date.now() - dateRangeMs);
-    const dayMap = new Map<string, Record<string, number>>();
-
-    // Initialize days with empty provider objects
-    const days = Math.ceil(dateRangeMs / (24 * 60 * 60 * 1000));
-    for (let i = 0; i <= days; i++) {
-      const d = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
-      if (d > new Date()) break;
-      dayMap.set(d.toISOString().split("T")[0], {});
-    }
-
-    // Aggregate costs by date and provider
-    filteredEvents.forEach((event) => {
-      const eventDate = new Date(event.created_at);
-      if (
-        eventDate < startDate ||
-        !event.provider ||
-        event.provider === "internal"
-      )
-        return;
-
-      const dateKey = eventDate.toISOString().split("T")[0]; // YYYY-MM-DD
-      const providerData = dayMap.get(dateKey) || {};
-      const provider = event.provider.toLowerCase();
-      providerData[provider] = (providerData[provider] || 0) + (event.cost_usd || 0);
-      dayMap.set(dateKey, providerData);
+  // Prepare daily chart data from API (more reliable than calculating from limited events)
+  const dailyChartData = dailyStats.map((day) => {
+    const providerCosts: Record<string, number> = {};
+    Object.entries(day.providers).forEach(([provider, data]) => {
+      providerCosts[provider.toLowerCase()] = data.cost;
     });
-
-    return Array.from(dayMap.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, providers]) => {
-        const totalValue = Object.values(providers).reduce((sum, val) => sum + val, 0);
-        return {
-          date: new Date(date).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-          }),
-          value: totalValue,
-          ...providers, // Spread provider costs into the data object
-        };
-      });
-  })();
+    return {
+      date: new Date(day.date).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+      value: day.total,
+      ...providerCosts,
+    };
+  });
 
   // Calculate 7-day sparklines for each provider
   const providerSparklines = new Map<string, number[]>();

@@ -289,6 +289,59 @@ export async function fetchProviderStats(hours: number = 24, tenantId?: string |
   return response.json();
 }
 
+export interface ModelStats {
+  model: string;
+  provider: string;
+  total_cost: number;
+  call_count: number;
+  input_tokens: number;
+  output_tokens: number;
+  avg_latency: number;
+  percentage: number;
+}
+
+export async function fetchModelStats(hours: number = 24, tenantId?: string | null, token?: string): Promise<ModelStats[]> {
+  const headers = await getDashboardAuthHeaders(token);
+  let url = `${COLLECTOR_URL}/stats/by-model?hours=${hours}`;
+  if (tenantId) {
+    url += `&tenant_id=${encodeURIComponent(tenantId)}`;
+  }
+  const response = await fetch(url, {
+    headers,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => response.statusText);
+    throw new Error(`Failed to fetch model stats (${response.status}): ${errorText}`);
+  }
+
+  return response.json();
+}
+
+export interface DailyStats {
+  date: string;
+  total: number;
+  providers: Record<string, { cost: number; calls: number }>;
+}
+
+export async function fetchDailyStats(days: number = 7, tenantId?: string | null, token?: string): Promise<DailyStats[]> {
+  const headers = await getDashboardAuthHeaders(token);
+  let url = `${COLLECTOR_URL}/stats/daily?days=${days}`;
+  if (tenantId) {
+    url += `&tenant_id=${encodeURIComponent(tenantId)}`;
+  }
+  const response = await fetch(url, {
+    headers,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => response.statusText);
+    throw new Error(`Failed to fetch daily stats (${response.status}): ${errorText}`);
+  }
+
+  return response.json();
+}
+
 export async function fetchInsights(tenantId?: string | null, token?: string): Promise<Insight[]> {
   const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/insights/daily`;
