@@ -405,7 +405,8 @@ function DashboardPageContent() {
   });
   
   // Debug log for chart data
-  console.warn("[Dashboard] Chart data:", JSON.stringify(dailyChartData.slice(0, 2)));
+  console.warn("[Dashboard] Raw daily stats:", JSON.stringify(dailyStats));
+  console.warn("[Dashboard] Chart data:", JSON.stringify(dailyChartData));
 
   // Calculate 7-day sparklines for each provider
   const providerSparklines = new Map<string, number[]>();
