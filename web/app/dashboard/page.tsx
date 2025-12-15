@@ -389,18 +389,23 @@ function DashboardPageContent() {
   // Prepare daily chart data from API (more reliable than calculating from limited events)
   const dailyChartData = dailyStats.map((day) => {
     const providerCosts: Record<string, number> = {};
-    Object.entries(day.providers).forEach(([provider, data]) => {
-      providerCosts[provider.toLowerCase()] = data.cost;
-    });
+    if (day.providers && typeof day.providers === 'object') {
+      Object.entries(day.providers).forEach(([provider, data]) => {
+        providerCosts[provider.toLowerCase()] = data.cost;
+      });
+    }
     return {
       date: new Date(day.date).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
       }),
-      value: day.total,
+      value: day.total || 0,
       ...providerCosts,
     };
   });
+  
+  // Debug log for chart data
+  console.warn("[Dashboard] Chart data:", JSON.stringify(dailyChartData.slice(0, 2)));
 
   // Calculate 7-day sparklines for each provider
   const providerSparklines = new Map<string, number[]>();
