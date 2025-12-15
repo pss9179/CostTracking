@@ -93,6 +93,11 @@ export function MainMetricChart({
                     </linearGradient>
                   );
                 })}
+                {/* Default gradient for fallback */}
+                <linearGradient id="color-default" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0.3}/>
+                </linearGradient>
               </defs>
               <CartesianGrid
                 strokeDasharray="3 3"
@@ -153,17 +158,28 @@ export function MainMetricChart({
                 }}
               />
               {/* Render an Area for each provider with stacking */}
-              {providers.map((provider) => (
+              {providers.length > 0 ? (
+                providers.map((provider) => (
+                  <Area
+                    key={provider}
+                    type="monotone"
+                    dataKey={provider}
+                    stackId="1"
+                    stroke={PROVIDER_COLORS[provider] || "#64748b"}
+                    fill={`url(#color-${provider})`}
+                    strokeWidth={2}
+                  />
+                ))
+              ) : (
+                /* Fallback: render value if no provider breakdown available */
                 <Area
-                  key={provider}
                   type="monotone"
-                  dataKey={provider}
-                  stackId="1"
-                  stroke={PROVIDER_COLORS[provider] || "#64748b"}
-                  fill={`url(#color-${provider})`}
+                  dataKey="value"
+                  stroke="#10b981"
+                  fill="url(#color-openai)"
                   strokeWidth={2}
                 />
-              ))}
+              )}
             </AreaChart>
           </ResponsiveContainer>
         </div>
