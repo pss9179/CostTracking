@@ -168,6 +168,8 @@ export function MainMetricChart({
                     stroke={PROVIDER_COLORS[provider] || "#64748b"}
                     fill={`url(#color-${provider})`}
                     strokeWidth={2}
+                    connectNulls
+                    isAnimationActive={false}
                   />
                 ))
               ) : (
@@ -176,8 +178,10 @@ export function MainMetricChart({
                   type="monotone"
                   dataKey="value"
                   stroke="#10b981"
-                  fill="url(#color-openai)"
+                  fill="url(#color-default)"
                   strokeWidth={2}
+                  connectNulls
+                  isAnimationActive={false}
                 />
               )}
             </AreaChart>
