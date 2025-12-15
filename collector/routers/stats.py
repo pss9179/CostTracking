@@ -177,6 +177,75 @@ async def get_costs_by_provider(
     return providers
 
 
+@router.get("/by-model")
+async def get_costs_by_model(
+    hours: int = 24,
+    tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
+    session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user)  # Require Clerk authentication
+) -> List[Dict[str, Any]]:
+    """
+    Get costs aggregated by model for the authenticated user for the last N hours.
+    
+    Requires Clerk authentication. Returns breakdown with total cost, call count, and percentage per model.
+    """
+    user_id = current_user.id
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    
+    # Get model aggregations
+    statement = select(
+        TraceEvent.model,
+        TraceEvent.provider,
+        func.sum(TraceEvent.cost_usd).label("total_cost"),
+        func.count(TraceEvent.id).label("call_count"),
+        func.sum(TraceEvent.input_tokens).label("input_tokens"),
+        func.sum(TraceEvent.output_tokens).label("output_tokens"),
+        func.avg(TraceEvent.latency_ms).label("avg_latency")
+    ).where(TraceEvent.created_at >= cutoff)
+    
+    # Filter by user_id
+    if tenant_id:
+        statement = statement.where(TraceEvent.tenant_id == tenant_id)
+    elif user_id:
+        statement = statement.where(
+            and_(
+                TraceEvent.user_id == user_id,
+                TraceEvent.user_id.isnot(None)
+            )
+        )
+    
+    # Exclude internal/unknown and require model
+    statement = statement.where(
+        and_(
+            TraceEvent.provider != "internal",
+            TraceEvent.model.isnot(None)
+        )
+    )
+    
+    statement = statement.group_by(TraceEvent.model, TraceEvent.provider).order_by(func.sum(TraceEvent.cost_usd).desc())
+    
+    results = session.exec(statement).all()
+    
+    # Calculate total for percentages
+    total_cost = sum(r.total_cost or 0 for r in results)
+    
+    models = [
+        {
+            "model": r.model or "unknown",
+            "provider": r.provider,
+            "total_cost": r.total_cost or 0,
+            "call_count": r.call_count,
+            "input_tokens": r.input_tokens or 0,
+            "output_tokens": r.output_tokens or 0,
+            "avg_latency": round(r.avg_latency or 0, 2),
+            "percentage": round((r.total_cost / total_cost * 100) if total_cost > 0 else 0, 2)
+        }
+        for r in results
+    ]
+    
+    return models
+
+
 @router.get("/by-customer")
 async def get_costs_by_customer(
     hours: int = Query(720, description="Time window in hours (default 30 days)"),
