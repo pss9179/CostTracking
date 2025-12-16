@@ -29,7 +29,7 @@ import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { KPIGrid, calculateKPIs } from "@/components/analytics/KPIGrid";
 import { FeatureTable, toFeatureRows, type FeatureRow } from "@/components/analytics/FeatureTable";
 import { AgentTree, parseAgentNodes, type AgentNode } from "@/components/analytics/AgentTree";
-import { StackedBarChart } from "@/components/analytics/CostDistributionChart";
+import { RankedBarChart, StackedBarChart } from "@/components/analytics/CostDistributionChart";
 import { CapsManager } from "@/components/caps/CapsManager";
 import { FeatureDrawer } from "@/components/analytics/FeatureDrawer";
 import { cn } from "@/lib/utils";
@@ -355,12 +355,21 @@ function FeaturesPageContent() {
                 <div className="bg-white rounded-xl border p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-medium text-gray-900">Cost Distribution</h3>
-                    <div className="text-xs text-gray-500">Top 5 + Other</div>
+                    <div className="text-xs text-gray-500">Ranked by cost</div>
                   </div>
-                  <StackedBarChart
+                  <RankedBarChart
                     data={chartData}
                     totalCost={totalCost}
-                    height={180}
+                    topN={8}
+                    height={220}
+                    showToggle={true}
+                    showVariance={true}
+                    onClick={(item) => {
+                      const feature = featureRows.find(f => 
+                        f.section.endsWith(item.name) || f.section.includes(item.name)
+                      );
+                      if (feature) handleRowClick(feature);
+                    }}
                   />
                 </div>
               </div>

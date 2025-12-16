@@ -243,6 +243,75 @@ export function getModelFamily(model: string): string {
 }
 
 // ============================================================================
+// SEMANTIC COLOR SYSTEM
+// ============================================================================
+
+/**
+ * Semantic color system for LLM cost observability dashboards
+ * 
+ * Design principles:
+ * - Cost metrics use neutral blue (trustworthy, professional)
+ * - Latency metrics use amber (warning, attention)
+ * - Errors use red (alerts, problems)
+ * - Providers use a muted categorical palette (distinguishable but not loud)
+ * - Bright/saturated colors reserved for alerts only
+ */
+
+export const SEMANTIC_COLORS = {
+  // Primary metrics
+  cost: {
+    primary: '#3b82f6',       // blue-500 - main cost visualization
+    light: '#93c5fd',         // blue-300 - backgrounds, fills
+    dark: '#1d4ed8',          // blue-700 - emphasis, selected
+    muted: '#60a5fa',         // blue-400 - secondary
+    bg: '#eff6ff',            // blue-50 - backgrounds
+    bgHover: '#dbeafe',       // blue-100 - hover states
+  },
+  latency: {
+    primary: '#f59e0b',       // amber-500 - main latency visualization
+    light: '#fcd34d',         // amber-300 - backgrounds
+    dark: '#d97706',          // amber-600 - emphasis
+    muted: '#fbbf24',         // amber-400 - secondary
+    bg: '#fffbeb',            // amber-50 - backgrounds
+    bgHover: '#fef3c7',       // amber-100 - hover
+  },
+  error: {
+    primary: '#ef4444',       // red-500 - errors, failures
+    light: '#fca5a5',         // red-300 - backgrounds
+    dark: '#dc2626',          // red-600 - emphasis
+    muted: '#f87171',         // red-400 - secondary
+    bg: '#fef2f2',            // red-50 - backgrounds
+    bgHover: '#fee2e2',       // red-100 - hover
+  },
+  success: {
+    primary: '#10b981',       // emerald-500 - success, positive
+    light: '#6ee7b7',         // emerald-300 - backgrounds
+    dark: '#059669',          // emerald-600 - emphasis
+    muted: '#34d399',         // emerald-400 - secondary
+    bg: '#ecfdf5',            // emerald-50 - backgrounds
+    bgHover: '#d1fae5',       // emerald-100 - hover
+  },
+  neutral: {
+    primary: '#64748b',       // slate-500 - neutral, secondary info
+    light: '#cbd5e1',         // slate-300 - borders
+    dark: '#475569',          // slate-600 - text
+    muted: '#94a3b8',         // slate-400 - muted text
+    bg: '#f8fafc',            // slate-50 - backgrounds
+    bgHover: '#f1f5f9',       // slate-100 - hover
+  },
+} as const;
+
+/**
+ * Alert severity colors (bright, saturated - use sparingly)
+ */
+export const ALERT_COLORS = {
+  critical: '#dc2626',        // red-600 - exceeded limits
+  warning: '#d97706',         // amber-600 - approaching limits
+  info: '#2563eb',            // blue-600 - informational
+  success: '#059669',         // emerald-600 - resolved
+} as const;
+
+// ============================================================================
 // STABLE COLOR MAPPING
 // ============================================================================
 
@@ -275,23 +344,52 @@ const DATA_COLORS = [
   '#ef4444', // red-500
 ];
 
-// Known provider colors (for consistency across the app)
-const PROVIDER_COLOR_MAP: Record<string, string> = {
-  openai: '#10b981',      // emerald
-  anthropic: '#8b5cf6',   // violet
-  cohere: '#6366f1',      // indigo
-  google: '#3b82f6',      // blue
-  mistral: '#ec4899',     // pink
-  pinecone: '#f97316',    // orange
-  stripe: '#a855f7',      // purple
-  vapi: '#06b6d4',        // cyan
-  elevenlabs: '#14b8a6',  // teal
-  twilio: '#f59e0b',      // amber
-  voyage: '#84cc16',      // lime
-  deepgram: '#ef4444',    // red
-  playht: '#a855f7',      // purple
-  cartesia: '#6366f1',    // indigo
+/**
+ * Provider color palette - muted categorical colors
+ * Consistent across all visualizations
+ * Colors are intentionally muted (not saturated) for professional look
+ */
+export const PROVIDER_COLORS: Record<string, string> = {
+  // LLM Providers
+  openai: '#059669',          // emerald-600 (primary, most common)
+  anthropic: '#7c3aed',       // violet-600
+  google: '#2563eb',          // blue-600
+  cohere: '#4f46e5',          // indigo-600
+  mistral: '#db2777',         // pink-600
+  groq: '#ca8a04',            // yellow-600
+  perplexity: '#0891b2',      // cyan-600
+  together: '#ea580c',        // orange-600
+  replicate: '#9333ea',       // purple-600
+  huggingface: '#eab308',     // yellow-500
+  azure: '#0284c7',           // sky-600
+  aws: '#f97316',             // orange-500
+  fireworks: '#c026d3',       // fuchsia-600
+  anyscale: '#4ade80',        // green-400
+  
+  // Voice Providers
+  vapi: '#0d9488',            // teal-600
+  elevenlabs: '#14b8a6',      // teal-500
+  deepgram: '#0ea5e9',        // sky-500
+  twilio: '#dc2626',          // red-600
+  cartesia: '#8b5cf6',        // violet-500
+  playht: '#ec4899',          // pink-500
+  assembly: '#6366f1',        // indigo-500
+  
+  // Utility Providers
+  pinecone: '#f97316',        // orange-500
+  stripe: '#6366f1',          // indigo-500
+  voyage: '#84cc16',          // lime-500
+  weaviate: '#10b981',        // emerald-500
+  chroma: '#f59e0b',          // amber-500
+  
+  // Internal/Other
+  internal: '#94a3b8',        // slate-400
+  unknown: '#64748b',         // slate-500
+  other: '#94a3b8',           // slate-400
 };
+
+// Alias for backward compatibility
+const PROVIDER_COLOR_MAP = PROVIDER_COLORS;
 
 /**
  * Get a stable color for a category name
@@ -308,6 +406,43 @@ export function getStableColor(name: string): string {
   // Hash for consistent color assignment
   const index = hashString(lowerName) % DATA_COLORS.length;
   return DATA_COLORS[index];
+}
+
+/**
+ * Get provider-specific color
+ */
+export function getProviderColor(provider: string): string {
+  return PROVIDER_COLORS[provider.toLowerCase()] || PROVIDER_COLORS.other;
+}
+
+/**
+ * Get semantic color for a metric type
+ */
+export function getMetricColor(
+  type: 'cost' | 'latency' | 'error' | 'success' | 'neutral',
+  variant: 'primary' | 'light' | 'dark' | 'muted' | 'bg' | 'bgHover' = 'primary'
+): string {
+  return SEMANTIC_COLORS[type][variant];
+}
+
+/**
+ * Get color class for Tailwind (background + text)
+ */
+export function getMetricColorClass(
+  type: 'cost' | 'latency' | 'error' | 'success' | 'neutral'
+): { bg: string; text: string; border: string } {
+  switch (type) {
+    case 'cost':
+      return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' };
+    case 'latency':
+      return { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' };
+    case 'error':
+      return { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' };
+    case 'success':
+      return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' };
+    default:
+      return { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' };
+  }
 }
 
 /**

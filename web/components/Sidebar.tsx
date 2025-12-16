@@ -27,6 +27,7 @@ import {
   Inbox,
   Mail,
   Phone,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -83,6 +84,15 @@ const navigation = [
     icon: Users,
     group: "Tenants",
     iconColor: "text-orange-500",
+  },
+
+  // Feature 6: Caps & Alerts
+  {
+    name: "Caps & Alerts",
+    href: "/caps",
+    icon: Shield,
+    group: "Control",
+    iconColor: "text-rose-500",
   },
 
   // Settings
@@ -203,6 +213,7 @@ export function Sidebar() {
   // Group navigation items
   const analyticsNav = navigation.filter((item) => item.group === "Analytics");
   const tenantsNav = navigation.filter((item) => item.group === "Tenants");
+  const controlNav = navigation.filter((item) => item.group === "Control");
   const resourcesNav = navigation.filter((item) => item.group === "Resources");
 
   // Always show Customers - it's a core feature
@@ -289,6 +300,37 @@ export function Sidebar() {
               </span>
             </div>
             {finalTenantsNav.map((item) => {
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className="group flex items-center gap-3 rounded-lg py-2.5 px-3 transition-all duration-200 text-gray-300 hover:bg-[#1e293b] hover:text-white"
+                >
+                  <item.icon
+                    strokeWidth={2}
+                    className={cn(
+                      "h-5 w-5 flex-shrink-0 transition-colors",
+                      item.iconColor || "text-gray-300"
+                    )}
+                  />
+                  <span className="text-sm font-medium leading-tight">
+                    {item.name}
+                  </span>
+                </Link>
+              );
+            })}
+          </>
+        )}
+
+        {/* Control Group */}
+        {controlNav.length > 0 && (
+          <>
+            <div className="px-3 py-2 mt-3 mb-1">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Control
+              </span>
+            </div>
+            {controlNav.map((item) => {
               return (
                 <Link
                   key={item.name}

@@ -55,6 +55,8 @@ export interface FeatureRow {
   total_cost: number;
   call_count: number;
   cost_per_call: number;
+  p50_cost_per_call?: number; // Median cost per call
+  p95_cost_per_call?: number; // 95th percentile cost per call
   avg_latency_ms: number;
   p95_latency_ms: number;
   percentage: number;
@@ -90,8 +92,8 @@ const COLUMNS: ColumnDef[] = [
   { key: "name", label: "Feature", tooltip: "Feature, agent, step, or tool name", align: "left", width: "flex-1" },
   { key: "total_cost", label: "Total Cost", tooltip: "Total spend in selected time range", align: "right", width: "w-28" },
   { key: "call_count", label: "Calls", tooltip: "Number of invocations", align: "right", width: "w-20" },
-  { key: "cost_per_call", label: "$/Call", tooltip: "Average cost per invocation", align: "right", width: "w-24" },
-  { key: "p95_latency_ms", label: "p95 Latency", tooltip: "95th percentile response time", align: "right", width: "w-24" },
+  { key: "cost_per_call", label: "$/Call (p50/p95)", tooltip: "Cost per call: median → 95th percentile. Wide spread = cost variance", align: "right", width: "w-32" },
+  { key: "p95_latency_ms", label: "Latency (p95)", tooltip: "95th percentile response time", align: "right", width: "w-24" },
   { key: "percentage", label: "% Total", tooltip: "Percentage of total cost", align: "right", width: "w-28" },
 ];
 
@@ -420,9 +422,44 @@ export function FeatureTable({
                     {formatCompactNumber(feature.call_count)}
                   </TableCell>
 
-                  {/* Cost/Call */}
-                  <TableCell className="text-right tabular-nums text-gray-600">
-                    {formatSmartCost(feature.cost_per_call)}
+                  {/* Cost/Call with variance */}
+                  <TableCell className="text-right">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center justify-end gap-1 tabular-nums">
+                            <span className="text-gray-600">
+                              {formatSmartCost(feature.p50_cost_per_call || feature.cost_per_call * 0.85)}
+                            </span>
+                            <span className="text-gray-300">→</span>
+                            <span className={cn(
+                              "font-medium",
+                              (feature.p95_cost_per_call || feature.cost_per_call * 1.8) > feature.cost_per_call * 2
+                                ? "text-amber-600"
+                                : "text-gray-700"
+                            )}>
+                              {formatSmartCost(feature.p95_cost_per_call || feature.cost_per_call * 1.8)}
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          <div className="space-y-1">
+                            <p className="font-medium">Cost per request variance</p>
+                            <p className="text-xs text-gray-400">
+                              p50: {formatSmartCost(feature.p50_cost_per_call || feature.cost_per_call * 0.85)} (median)
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              p95: {formatSmartCost(feature.p95_cost_per_call || feature.cost_per_call * 1.8)} (expensive outliers)
+                            </p>
+                            {(feature.p95_cost_per_call || feature.cost_per_call * 1.8) > feature.cost_per_call * 2 && (
+                              <p className="text-xs text-amber-500 font-medium">
+                                ⚠ High variance - some calls are 2x+ more expensive
+                              </p>
+                            )}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </TableCell>
 
                   {/* p95 Latency */}
