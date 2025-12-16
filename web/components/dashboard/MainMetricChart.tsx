@@ -160,17 +160,17 @@ export function MainMetricChart({
               {/* Render an Area for each provider with stacking */}
               {providers.length > 0 ? (
                 providers.map((provider) => (
-                  <Area
-                    key={provider}
-                    type="monotone"
-                    dataKey={provider}
-                    stackId="1"
-                    stroke={PROVIDER_COLORS[provider] || "#64748b"}
-                    fill={`url(#color-${provider})`}
-                    strokeWidth={2}
+                <Area
+                  key={provider}
+                  type="monotone"
+                  dataKey={provider}
+                  stackId="1"
+                  stroke={PROVIDER_COLORS[provider] || "#64748b"}
+                  fill={`url(#color-${provider})`}
+                  strokeWidth={2}
                     connectNulls
                     isAnimationActive={false}
-                  />
+                />
                 ))
               ) : (
                 /* Fallback: render value if no provider breakdown available */

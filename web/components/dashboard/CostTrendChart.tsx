@@ -385,9 +385,9 @@ export function CostTrendChart({
                 <CustomTooltip
                   active={active}
                   payload={payload as CustomTooltipProps["payload"]}
-                  label={label}
+                  label={String(label ?? "")}
                   mode={effectiveMode}
-                  prevValue={getPrevValue(label || "")}
+                  prevValue={getPrevValue(String(label ?? ""))}
                 />
               )}
             />
@@ -449,9 +449,9 @@ export function CostTrendChart({
                 <CustomTooltip
                   active={active}
                   payload={payload as CustomTooltipProps["payload"]}
-                  label={label}
+                  label={String(label ?? "")}
                   mode={effectiveMode}
-                  prevValue={getPrevValue(label || "")}
+                  prevValue={getPrevValue(String(label ?? ""))}
                 />
               )}
             />
