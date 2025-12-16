@@ -72,78 +72,132 @@ def _build_email_content(
     percentage: float,
     period: str,
 ) -> tuple[str, str]:
-    """Build email subject and body."""
-    if alert_type == "threshold_reached":
-        subject = f"⚠️ LLMObserve Alert: {percentage:.0f}% of your {period} spending cap reached"
-        emoji = "⚠️"
-        urgency = "Warning"
-    else:  # cap_exceeded
-        subject = f"🚨 LLMObserve Alert: Spending cap EXCEEDED for {period}"
-        emoji = "🚨"
-        urgency = "URGENT"
+    """Build email subject and body with clean, minimal design."""
     
-    target_display = target_name if target_type != "global" else "all services"
+    # Determine alert severity
+    is_exceeded = alert_type == "cap_exceeded"
+    
+    if is_exceeded:
+        subject = f"🚨 Cap Exceeded: ${current_spend:.2f} / ${cap_limit:.2f} ({period})"
+        status_color = "#dc2626"
+        status_bg = "#fef2f2"
+        status_text = "EXCEEDED"
+    else:
+        subject = f"⚠️ {percentage:.0f}% of {period} cap used (${current_spend:.2f}/${cap_limit:.2f})"
+        status_color = "#f59e0b"
+        status_bg = "#fffbeb"
+        status_text = "WARNING"
+    
+    target_display = target_name if target_type != "global" else "All Services"
+    
+    # Progress bar width (cap at 100%)
+    progress_width = min(percentage, 100)
     
     body = f"""
 <!DOCTYPE html>
 <html>
 <head>
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px; text-align: center; }}
-        .content {{ background: #f9fafb; padding: 30px; border-radius: 8px; margin-top: 20px; }}
-        .alert-box {{ background: {"#fef2f2" if alert_type == "cap_exceeded" else "#fef9e7"}; border-left: 4px solid {"#dc2626" if alert_type == "cap_exceeded" else "#f59e0b"}; padding: 20px; margin: 20px 0; }}
-        .metric {{ font-size: 32px; font-weight: bold; color: {"#dc2626" if alert_type == "cap_exceeded" else "#d97706"}; margin: 10px 0; }}
-        .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
-        a {{ color: #667eea; text-decoration: none; }}
-    </style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>{emoji} {urgency}: Spending Cap Alert</h1>
-            <p style="margin: 0; opacity: 0.9;">LLMObserve Cost Monitoring</p>
-        </div>
-        
-        <div class="content">
-            <div class="alert-box">
-                <h2 style="margin-top: 0;">Your {period} spending is at:</h2>
-                <div class="metric">${current_spend:.2f} / ${cap_limit:.2f}</div>
-                <p style="font-size: 18px; margin: 0;"><strong>{percentage:.1f}%</strong> of your cap used</p>
-            </div>
-            
-            <h3>Details:</h3>
-            <ul style="line-height: 1.8;">
-                <li><strong>Scope:</strong> {target_type.replace('_', ' ').title()}</li>
-                <li><strong>Target:</strong> {target_display}</li>
-                <li><strong>Period:</strong> {period.capitalize()}</li>
-                <li><strong>Current Spend:</strong> ${current_spend:.4f}</li>
-                <li><strong>Cap Limit:</strong> ${cap_limit:.2f}</li>
-            </ul>
-            
-            <h3>Next Steps:</h3>
-            <ul style="line-height: 1.8;">
-                {"<li>🚨 <strong>IMMEDIATE ACTION REQUIRED:</strong> Your cap has been exceeded. Review your usage immediately.</li>" if alert_type == "cap_exceeded" else "<li>⚠️ Monitor your usage closely to avoid exceeding the cap.</li>"}
-                <li>Review your <a href="https://app.llmobserve.dev/dashboard">Dashboard</a> for detailed cost breakdown</li>
-                <li>Adjust your cap limits or optimize usage in <a href="https://app.llmobserve.dev/settings">Settings</a></li>
-                <li>View cost trends by provider, model, and agent</li>
-            </ul>
-            
-            <p style="margin-top: 30px; padding: 15px; background: #eff6ff; border-radius: 6px;">
-                💡 <strong>Tip:</strong> Set up multiple caps (global, per-provider, per-model) for granular cost control.
-            </p>
-        </div>
-        
-        <div class="footer">
-            <p>This alert was sent from <strong>LLMObserve</strong></p>
-            <p>Manage your caps and alerts: <a href="https://app.llmobserve.dev/settings">Settings</a></p>
-            <p style="margin-top: 20px; font-size: 10px;">
-                You're receiving this because you set up a spending cap with email notifications.<br>
-                To stop receiving these alerts, disable or delete the cap in your settings.
-            </p>
-        </div>
-    </div>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 40px 20px;">
+        <tr>
+            <td align="center">
+                <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 520px; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: #0f172a; padding: 24px 32px;">
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td>
+                                        <span style="color: white; font-size: 18px; font-weight: 600;">LLMObserve</span>
+                                    </td>
+                                    <td align="right">
+                                        <span style="background: {status_bg}; color: {status_color}; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">{status_text}</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 32px;">
+                            
+                            <!-- Amount -->
+                            <div style="text-align: center; margin-bottom: 24px;">
+                                <div style="font-size: 42px; font-weight: 700; color: #0f172a; letter-spacing: -1px;">
+                                    ${current_spend:.2f}
+                                </div>
+                                <div style="font-size: 14px; color: #64748b; margin-top: 4px;">
+                                    of ${cap_limit:.2f} {period} limit
+                                </div>
+                            </div>
+                            
+                            <!-- Progress Bar -->
+                            <div style="background: #e2e8f0; border-radius: 8px; height: 8px; margin: 20px 0; overflow: hidden;">
+                                <div style="background: {status_color}; width: {progress_width}%; height: 100%; border-radius: 8px;"></div>
+                            </div>
+                            <div style="text-align: center; color: {status_color}; font-weight: 600; font-size: 14px; margin-bottom: 24px;">
+                                {percentage:.1f}% used
+                            </div>
+                            
+                            <!-- Details -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background: #f8fafc; border-radius: 8px; margin: 20px 0;">
+                                <tr>
+                                    <td style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0;">
+                                        <span style="color: #64748b; font-size: 13px;">Scope</span>
+                                        <div style="color: #0f172a; font-weight: 500; margin-top: 2px;">{target_type.replace('_', ' ').title()}</div>
+                                    </td>
+                                    <td style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0;" align="right">
+                                        <span style="color: #64748b; font-size: 13px;">Target</span>
+                                        <div style="color: #0f172a; font-weight: 500; margin-top: 2px;">{target_display}</div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 16px 20px;">
+                                        <span style="color: #64748b; font-size: 13px;">Period</span>
+                                        <div style="color: #0f172a; font-weight: 500; margin-top: 2px;">{period.capitalize()}</div>
+                                    </td>
+                                    <td style="padding: 16px 20px;" align="right">
+                                        <span style="color: #64748b; font-size: 13px;">Remaining</span>
+                                        <div style="color: #0f172a; font-weight: 500; margin-top: 2px;">${max(0, cap_limit - current_spend):.2f}</div>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- CTA Button -->
+                            <div style="text-align: center; margin-top: 28px;">
+                                <a href="https://app.llmobserve.com/caps" style="display: inline-block; background: #0f172a; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 14px;">View Dashboard</a>
+                            </div>
+                            
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background: #f8fafc; padding: 20px 32px; border-top: 1px solid #e2e8f0;">
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td style="color: #64748b; font-size: 12px;">
+                                        <a href="https://app.llmobserve.com/caps" style="color: #64748b; text-decoration: none;">Manage Caps</a>
+                                        &nbsp;·&nbsp;
+                                        <a href="https://app.llmobserve.com/settings" style="color: #64748b; text-decoration: none;">Settings</a>
+                                    </td>
+                                    <td align="right" style="color: #94a3b8; font-size: 11px;">
+                                        LLMObserve
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
     """
