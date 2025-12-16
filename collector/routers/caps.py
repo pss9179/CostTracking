@@ -427,3 +427,17 @@ async def check_caps(
         "message": f"{len(exceeded_caps)} hard cap(s) exceeded" if exceeded_caps else "All caps OK"
     }
 
+
+@router.post("/check-now")
+async def trigger_cap_check():
+    """
+    Manually trigger a cap check cycle.
+    This checks all enabled caps and sends email alerts for any thresholds reached.
+    """
+    try:
+        from cap_monitor import check_all_caps
+        await check_all_caps()
+        return {"status": "success", "message": "Cap check completed, alerts sent if thresholds exceeded"}
+    except Exception as e:
+        logger.error(f"Error triggering cap check: {e}")
+        raise HTTPException(status_code=500, detail=f"Cap check failed: {str(e)}")
