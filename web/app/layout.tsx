@@ -30,11 +30,9 @@ export default function RootLayout({
     >
       <html lang="en" suppressHydrationWarning>
         <body className={`${dmSans.className} min-h-screen bg-background antialiased`}>
-          <DataCacheProvider>
-            <UserTypeGuard>
-              <LayoutWrapper>{children}</LayoutWrapper>
-            </UserTypeGuard>
-          </DataCacheProvider>
+          <UserTypeGuard>
+            <LayoutWrapper>{children}</LayoutWrapper>
+          </UserTypeGuard>
         </body>
       </html>
     </ClerkProvider>
