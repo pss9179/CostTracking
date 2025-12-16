@@ -48,7 +48,13 @@ function useFeaturesData(hours: number) {
       if (!token) throw new Error("Not authenticated. Please sign in again.");
       
       const stats = await fetchSectionStats(hours, null, token);
-      setSectionStats(stats || []);
+      // Filter out "main" and "default" - these are unlabeled API calls, not real features
+      const filteredStats = (stats || []).filter(s => 
+        s.section && 
+        s.section.toLowerCase() !== "main" && 
+        s.section.toLowerCase() !== "default"
+      );
+      setSectionStats(filteredStats);
       setLastRefresh(new Date());
     } catch (err) {
       console.error("[Features] Error loading data:", err);
