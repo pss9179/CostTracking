@@ -4,7 +4,6 @@ import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import { LayoutWrapper } from "@/components/LayoutWrapper";
 import { UserTypeGuard } from "@/components/UserTypeGuard";
-import { DataCacheProvider } from "@/contexts/DataCacheContext";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
