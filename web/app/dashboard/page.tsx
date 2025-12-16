@@ -352,6 +352,41 @@ function DashboardPageContent() {
           }}
         />
         
+        {/* Empty state for new users */}
+        {stats.totalCost24h === 0 && stats.weekCost === 0 && stats.monthCost === 0 && (
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-8 text-center">
+            <div className="max-w-md mx-auto">
+              <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4">
+                <span className="text-3xl">🚀</span>
+              </div>
+              <h3 className="text-xl font-semibold text-slate-900 mb-2">
+                Start tracking your LLM costs
+              </h3>
+              <p className="text-slate-600 mb-6">
+                Add 2 lines of code to your app and see costs appear here automatically.
+              </p>
+              <div className="bg-slate-900 rounded-lg p-4 text-left font-mono text-sm text-slate-300 mb-6">
+                <div><span className="text-purple-400">import</span> llmobserve</div>
+                <div className="mt-1">llmobserve.<span className="text-blue-400">observe</span>(api_key=<span className="text-green-400">"your-key"</span>)</div>
+              </div>
+              <div className="flex gap-3 justify-center">
+                <a
+                  href="/settings"
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                >
+                  Get your API key
+                </a>
+                <a
+                  href="/api-docs"
+                  className="px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 font-medium rounded-lg border border-slate-200 transition-colors"
+                >
+                  View docs
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* KPI Cards */}
         <MetricCardRow columns={4}>
           <MetricCard
