@@ -141,7 +141,6 @@ function DashboardPageContent() {
   );
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
-  const [compareEnabled, setCompareEnabled] = useState(false);
   
   const {
     runs,
@@ -343,8 +342,6 @@ function DashboardPageContent() {
           models={selectedModels}
           availableModels={availableModels}
           onModelsChange={setSelectedModels}
-          compareEnabled={compareEnabled}
-          onCompareToggle={() => setCompareEnabled(!compareEnabled)}
           hasActiveFilters={hasActiveFilters}
           onReset={() => {
             setSelectedProviders([]);
