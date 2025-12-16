@@ -138,7 +138,50 @@ def migrate_all(session: Session = Depends(get_session)):
     except Exception as e:
         results["voice_platform"] = {"status": "error", "message": str(e)}
     
+    # Run caps nullable email migration
+    try:
+        result = migrate_caps_nullable_email(session)
+        results["caps_nullable_email"] = result
+    except Exception as e:
+        results["caps_nullable_email"] = {"status": "error", "message": str(e)}
+    
     return {"status": "success", "migrations": results}
+
+
+@router.post("/caps-nullable-email")
+def migrate_caps_nullable_email(session: Session = Depends(get_session)):
+    """
+    Make alert_email column nullable in spending_caps table.
+    Required because caps can be created without email alerts.
+    Safe to run multiple times.
+    """
+    try:
+        if IS_POSTGRESQL:
+            migration = "ALTER TABLE spending_caps ALTER COLUMN alert_email DROP NOT NULL;"
+        else:
+            # SQLite doesn't support ALTER COLUMN - would need table rebuild
+            logger.warning("SQLite detected - skipping nullable migration")
+            return {"status": "success", "message": "SQLite - no change needed"}
+        
+        with engine.connect() as conn:
+            trans = conn.begin()
+            try:
+                logger.info("Running caps nullable email migration")
+                conn.execute(text(migration))
+                trans.commit()
+                logger.info("✅ caps nullable email migration completed")
+                return {"status": "success", "message": "alert_email is now nullable"}
+            except Exception as e:
+                trans.rollback()
+                error_msg = str(e).lower()
+                if "column" in error_msg and "does not exist" in error_msg:
+                    return {"status": "success", "message": "Column already nullable or doesn't exist"}
+                if "not null" in error_msg:
+                    return {"status": "success", "message": "Column already nullable"}
+                raise
+    except Exception as e:
+        logger.error(f"caps nullable email migration failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Migration failed: {str(e)}")
 
 
 @router.post("/voice-platform")
