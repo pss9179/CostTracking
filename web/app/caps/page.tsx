@@ -259,8 +259,8 @@ function CreateCapDialog({ open, onOpenChange, onSubmit, providers, models, feat
               <Input
                 id="limit"
                 type="number"
-                step="0.001"
-                min="0.0001"
+                step="any"
+                min="0"
                 value={limitAmount}
                 onChange={(e) => setLimitAmount(e.target.value)}
                 placeholder="100.00"
