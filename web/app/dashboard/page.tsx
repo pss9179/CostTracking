@@ -51,7 +51,7 @@ interface DashboardStats {
 // HOOKS
 // ============================================================================
 
-function useDashboardData(dateRange: DateRange) {
+function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false) {
   const { getToken } = useAuth();
   const { isLoaded, user } = useUser();
   
@@ -59,6 +59,10 @@ function useDashboardData(dateRange: DateRange) {
   const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
   const [modelStats, setModelStats] = useState<ModelStats[]>([]);
   const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
+  // Previous period data for comparison
+  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>([]);
+  const [prevModelStats, setPrevModelStats] = useState<ModelStats[]>([]);
+  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
@@ -85,6 +89,7 @@ function useDashboardData(dateRange: DateRange) {
       const token = await getToken();
       if (!token) throw new Error("Not authenticated. Please sign in again.");
       
+      // Fetch current period data
       const [runsData, providersData, modelsData, dailyData] = await Promise.all([
         fetchRuns(50, null, token).catch(() => []),
         fetchProviderStats(hours, null, token).catch(() => []),
@@ -96,6 +101,32 @@ function useDashboardData(dateRange: DateRange) {
       setProviderStats(providersData || []);
       setModelStats(modelsData || []);
       setDailyStats(dailyData || []);
+      
+      // If compare enabled, fetch previous period data
+      // Previous period = same duration, but offset by that duration
+      // e.g., "7d" compares last 7 days vs 7-14 days ago
+      if (compareEnabled) {
+        const prevHours = hours * 2; // Fetch double the range
+        const [prevProvidersData, prevModelsData, prevDailyData] = await Promise.all([
+          fetchProviderStats(prevHours, null, token).catch(() => []),
+          fetchModelStats(prevHours, null, token).catch(() => []),
+          fetchDailyStats(days * 2, null, token).catch(() => []),
+        ]);
+        
+        // Extract just the previous period (second half of the data)
+        // For daily stats, we take the older half
+        const halfwayPoint = Math.floor((prevDailyData || []).length / 2);
+        const prevDailyOnly = (prevDailyData || []).slice(0, halfwayPoint);
+        
+        setPrevProviderStats(prevProvidersData || []);
+        setPrevModelStats(prevModelsData || []);
+        setPrevDailyStats(prevDailyOnly);
+      } else {
+        setPrevProviderStats([]);
+        setPrevModelStats([]);
+        setPrevDailyStats([]);
+      }
+      
       setLastRefresh(new Date());
     } catch (err) {
       console.error("[Dashboard] Error loading data:", err);
@@ -103,7 +134,7 @@ function useDashboardData(dateRange: DateRange) {
     } finally {
       if (!isBackground) setLoading(false);
     }
-  }, [isLoaded, user, getToken, hours, days]);
+  }, [isLoaded, user, getToken, hours, days, compareEnabled]);
   
   // Initial load
   useEffect(() => {
@@ -123,6 +154,9 @@ function useDashboardData(dateRange: DateRange) {
     providerStats,
     modelStats,
     dailyStats,
+    prevProviderStats,
+    prevModelStats,
+    prevDailyStats,
     loading,
     error,
     lastRefresh,
@@ -141,17 +175,40 @@ function DashboardPageContent() {
   );
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [compareEnabled, setCompareEnabled] = useState(false);
   
   const {
     runs,
     providerStats,
     modelStats,
     dailyStats,
+    prevProviderStats,
+    prevDailyStats,
     loading,
     error,
     lastRefresh,
     refresh,
-  } = useDashboardData(dateRange);
+  } = useDashboardData(dateRange, compareEnabled);
+  
+  // Calculate comparison stats
+  const comparisonStats = useMemo(() => {
+    if (!compareEnabled || prevProviderStats.length === 0) return null;
+    
+    const currentTotal = providerStats.reduce((sum, p) => sum + p.total_cost, 0);
+    const prevTotal = prevProviderStats.reduce((sum, p) => sum + p.total_cost, 0);
+    
+    // Calculate percent change
+    const percentChange = prevTotal > 0 
+      ? ((currentTotal - prevTotal) / prevTotal) * 100 
+      : currentTotal > 0 ? 100 : 0;
+    
+    return {
+      currentTotal,
+      prevTotal,
+      percentChange,
+      isUp: percentChange > 0,
+    };
+  }, [compareEnabled, providerStats, prevProviderStats]);
   
   // Filter out internal/unknown providers
   const filteredProviderStats = useMemo(() => {
@@ -342,6 +399,8 @@ function DashboardPageContent() {
           models={selectedModels}
           availableModels={availableModels}
           onModelsChange={setSelectedModels}
+          compareEnabled={compareEnabled}
+          onCompareToggle={() => setCompareEnabled(!compareEnabled)}
           hasActiveFilters={hasActiveFilters}
           onReset={() => {
             setSelectedProviders([]);
@@ -381,6 +440,45 @@ function DashboardPageContent() {
                 </a>
               </div>
             </div>
+          </div>
+        )}
+        
+        {/* Comparison Banner */}
+        {compareEnabled && comparisonStats && (
+          <div className={cn(
+            "rounded-xl border p-4 flex items-center justify-between",
+            comparisonStats.isUp 
+              ? "bg-rose-50 border-rose-200" 
+              : "bg-emerald-50 border-emerald-200"
+          )}>
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-10 h-10 rounded-lg flex items-center justify-center text-lg",
+                comparisonStats.isUp ? "bg-rose-100" : "bg-emerald-100"
+              )}>
+                {comparisonStats.isUp ? "📈" : "📉"}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-700">
+                  Comparing to previous {dateRange === "24h" ? "24 hours" : dateRange === "7d" ? "week" : dateRange === "30d" ? "month" : "quarter"}
+                </p>
+                <p className={cn(
+                  "text-lg font-bold",
+                  comparisonStats.isUp ? "text-rose-600" : "text-emerald-600"
+                )}>
+                  {comparisonStats.isUp ? "+" : ""}{comparisonStats.percentChange.toFixed(1)}% 
+                  <span className="text-sm font-normal text-slate-500 ml-2">
+                    ({formatSmartCost(comparisonStats.prevTotal)} → {formatSmartCost(comparisonStats.currentTotal)})
+                  </span>
+                </p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setCompareEnabled(false)}
+              className="text-slate-400 hover:text-slate-600 p-1"
+            >
+              ✕
+            </button>
           </div>
         )}
         
