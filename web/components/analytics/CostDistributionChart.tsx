@@ -319,8 +319,8 @@ export function RankedBarChart({
             dataKey="value"
             radius={[0, 4, 4, 0]}
             cursor={onClick ? "pointer" : "default"}
-            onClick={(data) => {
-              if (onClick && data.originalItem) {
+            onClick={(data: any) => {
+              if (onClick && data?.originalItem) {
                 onClick(data.originalItem);
               }
             }}
