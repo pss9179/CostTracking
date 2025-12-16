@@ -194,13 +194,13 @@ class CapResponse(SQLModel):
     """Response for spending cap."""
     id: UUID
     cap_type: str
-    target_name: Optional[str]
+    target_name: Optional[str] = None
     limit_amount: float
     period: str
-    enforcement: str
+    enforcement: str = "alert"
     exceeded_at: Optional[datetime] = None
     alert_threshold: float
-    alert_email: str
+    alert_email: Optional[str] = None
     enabled: bool
     current_spend: Optional[float] = None
     percentage_used: Optional[float] = None
