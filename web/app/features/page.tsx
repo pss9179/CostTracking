@@ -6,23 +6,50 @@ import { useAuth, useUser } from "@clerk/nextjs";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, RefreshCw, Layers, Code } from "lucide-react";
-import { fetchSectionStats, type SectionStats } from "@/lib/api";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  AlertCircle, 
+  RefreshCw, 
+  Layers, 
+  Code, 
+  Table2,
+  GitBranch,
+  Shield,
+  TrendingUp,
+} from "lucide-react";
+import { 
+  fetchSectionStats, 
+  fetchProviderStats,
+  fetchModelStats,
+  type SectionStats,
+  type ProviderStats,
+  type ModelStats,
+} from "@/lib/api";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
-import { MetricCard, MetricCardRow } from "@/components/analytics/MetricCard";
-import { CostDistributionChart, StackedBarChart } from "@/components/analytics/CostDistributionChart";
-import { FeatureTreeTable, type FeatureNode } from "@/components/analytics/FeatureTreeTable";
+import { KPIGrid, calculateKPIs } from "@/components/analytics/KPIGrid";
+import { FeatureTable, toFeatureRows, type FeatureRow } from "@/components/analytics/FeatureTable";
+import { AgentTree, parseAgentNodes, type AgentNode } from "@/components/analytics/AgentTree";
+import { StackedBarChart } from "@/components/analytics/CostDistributionChart";
+import { CapsManager } from "@/components/caps/CapsManager";
 import { FeatureDrawer } from "@/components/analytics/FeatureDrawer";
 import { cn } from "@/lib/utils";
 import {
   formatSmartCost,
   formatCompactNumber,
   formatDuration,
-  formatPercentage,
-  parseFeatureSection,
   getStableColor,
 } from "@/lib/format";
 import type { DateRange } from "@/contexts/AnalyticsContext";
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+interface FilterState {
+  types?: string[];
+  providers?: string[];
+  models?: string[];
+}
 
 // ============================================================================
 // HOOKS
@@ -33,6 +60,8 @@ function useFeaturesData(hours: number) {
   const { isLoaded, user } = useUser();
   
   const [sectionStats, setSectionStats] = useState<SectionStats[]>([]);
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
+  const [modelStats, setModelStats] = useState<ModelStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
@@ -47,19 +76,29 @@ function useFeaturesData(hours: number) {
       const token = await getToken();
       if (!token) throw new Error("Not authenticated. Please sign in again.");
       
-      const stats = await fetchSectionStats(hours, null, token);
+      const [sections, providers, models] = await Promise.all([
+        fetchSectionStats(hours, null, token).catch(() => []),
+        fetchProviderStats(hours, null, token).catch(() => []),
+        fetchModelStats(hours, null, token).catch(() => []),
+      ]);
+      
       // Filter out "main" and "default" - these are unlabeled API calls, not real features
-      const filteredStats = (stats || []).filter(s => 
+      const filteredStats = (sections || []).filter(s => 
         s.section && 
         s.section.toLowerCase() !== "main" && 
         s.section.toLowerCase() !== "default"
       );
+      
       setSectionStats(filteredStats);
+      setProviderStats(providers || []);
+      setModelStats(models || []);
       setLastRefresh(new Date());
     } catch (err) {
       console.error("[Features] Error loading data:", err);
       setError(err instanceof Error ? err.message : "Failed to load feature data");
       setSectionStats([]);
+      setProviderStats([]);
+      setModelStats([]);
     } finally {
       if (!isBackground) setLoading(false);
     }
@@ -79,6 +118,8 @@ function useFeaturesData(hours: number) {
   
   return {
     sectionStats,
+    providerStats,
+    modelStats,
     loading,
     error,
     lastRefresh,
@@ -95,10 +136,10 @@ function FeaturesPageContent() {
   const [dateRange, setDateRange] = useState<DateRange>(
     (searchParams.get('range') as DateRange) || "7d"
   );
-  const [selectedFeature, setSelectedFeature] = useState<FeatureNode | null>(null);
+  const [activeTab, setActiveTab] = useState<"table" | "agents" | "caps">("table");
+  const [selectedFeature, setSelectedFeature] = useState<FeatureRow | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [filters, setFilters] = useState<FilterState>({});
   
   // Convert date range to hours
   const hours = useMemo(() => {
@@ -110,60 +151,86 @@ function FeaturesPageContent() {
     }
   }, [dateRange]);
   
-  const { sectionStats, loading, error, lastRefresh, refresh } = useFeaturesData(hours);
+  const { 
+    sectionStats, 
+    providerStats, 
+    modelStats,
+    loading, 
+    error, 
+    lastRefresh, 
+    refresh 
+  } = useFeaturesData(hours);
   
-  // Calculate totals
-  const totals = useMemo(() => {
-    const totalCost = sectionStats.reduce((sum, s) => sum + (s.total_cost || 0), 0);
-    const totalCalls = sectionStats.reduce((sum, s) => sum + (s.call_count || 0), 0);
-    const avgLatency = sectionStats.length > 0
-      ? sectionStats.reduce((sum, s) => sum + (s.avg_latency_ms || 0), 0) / sectionStats.length
-      : 0;
-    
-    return { totalCost, totalCalls, avgLatency };
-  }, [sectionStats]);
+  // Calculate totals and KPIs
+  const totalCost = useMemo(() => 
+    sectionStats.reduce((sum, s) => sum + (s.total_cost || 0), 0), 
+    [sectionStats]
+  );
   
-  // Convert to FeatureNodes for tree table
-  const featureNodes = useMemo<FeatureNode[]>(() => {
-    return sectionStats.map(stat => ({
-      id: stat.section,
-      section: stat.section,
-      section_path: stat.section_path,
-      total_cost: stat.total_cost,
-      call_count: stat.call_count,
-      avg_latency_ms: stat.avg_latency_ms,
-      percentage: stat.percentage,
-    }));
-  }, [sectionStats]);
+  const kpiData = useMemo(() => 
+    calculateKPIs(providerStats, modelStats, sectionStats),
+    [providerStats, modelStats, sectionStats]
+  );
   
-  // Chart data
+  // Convert to feature rows for table
+  const featureRows = useMemo(() => 
+    toFeatureRows(sectionStats, totalCost),
+    [sectionStats, totalCost]
+  );
+  
+  // Convert to agent nodes for tree view
+  const agentNodes = useMemo(() => 
+    parseAgentNodes(sectionStats),
+    [sectionStats]
+  );
+  
+  // Chart data for stacked bar (Top 5 + Other)
   const chartData = useMemo(() => {
-    return sectionStats.map(stat => {
-      const parsed = parseFeatureSection(stat.section);
-      return {
-        name: parsed.displayName,
-        cost: stat.total_cost,
-        calls: stat.call_count,
-        type: parsed.type,
-        section: stat.section,
-      };
-    });
+    const sorted = [...sectionStats].sort((a, b) => b.total_cost - a.total_cost);
+    const top5 = sorted.slice(0, 5);
+    const otherCost = sorted.slice(5).reduce((sum, s) => sum + s.total_cost, 0);
+    
+    const data = top5.map(s => ({
+      name: s.section.split(":").pop() || s.section,
+      value: s.total_cost,
+      color: getStableColor(s.section),
+    }));
+    
+    if (otherCost > 0) {
+      data.push({
+        name: "Other",
+        value: otherCost,
+        color: "#94a3b8",
+      });
+    }
+    
+    return data;
   }, [sectionStats]);
   
-  // Available feature types for filtering
-  const availableTypes = useMemo(() => {
-    const types = new Set<string>();
-    sectionStats.forEach(stat => {
-      const parsed = parseFeatureSection(stat.section);
-      types.add(parsed.type);
-    });
-    return Array.from(types);
-  }, [sectionStats]);
+  // Available filters
+  const availableProviders = useMemo(() => 
+    providerStats.map(p => p.provider),
+    [providerStats]
+  );
   
-  // Handle feature click - open drawer
-  const handleFeatureClick = useCallback((node: FeatureNode) => {
-    setSelectedFeature(node);
+  const availableFeatures = useMemo(() => 
+    sectionStats.map(s => s.section),
+    [sectionStats]
+  );
+  
+  // Handle row click
+  const handleRowClick = useCallback((feature: FeatureRow) => {
+    setSelectedFeature(feature);
     setDrawerOpen(true);
+  }, []);
+  
+  // Handle KPI click (apply filter)
+  const handleKPIClick = useCallback((kpiType: string, value?: string) => {
+    if (kpiType === "provider" && value) {
+      setFilters(prev => ({ ...prev, providers: [value] }));
+    } else if (kpiType === "model" && value) {
+      setFilters(prev => ({ ...prev, models: [value] }));
+    }
   }, []);
   
   // Error state
@@ -198,21 +265,14 @@ function FeaturesPageContent() {
   if (loading) {
     return (
       <ProtectedLayout>
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-10 w-48" />
-            <Skeleton className="h-8 w-32" />
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
+        <div className="space-y-6 p-6">
+          <Skeleton className="h-10 w-48" />
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
               <Skeleton key={i} className="h-24 rounded-xl" />
             ))}
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Skeleton className="h-52 rounded-xl" />
-            <Skeleton className="h-52 rounded-xl" />
-          </div>
-          <Skeleton className="h-96 rounded-xl" />
+          <Skeleton className="h-[400px] rounded-xl" />
         </div>
       </ProtectedLayout>
     );
@@ -222,7 +282,7 @@ function FeaturesPageContent() {
   if (sectionStats.length === 0) {
     return (
       <ProtectedLayout>
-        <div className="space-y-6">
+        <div className="space-y-6 p-6">
           <AnalyticsHeader
             title="Feature Costs"
             subtitle="Track costs by feature, agent, and workflow step"
@@ -230,36 +290,23 @@ function FeaturesPageContent() {
             onDateRangeChange={setDateRange}
           />
           
-          <div className="bg-white rounded-xl border border-slate-200/60 p-12 text-center">
-            <div className="w-16 h-16 rounded-full bg-slate-100 mx-auto flex items-center justify-center mb-4">
-              <Layers className="w-8 h-8 text-slate-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">No Feature Data Yet</h3>
-            <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">
-              Start tracking feature costs by using the <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">section()</code> context manager in your code.
+          <div className="text-center py-16 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+            <Layers className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              No feature data yet
+            </h3>
+            <p className="text-gray-500 mb-6 max-w-md mx-auto">
+              Use the <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">section()</code> context 
+              manager to track costs by feature, agent, or workflow step.
             </p>
-            
-            <div className="bg-slate-900 rounded-lg p-4 text-left max-w-lg mx-auto">
-              <div className="flex items-center gap-2 mb-2 text-xs text-slate-400">
-                <Code className="w-4 h-4" />
-                Python
-              </div>
-              <pre className="text-sm text-slate-300 overflow-x-auto">
-{`from llmobserve import section
-
-with section("feature:email_processing"):
-    response = openai.chat.completions.create(...)
-
-with section("agent:researcher"):
-    with section("tool:web_search"):
-        # Nested sections supported
-        ...`}
-              </pre>
+            <div className="bg-gray-900 text-gray-100 rounded-lg p-4 max-w-lg mx-auto text-left font-mono text-sm">
+              <div className="text-gray-400"># Python example</div>
+              <div><span className="text-purple-400">from</span> llmobserve <span className="text-purple-400">import</span> section</div>
+              <br />
+              <div><span className="text-purple-400">with</span> section(<span className="text-green-400">"feature:email_processing"</span>):</div>
+              <div className="pl-4 text-gray-400"># Your LLM calls here</div>
+              <div className="pl-4">response = client.chat.completions.create(...)</div>
             </div>
-            
-            <p className="text-xs text-slate-400 mt-6">
-              Features will appear here once you start tracking them.
-            </p>
           </div>
         </div>
       </ProtectedLayout>
@@ -268,191 +315,164 @@ with section("agent:researcher"):
   
   return (
     <ProtectedLayout>
-      <div className="space-y-6 -mt-2">
+      <div className="space-y-6 p-6">
         {/* Header */}
         <AnalyticsHeader
           title="Feature Costs"
           subtitle="Track costs by feature, agent, and workflow step"
           dateRange={dateRange}
           onDateRangeChange={setDateRange}
-          features={selectedTypes}
-          availableFeatures={availableTypes}
-          onFeaturesChange={setSelectedTypes}
-          hasActiveFilters={selectedTypes.length > 0}
-          onReset={() => setSelectedTypes([])}
+          lastRefresh={lastRefresh}
+          onRefresh={refresh}
         />
         
-        {/* KPI Cards */}
-        <MetricCardRow columns={4}>
-          <MetricCard
-            title="Total Feature Cost"
-            value={totals.totalCost}
-            variant="primary"
-            icon={<span className="text-emerald-400">$</span>}
-          />
-          <MetricCard
-            title="Total Calls"
-            value={formatCompactNumber(totals.totalCalls)}
-            formatValue={() => formatCompactNumber(totals.totalCalls)}
-            tooltipContent={
-              <div>
-                <p className="font-medium">Total API Calls</p>
-                <p className="text-slate-300 tabular-nums">{totals.totalCalls.toLocaleString()}</p>
-              </div>
-            }
-          />
-          <MetricCard
-            title="Features Tracked"
-            value={sectionStats.length.toString()}
-            formatValue={() => sectionStats.length.toString()}
-          />
-          <MetricCard
-            title="Avg Latency"
-            value={formatDuration(totals.avgLatency)}
-            formatValue={() => formatDuration(totals.avgLatency)}
-          />
-        </MetricCardRow>
+        {/* KPI Grid - Numeric first, no charts */}
+        <KPIGrid
+          data={kpiData}
+          onKPIClick={handleKPIClick}
+        />
         
-        {/* Charts row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Top Features Bar Chart */}
-          <div className="bg-white rounded-xl border border-slate-200/60 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">Top Features by Cost</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Click to drill down</p>
-              </div>
-            </div>
-            
-            {/* Horizontal bar chart using treemap as bars */}
-            <div className="space-y-2">
-              {chartData
-                .sort((a, b) => b.cost - a.cost)
-                .slice(0, 8)
-                .map((item, i) => {
-                  const percentage = totals.totalCost > 0 
-                    ? (item.cost / totals.totalCost) * 100 
-                    : 0;
-                  const color = getStableColor(item.section);
-                  
-                  return (
-                    <button
-                      key={item.section}
-                      onClick={() => {
-                        const node = featureNodes.find(n => n.section === item.section);
-                        if (node) handleFeatureClick(node);
-                      }}
-                      className="w-full flex items-center gap-3 py-1.5 hover:bg-slate-50 rounded transition-colors group"
-                    >
-                      <div 
-                        className="w-1 h-5 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: color }}
-                      />
-                      <span className="text-sm text-slate-700 flex-1 text-left truncate group-hover:text-slate-900">
-                        {item.name}
-                      </span>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full rounded-full transition-all"
-                            style={{ 
-                              width: `${Math.max(percentage, 2)}%`,
-                              backgroundColor: color,
-                            }}
-                          />
-                        </div>
-                        <span className="text-sm font-medium text-slate-900 tabular-nums w-16 text-right">
-                          {formatSmartCost(item.cost)}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              
-              {chartData.length > 8 && (
-                <p className="text-xs text-slate-400 text-center pt-2">
-                  +{chartData.length - 8} more in table below
-                </p>
-              )}
-            </div>
-          </div>
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+          <TabsList className="grid w-fit grid-cols-3 h-10">
+            <TabsTrigger value="table" className="gap-2 px-4">
+              <Table2 className="w-4 h-4" />
+              Features Table
+            </TabsTrigger>
+            <TabsTrigger value="agents" className="gap-2 px-4">
+              <GitBranch className="w-4 h-4" />
+              Agent Hierarchy
+            </TabsTrigger>
+            <TabsTrigger value="caps" className="gap-2 px-4">
+              <Shield className="w-4 h-4" />
+              Caps & Alerts
+            </TabsTrigger>
+          </TabsList>
           
-          {/* Cost Distribution Treemap */}
-          <div className="bg-white rounded-xl border border-slate-200/60 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">Cost Distribution</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Proportional view of spend</p>
+          {/* Features Table Tab - Primary Workhorse */}
+          <TabsContent value="table" className="space-y-6 mt-6">
+            {/* Cost Distribution Chart */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <div className="bg-white rounded-xl border p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-medium text-gray-900">Cost Distribution</h3>
+                    <div className="text-xs text-gray-500">Top 5 + Other</div>
+                  </div>
+                  <StackedBarChart
+                    data={chartData}
+                    height={180}
+                    showLegend
+                    formatValue={(v) => formatSmartCost(v)}
+                  />
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border p-6">
+                <h3 className="text-sm font-medium text-gray-900 mb-4">Quick Stats</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Total Features</span>
+                    <span className="font-semibold">{sectionStats.length}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Agents</span>
+                    <span className="font-semibold">
+                      {sectionStats.filter(s => s.section.startsWith("agent:")).length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Tools</span>
+                    <span className="font-semibold">
+                      {sectionStats.filter(s => s.section.startsWith("tool:")).length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500">Steps</span>
+                    <span className="font-semibold">
+                      {sectionStats.filter(s => s.section.startsWith("step:")).length}
+                    </span>
+                  </div>
+                  <div className="pt-2 border-t">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-500">Total Cost</span>
+                      <span className="font-bold text-lg">{formatSmartCost(totalCost)}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             
-            <CostDistributionChart
-              data={chartData}
-              totalCost={totals.totalCost}
-              topN={10}
-              height={200}
-              colorKey="section"
-              onClick={(item) => {
-                const node = featureNodes.find(n => n.section === (item as any).section);
-                if (node) handleFeatureClick(node);
-              }}
+            {/* Sortable Table - Source of Truth */}
+            <FeatureTable
+              features={featureRows}
+              totalCost={totalCost}
+              onRowClick={handleRowClick}
+              onFilterChange={setFilters}
             />
-          </div>
-        </div>
-        
-        {/* Feature Tree Table */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-900">All Features</h3>
-            <div className="text-xs text-slate-400">
-              Last updated: {lastRefresh.toLocaleTimeString()}
-            </div>
-          </div>
+          </TabsContent>
           
-          <FeatureTreeTable
-            data={featureNodes}
-            totalCost={totals.totalCost}
-            onRowClick={handleFeatureClick}
-            maxHeight={500}
-          />
-        </div>
+          {/* Agents Hierarchy Tab */}
+          <TabsContent value="agents" className="mt-6">
+            <div className="bg-white rounded-xl border p-6">
+              <AgentTree
+                nodes={agentNodes}
+                totalCost={totalCost}
+                onNodeClick={(node) => {
+                  const feature = featureRows.find(f => f.section === node.section);
+                  if (feature) {
+                    setSelectedFeature(feature);
+                    setDrawerOpen(true);
+                  }
+                }}
+              />
+            </div>
+          </TabsContent>
+          
+          {/* Caps & Alerts Tab */}
+          <TabsContent value="caps" className="mt-6">
+            <CapsManager
+              providers={availableProviders}
+              models={modelStats.map(m => m.model)}
+              features={availableFeatures}
+              onCapChange={refresh}
+            />
+          </TabsContent>
+        </Tabs>
         
         {/* Feature Drawer */}
-        <FeatureDrawer
-          open={drawerOpen}
-          onClose={() => {
-            setDrawerOpen(false);
-            setSelectedFeature(null);
-          }}
-          feature={selectedFeature}
-          totalCost={totals.totalCost}
-        />
+        {selectedFeature && (
+          <FeatureDrawer
+            open={drawerOpen}
+            onOpenChange={setDrawerOpen}
+            feature={{
+              id: selectedFeature.id,
+              section: selectedFeature.section,
+              section_path: null,
+              total_cost: selectedFeature.total_cost,
+              call_count: selectedFeature.call_count,
+              avg_latency_ms: selectedFeature.avg_latency_ms,
+              percentage: selectedFeature.percentage,
+            }}
+          />
+        )}
       </div>
     </ProtectedLayout>
   );
 }
 
 // ============================================================================
-// PAGE EXPORT
+// EXPORT
 // ============================================================================
 
 export default function FeaturesPage() {
   return (
-    <Suspense
-      fallback={
-        <ProtectedLayout>
-          <div className="space-y-6">
-            <Skeleton className="h-10 w-48" />
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-24 rounded-xl" />
-              ))}
-            </div>
-            <Skeleton className="h-64 rounded-xl" />
-          </div>
-        </ProtectedLayout>
-      }
-    >
+    <Suspense fallback={
+      <ProtectedLayout>
+        <div className="p-6">
+          <Skeleton className="h-96 w-full rounded-xl" />
+        </div>
+      </ProtectedLayout>
+    }>
       <FeaturesPageContent />
     </Suspense>
   );

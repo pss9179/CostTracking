@@ -90,6 +90,7 @@ export interface Cap {
   target_name: string | null;
   limit_amount: number;
   period: string;
+  enforcement: string;
   alert_threshold: number;
   alert_email: string | null;
   enabled: boolean;
@@ -104,12 +105,14 @@ export interface CapCreate {
   target_name?: string | null;
   limit_amount: number;
   period: string;
+  enforcement?: string;
   alert_threshold: number;
   alert_email?: string | null;
 }
 
 export interface CapUpdate {
   limit_amount?: number;
+  enforcement?: string;
   alert_threshold?: number;
   alert_email?: string | null;
   enabled?: boolean;

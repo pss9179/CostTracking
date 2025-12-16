@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "llmobserve": "^0.2.0",
+    "openai": "^6.13.0"
+  }
+}
