@@ -39,13 +39,18 @@ type SortKey = "customer_id" | "total_cost" | "call_count" | "avg_latency_ms";
 type SortDir = "asc" | "desc";
 type DateRange = "7d" | "30d" | "90d" | "all";
 
+// Module-level cache
+interface CustomersCache {
+  customers: CustomerStats[];
+  timestamp: number;
+}
+const customersCache: { [key: string]: CustomersCache } = {};
+const CACHE_STALE_TIME = 30000;
+
 export default function CustomersPage() {
   const { getToken } = useAuth();
   const { isLoaded, user } = useUser();
   
-  const [customers, setCustomers] = useState<CustomerStats[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>("30d");
   const [sortKey, setSortKey] = useState<SortKey>("total_cost");
@@ -60,10 +65,28 @@ export default function CustomersPage() {
     }
   }, [dateRange]);
 
+  const cacheKey = `customers-${hours}`;
+  const cached = customersCache[cacheKey];
+  const hasCachedData = cached && cached.customers.length >= 0;
+  
+  const [customers, setCustomers] = useState<CustomerStats[]>(cached?.customers || []);
+  const [loading, setLoading] = useState(!hasCachedData);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const loadData = useCallback(async () => {
     if (!isLoaded || !user) return;
     
-    setLoading(true);
+    const cached = customersCache[cacheKey];
+    if (cached && Date.now() - cached.timestamp < CACHE_STALE_TIME) {
+      return;
+    }
+    
+    if (hasCachedData) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     
     try {
@@ -72,19 +95,25 @@ export default function CustomersPage() {
       
       const data = await fetchCustomerStats(hours, null, token);
       setCustomers(data);
+      customersCache[cacheKey] = { customers: data, timestamp: Date.now() };
     } catch (err) {
       console.error("[Customers] Error:", err);
       setError(err instanceof Error ? err.message : "Failed to load customers");
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken, hours]);
+  }, [isLoaded, user, getToken, hours, cacheKey, hasCachedData]);
 
   useEffect(() => {
     if (isLoaded && user) {
-      loadData();
+      const cached = customersCache[cacheKey];
+      const isStale = !cached || Date.now() - cached.timestamp > CACHE_STALE_TIME;
+      if (isStale) {
+        loadData();
+      }
     }
-  }, [isLoaded, user, loadData]);
+  }, [isLoaded, user, loadData, cacheKey]);
 
   // Filter and sort
   const filteredCustomers = useMemo(() => {
@@ -231,8 +260,8 @@ export default function CustomersPage() {
                 <SelectItem value="all">All time</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={loadData}>
-              <RefreshCw className="w-4 h-4" />
+            <Button variant="outline" size="sm" onClick={loadData} disabled={isRefreshing}>
+              <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
             </Button>
           </div>
         </div>

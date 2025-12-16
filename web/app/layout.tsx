@@ -4,6 +4,7 @@ import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import { LayoutWrapper } from "@/components/LayoutWrapper";
 import { UserTypeGuard } from "@/components/UserTypeGuard";
+import { DataCacheProvider } from "@/contexts/DataCacheContext";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -30,9 +31,11 @@ export default function RootLayout({
     >
       <html lang="en" suppressHydrationWarning>
         <body className={`${dmSans.className} min-h-screen bg-background antialiased`}>
-          <UserTypeGuard>
-            <LayoutWrapper>{children}</LayoutWrapper>
-          </UserTypeGuard>
+          <DataCacheProvider>
+            <UserTypeGuard>
+              <LayoutWrapper>{children}</LayoutWrapper>
+            </UserTypeGuard>
+          </DataCacheProvider>
         </body>
       </html>
     </ClerkProvider>

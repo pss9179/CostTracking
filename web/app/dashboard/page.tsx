@@ -51,21 +51,44 @@ interface DashboardStats {
 // HOOKS
 // ============================================================================
 
+// Cache for dashboard data - persists across navigations
+interface DashboardCache {
+  runs: Run[];
+  providerStats: ProviderStats[];
+  modelStats: ModelStats[];
+  dailyStats: DailyStats[];
+  prevProviderStats: ProviderStats[];
+  prevDailyStats: DailyStats[];
+  timestamp: number;
+}
+
+// Simple module-level cache (persists across page navigations)
+const dashboardCache: { [key: string]: DashboardCache } = {};
+const CACHE_STALE_TIME = 30000; // 30 seconds
+
 function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false) {
   const { getToken } = useAuth();
   const { isLoaded, user } = useUser();
   
-  const [runs, setRuns] = useState<Run[]>([]);
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
-  const [modelStats, setModelStats] = useState<ModelStats[]>([]);
-  const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
-  // Previous period data for comparison
-  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>([]);
-  const [prevModelStats, setPrevModelStats] = useState<ModelStats[]>([]);
-  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = `dashboard-${dateRange}-${compareEnabled}`;
+  const cached = dashboardCache[cacheKey];
+  const hasCachedData = cached && cached.providerStats.length > 0;
+  
+  // Initialize from cache if available
+  const [runs, setRuns] = useState<Run[]>(cached?.runs || []);
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>(cached?.providerStats || []);
+  const [modelStats, setModelStats] = useState<ModelStats[]>(cached?.modelStats || []);
+  const [dailyStats, setDailyStats] = useState<DailyStats[]>(cached?.dailyStats || []);
+  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>(cached?.prevProviderStats || []);
+  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>(cached?.prevDailyStats || []);
+  
+  // Only show full loading if NO cached data
+  const [loading, setLoading] = useState(!hasCachedData);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [lastRefresh, setLastRefresh] = useState<Date>(
+    cached ? new Date(cached.timestamp) : new Date()
+  );
   
   // Convert date range to hours/days
   const hours = useMemo(() => {
@@ -82,7 +105,18 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   const loadData = useCallback(async (isBackground = false) => {
     if (!isLoaded || !user) return;
     
-    if (!isBackground) setLoading(true);
+    // Check if cache is still fresh
+    const cached = dashboardCache[cacheKey];
+    if (isBackground && cached && Date.now() - cached.timestamp < CACHE_STALE_TIME) {
+      return; // Skip refresh, cache is still fresh
+    }
+    
+    // Show subtle refreshing indicator if we have data, full loading only if empty
+    if (hasCachedData) {
+      setIsRefreshing(true);
+    } else if (!isBackground) {
+      setLoading(true);
+    }
     setError(null);
     
     try {
@@ -97,53 +131,64 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
         fetchDailyStats(days, null, token).catch(() => []),
       ]);
       
-      setRuns(runsData || []);
-      setProviderStats(providersData || []);
-      setModelStats(modelsData || []);
-      setDailyStats(dailyData || []);
+      let prevProvidersData: ProviderStats[] = [];
+      let prevDailyOnly: DailyStats[] = [];
       
       // If compare enabled, fetch previous period data
-      // Previous period = same duration, but offset by that duration
-      // e.g., "7d" compares last 7 days vs 7-14 days ago
       if (compareEnabled) {
-        const prevHours = hours * 2; // Fetch double the range
-        const [prevProvidersData, prevModelsData, prevDailyData] = await Promise.all([
+        const prevHours = hours * 2;
+        const [prevProviders, prevModels, prevDaily] = await Promise.all([
           fetchProviderStats(prevHours, null, token).catch(() => []),
           fetchModelStats(prevHours, null, token).catch(() => []),
           fetchDailyStats(days * 2, null, token).catch(() => []),
         ]);
         
-        // Extract just the previous period (second half of the data)
-        // For daily stats, we take the older half
-        const halfwayPoint = Math.floor((prevDailyData || []).length / 2);
-        const prevDailyOnly = (prevDailyData || []).slice(0, halfwayPoint);
-        
-        setPrevProviderStats(prevProvidersData || []);
-        setPrevModelStats(prevModelsData || []);
-        setPrevDailyStats(prevDailyOnly);
-      } else {
-        setPrevProviderStats([]);
-        setPrevModelStats([]);
-        setPrevDailyStats([]);
+        const halfwayPoint = Math.floor((prevDaily || []).length / 2);
+        prevProvidersData = prevProviders || [];
+        prevDailyOnly = (prevDaily || []).slice(0, halfwayPoint);
       }
       
+      // Update state
+      setRuns(runsData || []);
+      setProviderStats(providersData || []);
+      setModelStats(modelsData || []);
+      setDailyStats(dailyData || []);
+      setPrevProviderStats(prevProvidersData);
+      setPrevDailyStats(prevDailyOnly);
       setLastRefresh(new Date());
+      
+      // Update cache
+      dashboardCache[cacheKey] = {
+        runs: runsData || [],
+        providerStats: providersData || [],
+        modelStats: modelsData || [],
+        dailyStats: dailyData || [],
+        prevProviderStats: prevProvidersData,
+        prevDailyStats: prevDailyOnly,
+        timestamp: Date.now(),
+      };
     } catch (err) {
       console.error("[Dashboard] Error loading data:", err);
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
-      if (!isBackground) setLoading(false);
+      setLoading(false);
+      setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken, hours, days, compareEnabled]);
+  }, [isLoaded, user, getToken, hours, days, compareEnabled, cacheKey, hasCachedData]);
   
-  // Initial load
+  // Initial load - only if cache is stale or empty
   useEffect(() => {
     if (isLoaded && user) {
-      loadData();
+      const cached = dashboardCache[cacheKey];
+      const isStale = !cached || Date.now() - cached.timestamp > CACHE_STALE_TIME;
+      
+      if (isStale) {
+        loadData(!!cached); // Background fetch if we have stale data
+      }
     }
-  }, [isLoaded, user, loadData]);
+  }, [isLoaded, user, loadData, cacheKey]);
   
-  // Auto-refresh every 30s
+  // Auto-refresh every 30s (background only)
   useEffect(() => {
     const interval = setInterval(() => loadData(true), 30000);
     return () => clearInterval(interval);
@@ -155,9 +200,9 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     modelStats,
     dailyStats,
     prevProviderStats,
-    prevModelStats,
     prevDailyStats,
     loading,
+    isRefreshing,
     error,
     lastRefresh,
     refresh: () => loadData(false),
@@ -185,6 +230,7 @@ function DashboardPageContent() {
     prevProviderStats,
     prevDailyStats,
     loading,
+    isRefreshing,
     error,
     lastRefresh,
     refresh,
@@ -407,6 +453,14 @@ function DashboardPageContent() {
             setSelectedModels([]);
           }}
         />
+        
+        {/* Subtle refreshing indicator */}
+        {isRefreshing && (
+          <div className="flex items-center justify-center gap-2 py-1 text-xs text-slate-400">
+            <div className="w-3 h-3 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin" />
+            Updating...
+          </div>
+        )}
         
         {/* Empty state for new users */}
         {stats.totalCost24h === 0 && stats.weekCost === 0 && stats.monthCost === 0 && (

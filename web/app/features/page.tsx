@@ -47,21 +47,48 @@ interface FilterState {
 // HOOKS
 // ============================================================================
 
+// Module-level cache for features data
+interface FeaturesCache {
+  sectionStats: SectionStats[];
+  providerStats: ProviderStats[];
+  modelStats: ModelStats[];
+  timestamp: number;
+}
+const featuresCache: { [key: string]: FeaturesCache } = {};
+const FEATURES_CACHE_STALE_TIME = 30000; // 30 seconds
+
 function useFeaturesData(hours: number) {
   const { getToken } = useAuth();
   const { isLoaded, user } = useUser();
   
-  const [sectionStats, setSectionStats] = useState<SectionStats[]>([]);
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
-  const [modelStats, setModelStats] = useState<ModelStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = `features-${hours}`;
+  const cached = featuresCache[cacheKey];
+  const hasCachedData = cached && cached.sectionStats.length > 0;
+  
+  const [sectionStats, setSectionStats] = useState<SectionStats[]>(cached?.sectionStats || []);
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>(cached?.providerStats || []);
+  const [modelStats, setModelStats] = useState<ModelStats[]>(cached?.modelStats || []);
+  const [loading, setLoading] = useState(!hasCachedData);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [lastRefresh, setLastRefresh] = useState<Date>(
+    cached ? new Date(cached.timestamp) : new Date()
+  );
   
   const loadData = useCallback(async (isBackground = false) => {
     if (!isLoaded || !user) return;
     
-    if (!isBackground) setLoading(true);
+    // Check if cache is still fresh
+    const cached = featuresCache[cacheKey];
+    if (isBackground && cached && Date.now() - cached.timestamp < FEATURES_CACHE_STALE_TIME) {
+      return;
+    }
+    
+    if (hasCachedData) {
+      setIsRefreshing(true);
+    } else if (!isBackground) {
+      setLoading(true);
+    }
     setError(null);
     
     try {
@@ -75,11 +102,9 @@ function useFeaturesData(hours: number) {
       ]);
       
       // Filter out internal sections - only keep "feature:" prefixed items
-      // Removes: "main", "default", "step:*", "tool:*", "agent:*"
       const filteredStats = (sections || []).filter(s => {
         if (!s.section) return false;
         const lower = s.section.toLowerCase();
-        // Only show feature: prefixed items, or items without a known prefix (legacy)
         if (lower === "main" || lower === "default") return false;
         if (lower.startsWith("step:") || lower.startsWith("tool:") || lower.startsWith("agent:")) return false;
         return true;
@@ -89,22 +114,32 @@ function useFeaturesData(hours: number) {
       setProviderStats(providers || []);
       setModelStats(models || []);
       setLastRefresh(new Date());
+      
+      // Update cache
+      featuresCache[cacheKey] = {
+        sectionStats: filteredStats,
+        providerStats: providers || [],
+        modelStats: models || [],
+        timestamp: Date.now(),
+      };
     } catch (err) {
       console.error("[Features] Error loading data:", err);
       setError(err instanceof Error ? err.message : "Failed to load feature data");
-      setSectionStats([]);
-      setProviderStats([]);
-      setModelStats([]);
     } finally {
-      if (!isBackground) setLoading(false);
+      setLoading(false);
+      setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken, hours]);
+  }, [isLoaded, user, getToken, hours, cacheKey, hasCachedData]);
   
   useEffect(() => {
     if (isLoaded && user) {
-      loadData();
+      const cached = featuresCache[cacheKey];
+      const isStale = !cached || Date.now() - cached.timestamp > FEATURES_CACHE_STALE_TIME;
+      if (isStale) {
+        loadData(!!cached);
+      }
     }
-  }, [isLoaded, user, loadData]);
+  }, [isLoaded, user, loadData, cacheKey]);
   
   // Auto-refresh
   useEffect(() => {
@@ -117,6 +152,7 @@ function useFeaturesData(hours: number) {
     providerStats,
     modelStats,
     loading,
+    isRefreshing,
     error,
     lastRefresh,
     refresh: () => loadData(false),
@@ -151,6 +187,7 @@ function FeaturesPageContent() {
     providerStats, 
     modelStats,
     loading, 
+    isRefreshing,
     error, 
     lastRefresh, 
     refresh 
@@ -312,6 +349,14 @@ function FeaturesPageContent() {
           dateRange={dateRange}
           onDateRangeChange={setDateRange}
         />
+        
+        {/* Subtle refreshing indicator */}
+        {isRefreshing && (
+          <div className="flex items-center justify-center gap-2 py-1 text-xs text-slate-400">
+            <div className="w-3 h-3 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin" />
+            Updating...
+          </div>
+        )}
         
         {/* KPI Grid - Numeric first, no charts */}
         <KPIGrid
