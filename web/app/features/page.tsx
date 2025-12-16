@@ -192,15 +192,15 @@ function FeaturesPageContent() {
     
     const data = top5.map(s => ({
       name: s.section.split(":").pop() || s.section,
-      value: s.total_cost,
-      color: getStableColor(s.section),
+      cost: s.total_cost,
+      calls: s.call_count,
     }));
     
     if (otherCost > 0) {
       data.push({
         name: "Other",
-        value: otherCost,
-        color: "#94a3b8",
+        cost: otherCost,
+        calls: sorted.slice(5).reduce((sum, s) => sum + s.call_count, 0),
       });
     }
     
@@ -322,8 +322,6 @@ function FeaturesPageContent() {
           subtitle="Track costs by feature, agent, and workflow step"
           dateRange={dateRange}
           onDateRangeChange={setDateRange}
-          lastRefresh={lastRefresh}
-          onRefresh={refresh}
         />
         
         {/* KPI Grid - Numeric first, no charts */}
@@ -361,9 +359,8 @@ function FeaturesPageContent() {
                   </div>
                   <StackedBarChart
                     data={chartData}
+                    totalCost={totalCost}
                     height={180}
-                    showLegend
-                    formatValue={(v) => formatSmartCost(v)}
                   />
                 </div>
               </div>
@@ -443,7 +440,8 @@ function FeaturesPageContent() {
         {selectedFeature && (
           <FeatureDrawer
             open={drawerOpen}
-            onOpenChange={setDrawerOpen}
+            onClose={() => setDrawerOpen(false)}
+            totalCost={totalCost}
             feature={{
               id: selectedFeature.id,
               section: selectedFeature.section,
