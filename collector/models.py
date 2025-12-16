@@ -178,7 +178,7 @@ class CapCreate(SQLModel):
     period: str
     enforcement: str = "alert"  # 'alert' or 'hard_block'
     alert_threshold: float = 0.8
-    alert_email: str
+    alert_email: Optional[str] = None
 
 
 class CapUpdate(SQLModel):
