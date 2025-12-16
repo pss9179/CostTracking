@@ -35,7 +35,6 @@ export default function ApiDocsPage() {
                         <pre className="font-mono text-sm leading-relaxed text-slate-300">
                             <span className="text-purple-400">import</span> llmobserve{"\n\n"}
                             llmobserve.<span className="text-blue-400">observe</span>({"(\n"}
-                            {"    "}collector_url=<span className="text-green-400">"http://localhost:8000"</span>,{"\n"}
                             {"    "}api_key=<span className="text-green-400">"your-api-key-here"</span> <span className="text-slate-500"># Get from /settings</span>{"\n"}
                             {")"}
                             {"\n\n"}
@@ -94,20 +93,19 @@ export default function ApiDocsPage() {
                     <div className="p-6 overflow-x-auto">
                         <pre className="font-mono text-sm leading-relaxed text-slate-300">
                             <span className="text-slate-500"># Step 1: Initialize llmobserve (add at the top of your main file)</span>{"\n"}
-                            <span className="text-purple-400">import</span> llmobserve{"\n\n"}
-                            llmobserve.<span className="text-blue-400">observe</span>({"(\n"}
-                            {"    "}collector_url=<span className="text-green-400">"http://localhost:8000"</span>,{"\n"}
-                            {"    "}api_key=<span className="text-green-400">"llmo_sk_your_key_here"</span>{"\n"}
-                            {")"}
+                            <span className="text-purple-400">import</span> llmobserve{"\n"}
+                            <span className="text-purple-400">from</span> llmobserve <span className="text-purple-400">import</span> section{"\n\n"}
+                            llmobserve.<span className="text-blue-400">observe</span>(api_key=<span className="text-green-400">"llmo_sk_your_key_here"</span>)
                             {"\n\n"}
                             <span className="text-slate-500"># Step 2: Use your LLM libraries normally - tracked automatically!</span>{"\n"}
                             <span className="text-purple-400">from</span> openai <span className="text-purple-400">import</span> OpenAI{"\n\n"}
-                            client = OpenAI(api_key=<span className="text-green-400">"your-openai-key"</span>){"\n\n"}
-                            <span className="text-slate-500"># This call is automatically tracked - no changes needed!</span>{"\n"}
-                            response = client.chat.completions.<span className="text-blue-400">create</span>({"(\n"}
-                            {"    "}model=<span className="text-green-400">"gpt-4o-mini"</span>,{"\n"}
-                            {"    "}messages=[{"{"}{"\"role\": \"user\", \"content\": \"Hello!\""}{"}"}]{"\n"}
-                            {")"}
+                            client = OpenAI(){"\n\n"}
+                            <span className="text-slate-500"># Optional: Tag costs with a feature name</span>{"\n"}
+                            <span className="text-purple-400">with</span> section(<span className="text-green-400">"feature:chat_assistant"</span>):{"\n"}
+                            {"    "}response = client.chat.completions.<span className="text-blue-400">create</span>({"(\n"}
+                            {"        "}model=<span className="text-green-400">"gpt-4o-mini"</span>,{"\n"}
+                            {"        "}messages=[{"{"}{"\"role\": \"user\", \"content\": \"Hello!\""}{"}"}]{"\n"}
+                            {"    "}{")"}
                             {"\n\n"}
                             <span className="text-blue-400">print</span>(response.choices[<span className="text-yellow-400">0</span>].message.content)
                         </pre>
@@ -124,32 +122,26 @@ export default function ApiDocsPage() {
                         name="observe()"
                         description="Initialize LLMObserve tracking. Call this once at the start of your application."
                         params={[
-                            { name: "collector_url", type: "str", description: "URL of the collector API (e.g., http://localhost:8000)" },
                             { name: "api_key", type: "str", description: "Your API key from /settings" },
                         ]}
                         example={`import llmobserve
 
-llmobserve.observe(
-    collector_url="http://localhost:8000",
-    api_key="llmo_sk_your_key_here"
-)`}
+llmobserve.observe(api_key="llmo_sk_your_key_here")`}
                     />
 
                     <ApiMethod
                         name="section()"
-                        description="Context manager to organize costs by feature, agent, or workflow section."
+                        description="Context manager to organize costs by feature. All LLM calls inside the block are tagged with the feature name."
                         params={[
-                            { name: "name", type: "str", description: "Name of the section (e.g., 'user_query', 'agent:researcher')" },
+                            { name: "name", type: "str", description: "Feature name (e.g., 'feature:email_summarizer')" },
                         ]}
                         example={`from llmobserve import section
 
-with section("user_query"):
+# Tag this cost with the "email_summarizer" feature
+with section("feature:email_summarizer"):
     response = client.chat.completions.create(...)
     
-with section("agent:researcher"):
-    with section("tool:web_search"):
-        # Nested sections work too!
-        search_results = search_api(...)`}
+# Now you can see "email_summarizer" costs in your Features tab!`}
                     />
 
                     <ApiMethod
@@ -216,14 +208,15 @@ response = client.chat.completions.create(...)`}
                     />
 
                     <FeatureCard
-                        title="Hierarchical Sections"
-                        description="Nest sections to track complex workflows"
-                        example={`with section("agent:researcher"):
-    with section("tool:web_search"):
-        results = search(...)
+                        title="Tag Features"
+                        description="Tag LLM calls by feature to see cost breakdown"
+                        example={`with section("feature:email_processing"):
+    # All LLM calls here tagged as email_processing
+    response = summarize(email)
     
-    with section("tool:summarize"):
-        summary = summarize(results)`}
+with section("feature:chat_bot"):
+    # This one tagged as chat_bot
+    response = chat(query)`}
                     />
 
                     <FeatureCard

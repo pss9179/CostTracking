@@ -59,16 +59,7 @@ const navigation = [
     iconColor: "text-purple-500",
   },
 
-  // Feature 3: Agent tree visualization
-  {
-    name: "Execution",
-    href: "/agents",
-    icon: Workflow,
-    group: "Analytics",
-    iconColor: "text-green-500",
-  },
-
-  // Feature 4: Voice AI tracking
+  // Feature 3: Voice AI tracking
   {
     name: "Voice Agents",
     href: "/voice-agents",
@@ -202,14 +193,6 @@ export function Sidebar() {
     return null;
   }
 
-  // Organize navigation by groups
-  const overviewNav = {
-    name: "Overview",
-    href: "/overview",
-    icon: Home,
-    iconColor: "text-gray-400",
-  };
-
   // Group navigation items
   const analyticsNav = navigation.filter((item) => item.group === "Analytics");
   const tenantsNav = navigation.filter((item) => item.group === "Tenants");
@@ -232,34 +215,6 @@ export function Sidebar() {
 
       {/* Navigation - icons next to text */}
       <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto scrollbar-none">
-        {/* Home and Inbox Buttons */}
-        <div className="flex items-center gap-2 mb-3">
-          {/* Overview - Home Button */}
-          <Link
-            href={overviewNav.href}
-            className="group flex items-center justify-center rounded-lg py-3 px-3 transition-all duration-200 flex-1 bg-[#1e293b]/50 hover:bg-[#1e293b] border border-[#334155]/50"
-          >
-            <overviewNav.icon
-              strokeWidth={2}
-              className={cn(
-                "h-5 w-5 flex-shrink-0 transition-colors",
-                overviewNav.iconColor
-              )}
-            />
-          </Link>
-
-          {/* Inbox Button */}
-          <Link
-            href="/inbox"
-            className="group flex items-center justify-center rounded-lg py-3 px-3 transition-all duration-200 flex-1 bg-[#1e293b]/50 hover:bg-[#1e293b] border border-[#334155]/50"
-          >
-            <Mail
-              strokeWidth={2}
-              className="h-5 w-5 flex-shrink-0 transition-colors text-gray-400"
-            />
-          </Link>
-        </div>
-
         {/* Analytics Group */}
         {analyticsNav.length > 0 && (
           <>

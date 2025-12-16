@@ -6,16 +6,10 @@ import { useAuth, useUser } from "@clerk/nextjs";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   AlertCircle, 
   RefreshCw, 
   Layers, 
-  Code, 
-  Table2,
-  GitBranch,
-  Shield,
-  TrendingUp,
 } from "lucide-react";
 import { 
   fetchSectionStats, 
@@ -28,9 +22,7 @@ import {
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { KPIGrid, calculateKPIs } from "@/components/analytics/KPIGrid";
 import { FeatureTable, toFeatureRows, type FeatureRow } from "@/components/analytics/FeatureTable";
-import { AgentTree, parseAgentNodes, type AgentNode } from "@/components/analytics/AgentTree";
-import { RankedBarChart, StackedBarChart } from "@/components/analytics/CostDistributionChart";
-import { CapsManager } from "@/components/caps/CapsManager";
+import { RankedBarChart } from "@/components/analytics/CostDistributionChart";
 import { FeatureDrawer } from "@/components/analytics/FeatureDrawer";
 import { cn } from "@/lib/utils";
 import {
@@ -136,7 +128,6 @@ function FeaturesPageContent() {
   const [dateRange, setDateRange] = useState<DateRange>(
     (searchParams.get('range') as DateRange) || "7d"
   );
-  const [activeTab, setActiveTab] = useState<"table" | "agents" | "caps">("table");
   const [selectedFeature, setSelectedFeature] = useState<FeatureRow | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [filters, setFilters] = useState<FilterState>({});
@@ -176,12 +167,6 @@ function FeaturesPageContent() {
   const featureRows = useMemo(() => 
     toFeatureRows(sectionStats, totalCost),
     [sectionStats, totalCost]
-  );
-  
-  // Convert to agent nodes for tree view
-  const agentNodes = useMemo(() => 
-    parseAgentNodes(sectionStats),
-    [sectionStats]
   );
   
   // Chart data for stacked bar (Top 5 + Other)
@@ -330,120 +315,66 @@ function FeaturesPageContent() {
           onKPIClick={handleKPIClick}
         />
         
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-          <TabsList className="grid w-fit grid-cols-3 h-10">
-            <TabsTrigger value="table" className="gap-2 px-4">
-              <Table2 className="w-4 h-4" />
-              Features Table
-            </TabsTrigger>
-            <TabsTrigger value="agents" className="gap-2 px-4">
-              <GitBranch className="w-4 h-4" />
-              Agent Hierarchy
-            </TabsTrigger>
-            <TabsTrigger value="caps" className="gap-2 px-4">
-              <Shield className="w-4 h-4" />
-              Caps & Alerts
-            </TabsTrigger>
-          </TabsList>
-          
-          {/* Features Table Tab - Primary Workhorse */}
-          <TabsContent value="table" className="space-y-6 mt-6">
-            {/* Cost Distribution Chart */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <div className="bg-white rounded-xl border p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-medium text-gray-900">Cost Distribution</h3>
-                    <div className="text-xs text-gray-500">Ranked by cost</div>
-                  </div>
-                  <RankedBarChart
-                    data={chartData}
-                    totalCost={totalCost}
-                    topN={8}
-                    height={220}
-                    showToggle={true}
-                    showVariance={true}
-                    onClick={(item) => {
-                      const feature = featureRows.find(f => 
-                        f.section.endsWith(item.name) || f.section.includes(item.name)
-                      );
-                      if (feature) handleRowClick(feature);
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border p-6">
-                <h3 className="text-sm font-medium text-gray-900 mb-4">Quick Stats</h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Total Features</span>
-                    <span className="font-semibold">{sectionStats.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Agents</span>
-                    <span className="font-semibold">
-                      {sectionStats.filter(s => s.section.startsWith("agent:")).length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Tools</span>
-                    <span className="font-semibold">
-                      {sectionStats.filter(s => s.section.startsWith("tool:")).length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500">Steps</span>
-                    <span className="font-semibold">
-                      {sectionStats.filter(s => s.section.startsWith("step:")).length}
-                    </span>
-                  </div>
-                  <div className="pt-2 border-t">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500">Total Cost</span>
-                      <span className="font-bold text-lg">{formatSmartCost(totalCost)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Sortable Table - Source of Truth */}
-            <FeatureTable
-              features={featureRows}
-              totalCost={totalCost}
-              onRowClick={handleRowClick}
-              onFilterChange={setFilters}
-            />
-          </TabsContent>
-          
-          {/* Agents Hierarchy Tab */}
-          <TabsContent value="agents" className="mt-6">
+        {/* Cost Distribution Chart */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
             <div className="bg-white rounded-xl border p-6">
-              <AgentTree
-                nodes={agentNodes}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-gray-900">Cost Distribution</h3>
+                <div className="text-xs text-gray-500">Ranked by cost</div>
+              </div>
+              <RankedBarChart
+                data={chartData}
                 totalCost={totalCost}
-                onNodeClick={(node) => {
-                  const feature = featureRows.find(f => f.section === node.section);
-                  if (feature) {
-                    setSelectedFeature(feature);
-                    setDrawerOpen(true);
-                  }
+                topN={8}
+                height={220}
+                showToggle={true}
+                showVariance={true}
+                onClick={(item) => {
+                  const feature = featureRows.find(f => 
+                    f.section.endsWith(item.name) || f.section.includes(item.name)
+                  );
+                  if (feature) handleRowClick(feature);
                 }}
               />
             </div>
-          </TabsContent>
-          
-          {/* Caps & Alerts Tab */}
-          <TabsContent value="caps" className="mt-6">
-            <CapsManager
-              providers={availableProviders}
-              models={modelStats.map(m => m.model)}
-              features={availableFeatures}
-              onCapChange={refresh}
-            />
-          </TabsContent>
-        </Tabs>
+          </div>
+          <div className="bg-white rounded-xl border p-6">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Quick Stats</h3>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500">Total Features</span>
+                <span className="font-semibold">{sectionStats.length}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500">Total API Calls</span>
+                <span className="font-semibold">
+                  {sectionStats.reduce((sum, s) => sum + s.call_count, 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500">Avg Cost / Call</span>
+                <span className="font-semibold">
+                  {formatSmartCost(totalCost / Math.max(1, sectionStats.reduce((sum, s) => sum + s.call_count, 0)))}
+                </span>
+              </div>
+              <div className="pt-2 border-t">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Total Cost</span>
+                  <span className="font-bold text-lg">{formatSmartCost(totalCost)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Sortable Table - Source of Truth */}
+        <FeatureTable
+          features={featureRows}
+          totalCost={totalCost}
+          onRowClick={handleRowClick}
+          onFilterChange={setFilters}
+        />
         
         {/* Feature Drawer */}
         {selectedFeature && (
