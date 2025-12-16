@@ -1,512 +1,453 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, RefreshCw, Layers, Code } from "lucide-react";
 import { fetchSectionStats, type SectionStats } from "@/lib/api";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  PieChart,
-  Pie,
-} from "recharts";
-import { Layers, Clock, TrendingUp, DollarSign, Hash, ChevronDown, ChevronUp } from "lucide-react";
+import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
+import { MetricCard, MetricCardRow } from "@/components/analytics/MetricCard";
+import { CostDistributionChart, StackedBarChart } from "@/components/analytics/CostDistributionChart";
+import { FeatureTreeTable, type FeatureNode } from "@/components/analytics/FeatureTreeTable";
+import { FeatureDrawer } from "@/components/analytics/FeatureDrawer";
 import { cn } from "@/lib/utils";
+import {
+  formatSmartCost,
+  formatCompactNumber,
+  formatDuration,
+  formatPercentage,
+  parseFeatureSection,
+  getStableColor,
+} from "@/lib/format";
+import type { DateRange } from "@/contexts/AnalyticsContext";
 
-// Format cost with appropriate precision
-function formatCost(cost: number | null | undefined): string {
-  if (cost === null || cost === undefined || isNaN(cost)) return "$0";
-  if (cost === 0) return "$0";
+// ============================================================================
+// HOOKS
+// ============================================================================
 
-  const absCost = Math.abs(cost);
-  const sign = cost < 0 ? "-" : "";
-
-  if (absCost < 0.000001) {
-    return `${sign}<$0.000001`;
-  } else if (absCost < 0.001) {
-    return `${sign}${Math.round(absCost * 1_000_000)}µ$`;
-  } else if (absCost < 1) {
-    return `${sign}$${absCost.toFixed(4)}`;
-  } else if (absCost < 1000) {
-    return `${sign}$${absCost.toFixed(2)}`;
-  } else if (absCost < 1_000_000) {
-    return `${sign}$${(absCost / 1000).toFixed(1)}K`;
-  }
-  return `${sign}$${(absCost / 1_000_000).toFixed(1)}M`;
-}
-
-// Color palette for features
-const FEATURE_COLORS = [
-  "#10b981", // emerald
-  "#8b5cf6", // violet
-  "#6366f1", // indigo
-  "#3b82f6", // blue
-  "#ec4899", // pink
-  "#f59e0b", // amber
-  "#ef4444", // red
-  "#14b8a6", // teal
-  "#84cc16", // lime
-  "#f97316", // orange
-];
-
-// Parse feature type from section name
-function parseFeatureType(section: string): { type: string; name: string } {
-  if (section.startsWith("feature:")) {
-    return { type: "Feature", name: section.replace("feature:", "") };
-  } else if (section.startsWith("agent:")) {
-    return { type: "Agent", name: section.replace("agent:", "") };
-  } else if (section.startsWith("step:")) {
-    return { type: "Step", name: section.replace("step:", "") };
-  } else if (section.startsWith("tool:")) {
-    return { type: "Tool", name: section.replace("tool:", "") };
-  }
-  return { type: "Section", name: section };
-}
-
-// Get badge color based on type
-function getTypeColor(type: string): string {
-  switch (type) {
-    case "Feature":
-      return "bg-emerald-100 text-emerald-800";
-    case "Agent":
-      return "bg-violet-100 text-violet-800";
-    case "Step":
-      return "bg-blue-100 text-blue-800";
-    case "Tool":
-      return "bg-amber-100 text-amber-800";
-    default:
-      return "bg-gray-100 text-gray-800";
-  }
-}
-
-export default function FeaturesPage() {
+function useFeaturesData(hours: number) {
   const { getToken } = useAuth();
   const { isLoaded, user } = useUser();
+  
   const [sectionStats, setSectionStats] = useState<SectionStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timeRange, setTimeRange] = useState(24); // hours
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
-
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  
+  const loadData = useCallback(async (isBackground = false) => {
+    if (!isLoaded || !user) return;
+    
+    if (!isBackground) setLoading(true);
+    setError(null);
+    
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Not authenticated. Please sign in again.");
+      
+      const stats = await fetchSectionStats(hours, null, token);
+      setSectionStats(stats || []);
+      setLastRefresh(new Date());
+    } catch (err) {
+      console.error("[Features] Error loading data:", err);
+      setError(err instanceof Error ? err.message : "Failed to load feature data");
+      setSectionStats([]);
+    } finally {
+      if (!isBackground) setLoading(false);
+    }
+  }, [isLoaded, user, getToken, hours]);
+  
   useEffect(() => {
-    if (!isLoaded) return;
-    if (!user) {
-      setLoading(false);
-      setError("Not authenticated. Please sign in.");
-      return;
+    if (isLoaded && user) {
+      loadData();
     }
+  }, [isLoaded, user, loadData]);
+  
+  // Auto-refresh
+  useEffect(() => {
+    const interval = setInterval(() => loadData(true), 30000);
+    return () => clearInterval(interval);
+  }, [loadData]);
+  
+  return {
+    sectionStats,
+    loading,
+    error,
+    lastRefresh,
+    refresh: () => loadData(false),
+  };
+}
 
-    async function loadData() {
-      setLoading(true);
-      setError(null);
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 
-      try {
-        const token = await getToken();
-        if (!token) throw new Error("Not authenticated. Please sign in again.");
-
-        const stats = await fetchSectionStats(timeRange, null, token);
-        setSectionStats(stats || []);
-      } catch (err) {
-        console.error("[Features] Error loading data:", err);
-        setError(err instanceof Error ? err.message : "Failed to load feature data");
-        setSectionStats([]);
-      } finally {
-        setLoading(false);
-      }
+function FeaturesPageContent() {
+  const searchParams = useSearchParams();
+  const [dateRange, setDateRange] = useState<DateRange>(
+    (searchParams.get('range') as DateRange) || "7d"
+  );
+  const [selectedFeature, setSelectedFeature] = useState<FeatureNode | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  
+  // Convert date range to hours
+  const hours = useMemo(() => {
+    switch (dateRange) {
+      case "24h": return 24;
+      case "7d": return 7 * 24;
+      case "30d": return 30 * 24;
+      case "90d": return 90 * 24;
     }
-
-    loadData();
-  }, [isLoaded, user, getToken, timeRange]);
-
+  }, [dateRange]);
+  
+  const { sectionStats, loading, error, lastRefresh, refresh } = useFeaturesData(hours);
+  
   // Calculate totals
-  const totalCost = sectionStats.reduce((sum, s) => sum + (s.total_cost || 0), 0);
-  const totalCalls = sectionStats.reduce((sum, s) => sum + (s.call_count || 0), 0);
-  const avgLatency =
-    sectionStats.length > 0
+  const totals = useMemo(() => {
+    const totalCost = sectionStats.reduce((sum, s) => sum + (s.total_cost || 0), 0);
+    const totalCalls = sectionStats.reduce((sum, s) => sum + (s.call_count || 0), 0);
+    const avgLatency = sectionStats.length > 0
       ? sectionStats.reduce((sum, s) => sum + (s.avg_latency_ms || 0), 0) / sectionStats.length
       : 0;
-
-  // Group by feature type
-  const featureGroups = sectionStats.reduce((acc, stat) => {
-    const { type } = parseFeatureType(stat.section);
-    if (!acc[type]) acc[type] = [];
-    acc[type].push(stat);
-    return acc;
-  }, {} as Record<string, SectionStats[]>);
-
-  // Prepare chart data
-  const chartData = sectionStats.slice(0, 10).map((s, i) => ({
-    name: parseFeatureType(s.section).name.replace(/_/g, " "),
-    cost: s.total_cost || 0,
-    calls: s.call_count || 0,
-    fill: FEATURE_COLORS[i % FEATURE_COLORS.length],
-  }));
-
-  const pieData = sectionStats.slice(0, 8).map((s, i) => ({
-    name: parseFeatureType(s.section).name.replace(/_/g, " "),
-    value: s.total_cost || 0,
-    fill: FEATURE_COLORS[i % FEATURE_COLORS.length],
-  }));
-
-  const toggleSection = (section: string) => {
-    setExpandedSections((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(section)) {
-        newSet.delete(section);
-      } else {
-        newSet.add(section);
-      }
-      return newSet;
+    
+    return { totalCost, totalCalls, avgLatency };
+  }, [sectionStats]);
+  
+  // Convert to FeatureNodes for tree table
+  const featureNodes = useMemo<FeatureNode[]>(() => {
+    return sectionStats.map(stat => ({
+      id: stat.section,
+      section: stat.section,
+      section_path: stat.section_path,
+      total_cost: stat.total_cost,
+      call_count: stat.call_count,
+      avg_latency_ms: stat.avg_latency_ms,
+      percentage: stat.percentage,
+    }));
+  }, [sectionStats]);
+  
+  // Chart data
+  const chartData = useMemo(() => {
+    return sectionStats.map(stat => {
+      const parsed = parseFeatureSection(stat.section);
+      return {
+        name: parsed.displayName,
+        cost: stat.total_cost,
+        calls: stat.call_count,
+        type: parsed.type,
+        section: stat.section,
+      };
     });
-  };
-
+  }, [sectionStats]);
+  
+  // Available feature types for filtering
+  const availableTypes = useMemo(() => {
+    const types = new Set<string>();
+    sectionStats.forEach(stat => {
+      const parsed = parseFeatureSection(stat.section);
+      types.add(parsed.type);
+    });
+    return Array.from(types);
+  }, [sectionStats]);
+  
+  // Handle feature click - open drawer
+  const handleFeatureClick = useCallback((node: FeatureNode) => {
+    setSelectedFeature(node);
+    setDrawerOpen(true);
+  }, []);
+  
+  // Error state
   if (error) {
     return (
       <ProtectedLayout>
         <div className="p-8">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-red-600">{error}</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Make sure the collector API is running and you have tracked some features.
+          <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 flex items-start gap-4">
+            <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-rose-700 font-medium">{error}</p>
+              <p className="text-sm text-rose-600 mt-1">
+                Make sure you're using the <code className="bg-rose-100 px-1 rounded">section()</code> context manager in your code to track features.
               </p>
-            </CardContent>
-          </Card>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refresh}
+                className="mt-3 text-rose-600 border-rose-200 hover:bg-rose-100"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          </div>
         </div>
       </ProtectedLayout>
     );
   }
-
+  
+  // Loading state
   if (loading) {
     return (
       <ProtectedLayout>
-        <div className="space-y-8 p-6">
+        <div className="space-y-6">
           <div className="flex items-center justify-between">
             <Skeleton className="h-10 w-48" />
-            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-8 w-32" />
           </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <Card key={i}>
-                <CardHeader>
-                  <Skeleton className="h-4 w-24" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-8 w-16" />
-                </CardContent>
-              </Card>
+              <Skeleton key={i} className="h-24 rounded-xl" />
             ))}
           </div>
-          <div className="grid gap-8 lg:grid-cols-2">
-            <Skeleton className="h-80 w-full" />
-            <Skeleton className="h-80 w-full" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Skeleton className="h-52 rounded-xl" />
+            <Skeleton className="h-52 rounded-xl" />
           </div>
+          <Skeleton className="h-96 rounded-xl" />
         </div>
       </ProtectedLayout>
     );
   }
-
-  return (
-    <ProtectedLayout>
-      <div className="space-y-8 p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Feature Costs</h1>
-            <p className="text-sm text-muted-foreground">
-              Track costs by feature, agent, and workflow step.
+  
+  // Empty state
+  if (sectionStats.length === 0) {
+    return (
+      <ProtectedLayout>
+        <div className="space-y-6">
+          <AnalyticsHeader
+            title="Feature Costs"
+            subtitle="Track costs by feature, agent, and workflow step"
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+          />
+          
+          <div className="bg-white rounded-xl border border-slate-200/60 p-12 text-center">
+            <div className="w-16 h-16 rounded-full bg-slate-100 mx-auto flex items-center justify-center mb-4">
+              <Layers className="w-8 h-8 text-slate-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">No Feature Data Yet</h3>
+            <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">
+              Start tracking feature costs by using the <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">section()</code> context manager in your code.
             </p>
-          </div>
-          <select
-            value={timeRange}
-            onChange={(e) => setTimeRange(Number(e.target.value))}
-            className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          >
-            <option value={24}>Last 24 hours</option>
-            <option value={168}>Last 7 days</option>
-            <option value={720}>Last 30 days</option>
-          </select>
-        </div>
-
-        {/* KPI Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="border-0 shadow-sm bg-gray-900 text-white">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <DollarSign className="h-4 w-4 text-gray-400" />
-                <p className="text-sm font-medium text-gray-400">Total Feature Cost</p>
+            
+            <div className="bg-slate-900 rounded-lg p-4 text-left max-w-lg mx-auto">
+              <div className="flex items-center gap-2 mb-2 text-xs text-slate-400">
+                <Code className="w-4 h-4" />
+                Python
               </div>
-              <h3 className="text-2xl font-bold tabular-nums">{formatCost(totalCost)}</h3>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-white">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Hash className="h-4 w-4 text-muted-foreground" />
-                <p className="text-sm font-medium text-muted-foreground">Total Calls</p>
-              </div>
-              <h3 className="text-2xl font-bold tabular-nums text-gray-900">
-                {totalCalls.toLocaleString()}
-              </h3>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-white">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Layers className="h-4 w-4 text-muted-foreground" />
-                <p className="text-sm font-medium text-muted-foreground">Features Tracked</p>
-              </div>
-              <h3 className="text-2xl font-bold tabular-nums text-gray-900">
-                {sectionStats.length}
-              </h3>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-sm bg-white">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <p className="text-sm font-medium text-muted-foreground">Avg Latency</p>
-              </div>
-              <h3 className="text-2xl font-bold tabular-nums text-gray-900">
-                {avgLatency.toFixed(0)}ms
-              </h3>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Charts */}
-        {sectionStats.length > 0 ? (
-          <div className="grid gap-8 lg:grid-cols-2">
-            {/* Bar Chart - Top Features by Cost */}
-            <Card className="border-0 shadow-sm bg-white">
-              <CardHeader>
-                <CardTitle className="text-lg">Top Features by Cost</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={chartData}
-                      layout="vertical"
-                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
-                      <XAxis
-                        type="number"
-                        tickFormatter={(value) => formatCost(value)}
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: "#6b7280", fontSize: 12 }}
-                      />
-                      <YAxis
-                        dataKey="name"
-                        type="category"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: "#374151", fontSize: 12 }}
-                        width={120}
-                      />
-                      <Tooltip
-                        cursor={{ fill: "#f3f4f6" }}
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const p = payload[0].payload;
-                            return (
-                              <div className="rounded-lg border bg-background p-3 shadow-lg">
-                                <p className="text-sm font-medium capitalize">{p.name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  Cost: {formatCost(p.cost)}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  Calls: {p.calls.toLocaleString()}
-                                </p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                      <Bar dataKey="cost" barSize={20} radius={[4, 4, 4, 4]}>
-                        {chartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.fill} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Pie Chart - Cost Distribution */}
-            <Card className="border-0 shadow-sm bg-white">
-              <CardHeader>
-                <CardTitle className="text-lg">Cost Distribution</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={pieData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={2}
-                        dataKey="value"
-                        label={({ name, percent }: any) =>
-                          `${name} ${(percent * 100).toFixed(0)}%`
-                        }
-                        labelLine={{ stroke: "#9ca3af", strokeWidth: 1 }}
-                      >
-                        {pieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.fill} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const p = payload[0].payload;
-                            return (
-                              <div className="rounded-lg border bg-background p-3 shadow-lg">
-                                <p className="text-sm font-medium capitalize">{p.name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  Cost: {formatCost(p.value)}
-                                </p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        ) : (
-          <Card className="border-0 shadow-sm bg-white">
-            <CardContent className="py-12 text-center">
-              <Layers className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Feature Data Yet</h3>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Start using the <code className="bg-gray-100 px-1 rounded">section()</code> context
-                manager in your code to track feature costs.
-              </p>
-              <pre className="mt-4 bg-gray-900 text-white p-4 rounded-lg text-left text-sm max-w-md mx-auto">
+              <pre className="text-sm text-slate-300 overflow-x-auto">
 {`from llmobserve import section
 
 with section("feature:email_processing"):
     response = openai.chat.completions.create(...)
-`}
+
+with section("agent:researcher"):
+    with section("tool:web_search"):
+        # Nested sections supported
+        ...`}
               </pre>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Feature List */}
-        {sectionStats.length > 0 && (
-          <Card className="border-0 shadow-sm bg-white">
-            <CardHeader>
-              <CardTitle className="text-lg">All Features</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {sectionStats.map((stat, index) => {
-                  const { type, name } = parseFeatureType(stat.section);
-                  const isExpanded = expandedSections.has(stat.section);
-
+            </div>
+            
+            <p className="text-xs text-slate-400 mt-6">
+              Features will appear here once you start tracking them.
+            </p>
+          </div>
+        </div>
+      </ProtectedLayout>
+    );
+  }
+  
+  return (
+    <ProtectedLayout>
+      <div className="space-y-6 -mt-2">
+        {/* Header */}
+        <AnalyticsHeader
+          title="Feature Costs"
+          subtitle="Track costs by feature, agent, and workflow step"
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          features={selectedTypes}
+          availableFeatures={availableTypes}
+          onFeaturesChange={setSelectedTypes}
+          hasActiveFilters={selectedTypes.length > 0}
+          onReset={() => setSelectedTypes([])}
+        />
+        
+        {/* KPI Cards */}
+        <MetricCardRow columns={4}>
+          <MetricCard
+            title="Total Feature Cost"
+            value={totals.totalCost}
+            variant="primary"
+            icon={<span className="text-emerald-400">$</span>}
+          />
+          <MetricCard
+            title="Total Calls"
+            value={formatCompactNumber(totals.totalCalls)}
+            formatValue={() => formatCompactNumber(totals.totalCalls)}
+            tooltipContent={
+              <div>
+                <p className="font-medium">Total API Calls</p>
+                <p className="text-slate-300 tabular-nums">{totals.totalCalls.toLocaleString()}</p>
+              </div>
+            }
+          />
+          <MetricCard
+            title="Features Tracked"
+            value={sectionStats.length.toString()}
+            formatValue={() => sectionStats.length.toString()}
+          />
+          <MetricCard
+            title="Avg Latency"
+            value={formatDuration(totals.avgLatency)}
+            formatValue={() => formatDuration(totals.avgLatency)}
+          />
+        </MetricCardRow>
+        
+        {/* Charts row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Top Features Bar Chart */}
+          <div className="bg-white rounded-xl border border-slate-200/60 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Top Features by Cost</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Click to drill down</p>
+              </div>
+            </div>
+            
+            {/* Horizontal bar chart using treemap as bars */}
+            <div className="space-y-2">
+              {chartData
+                .sort((a, b) => b.cost - a.cost)
+                .slice(0, 8)
+                .map((item, i) => {
+                  const percentage = totals.totalCost > 0 
+                    ? (item.cost / totals.totalCost) * 100 
+                    : 0;
+                  const color = getStableColor(item.section);
+                  
                   return (
-                    <div
-                      key={stat.section}
-                      className="border border-gray-100 rounded-lg overflow-hidden"
+                    <button
+                      key={item.section}
+                      onClick={() => {
+                        const node = featureNodes.find(n => n.section === item.section);
+                        if (node) handleFeatureClick(node);
+                      }}
+                      className="w-full flex items-center gap-3 py-1.5 hover:bg-slate-50 rounded transition-colors group"
                     >
-                      <button
-                        onClick={() => toggleSection(stat.section)}
-                        className="flex items-center justify-between w-full p-4 hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: FEATURE_COLORS[index % FEATURE_COLORS.length] }}
+                      <div 
+                        className="w-1 h-5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: color }}
+                      />
+                      <span className="text-sm text-slate-700 flex-1 text-left truncate group-hover:text-slate-900">
+                        {item.name}
+                      </span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full rounded-full transition-all"
+                            style={{ 
+                              width: `${Math.max(percentage, 2)}%`,
+                              backgroundColor: color,
+                            }}
                           />
-                          <Badge className={cn("text-xs", getTypeColor(type))}>{type}</Badge>
-                          <span className="font-medium text-gray-900 capitalize">
-                            {name.replace(/_/g, " ")}
-                          </span>
                         </div>
-                        <div className="flex items-center gap-6">
-                          <div className="text-right">
-                            <p className="text-sm font-semibold tabular-nums">
-                              {formatCost(stat.total_cost)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {stat.percentage.toFixed(1)}% of total
-                            </p>
-                          </div>
-                          {isExpanded ? (
-                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </div>
-                      </button>
-
-                      {isExpanded && (
-                        <div className="px-4 pb-4 pt-2 bg-gray-50 border-t border-gray-100">
-                          <div className="grid grid-cols-3 gap-4">
-                            <div>
-                              <p className="text-xs text-muted-foreground">Calls</p>
-                              <p className="text-sm font-semibold">
-                                {stat.call_count.toLocaleString()}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">Avg Latency</p>
-                              <p className="text-sm font-semibold">
-                                {stat.avg_latency_ms.toFixed(0)}ms
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">Cost/Call</p>
-                              <p className="text-sm font-semibold">
-                                {formatCost(
-                                  stat.call_count > 0 ? stat.total_cost / stat.call_count : 0
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                          {stat.section_path && stat.section_path !== stat.section && (
-                            <div className="mt-3 pt-3 border-t border-gray-200">
-                              <p className="text-xs text-muted-foreground">Full Path</p>
-                              <code className="text-xs bg-white px-2 py-1 rounded border">
-                                {stat.section_path}
-                              </code>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                        <span className="text-sm font-medium text-slate-900 tabular-nums w-16 text-right">
+                          {formatSmartCost(item.cost)}
+                        </span>
+                      </div>
+                    </button>
                   );
                 })}
+              
+              {chartData.length > 8 && (
+                <p className="text-xs text-slate-400 text-center pt-2">
+                  +{chartData.length - 8} more in table below
+                </p>
+              )}
+            </div>
+          </div>
+          
+          {/* Cost Distribution Treemap */}
+          <div className="bg-white rounded-xl border border-slate-200/60 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Cost Distribution</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Proportional view of spend</p>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+            
+            <CostDistributionChart
+              data={chartData}
+              totalCost={totals.totalCost}
+              topN={10}
+              height={200}
+              colorKey="section"
+              onClick={(item) => {
+                const node = featureNodes.find(n => n.section === (item as any).section);
+                if (node) handleFeatureClick(node);
+              }}
+            />
+          </div>
+        </div>
+        
+        {/* Feature Tree Table */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-slate-900">All Features</h3>
+            <div className="text-xs text-slate-400">
+              Last updated: {lastRefresh.toLocaleTimeString()}
+            </div>
+          </div>
+          
+          <FeatureTreeTable
+            data={featureNodes}
+            totalCost={totals.totalCost}
+            onRowClick={handleFeatureClick}
+            maxHeight={500}
+          />
+        </div>
+        
+        {/* Feature Drawer */}
+        <FeatureDrawer
+          open={drawerOpen}
+          onClose={() => {
+            setDrawerOpen(false);
+            setSelectedFeature(null);
+          }}
+          feature={selectedFeature}
+          totalCost={totals.totalCost}
+        />
       </div>
     </ProtectedLayout>
+  );
+}
+
+// ============================================================================
+// PAGE EXPORT
+// ============================================================================
+
+export default function FeaturesPage() {
+  return (
+    <Suspense
+      fallback={
+        <ProtectedLayout>
+          <div className="space-y-6">
+            <Skeleton className="h-10 w-48" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-24 rounded-xl" />
+              ))}
+            </div>
+            <Skeleton className="h-64 rounded-xl" />
+          </div>
+        </ProtectedLayout>
+      }
+    >
+      <FeaturesPageContent />
+    </Suspense>
   );
 }
