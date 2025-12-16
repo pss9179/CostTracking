@@ -373,6 +373,32 @@ export async function fetchSectionStats(hours: number = 24, tenantId?: string | 
   return response.json();
 }
 
+// Customer Stats
+export interface CustomerStats {
+  customer_id: string;
+  total_cost: number;
+  call_count: number;
+  avg_latency_ms: number;
+}
+
+export async function fetchCustomerStats(hours: number = 720, tenantId?: string | null, token?: string): Promise<CustomerStats[]> {
+  const headers = await getDashboardAuthHeaders(token);
+  let url = `${COLLECTOR_URL}/stats/by-customer?hours=${hours}`;
+  if (tenantId) {
+    url += `&tenant_id=${encodeURIComponent(tenantId)}`;
+  }
+  const response = await fetch(url, {
+    headers,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => response.statusText);
+    throw new Error(`Failed to fetch customer stats (${response.status}): ${errorText}`);
+  }
+
+  return response.json();
+}
+
 export async function fetchInsights(tenantId?: string | null, token?: string): Promise<Insight[]> {
   const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/insights/daily`;

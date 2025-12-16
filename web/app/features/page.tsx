@@ -74,12 +74,16 @@ function useFeaturesData(hours: number) {
         fetchModelStats(hours, null, token).catch(() => []),
       ]);
       
-      // Filter out "main" and "default" - these are unlabeled API calls, not real features
-      const filteredStats = (sections || []).filter(s => 
-        s.section && 
-        s.section.toLowerCase() !== "main" && 
-        s.section.toLowerCase() !== "default"
-      );
+      // Filter out internal sections - only keep "feature:" prefixed items
+      // Removes: "main", "default", "step:*", "tool:*", "agent:*"
+      const filteredStats = (sections || []).filter(s => {
+        if (!s.section) return false;
+        const lower = s.section.toLowerCase();
+        // Only show feature: prefixed items, or items without a known prefix (legacy)
+        if (lower === "main" || lower === "default") return false;
+        if (lower.startsWith("step:") || lower.startsWith("tool:") || lower.startsWith("agent:")) return false;
+        return true;
+      });
       
       setSectionStats(filteredStats);
       setProviderStats(providers || []);
@@ -270,7 +274,7 @@ function FeaturesPageContent() {
         <div className="space-y-6 p-6">
           <AnalyticsHeader
             title="Feature Costs"
-            subtitle="Track costs by feature, agent, and workflow step"
+            subtitle="Track costs by feature"
             dateRange={dateRange}
             onDateRangeChange={setDateRange}
           />
@@ -282,7 +286,7 @@ function FeaturesPageContent() {
             </h3>
             <p className="text-gray-500 mb-6 max-w-md mx-auto">
               Use the <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">section()</code> context 
-              manager to track costs by feature, agent, or workflow step.
+              manager to track costs by feature.
             </p>
             <div className="bg-gray-900 text-gray-100 rounded-lg p-4 max-w-lg mx-auto text-left font-mono text-sm">
               <div className="text-gray-400"># Python example</div>
@@ -304,7 +308,7 @@ function FeaturesPageContent() {
         {/* Header */}
         <AnalyticsHeader
           title="Feature Costs"
-          subtitle="Track costs by feature, agent, and workflow step"
+          subtitle="Track costs by feature"
           dateRange={dateRange}
           onDateRangeChange={setDateRange}
         />

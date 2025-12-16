@@ -401,15 +401,7 @@ export function FeatureTable({
                 >
                   {/* Name */}
                   <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <Badge 
-                        variant="secondary" 
-                        className={cn("text-xs capitalize", config.bg, config.color)}
-                      >
-                        {feature.type}
-                      </Badge>
-                      <span className="truncate max-w-[200px]">{feature.name}</span>
-                    </div>
+                    <span className="truncate max-w-[280px]">{feature.name}</span>
                   </TableCell>
 
                   {/* Total Cost */}
