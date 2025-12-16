@@ -342,6 +342,34 @@ export async function fetchDailyStats(days: number = 7, tenantId?: string | null
   return response.json();
 }
 
+// Section/Feature Stats
+export interface SectionStats {
+  section: string;
+  section_path: string | null;
+  total_cost: number;
+  call_count: number;
+  avg_latency_ms: number;
+  percentage: number;
+}
+
+export async function fetchSectionStats(hours: number = 24, tenantId?: string | null, token?: string): Promise<SectionStats[]> {
+  const headers = await getDashboardAuthHeaders(token);
+  let url = `${COLLECTOR_URL}/stats/by-section?hours=${hours}`;
+  if (tenantId) {
+    url += `&tenant_id=${encodeURIComponent(tenantId)}`;
+  }
+  const response = await fetch(url, {
+    headers,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => response.statusText);
+    throw new Error(`Failed to fetch section stats (${response.status}): ${errorText}`);
+  }
+
+  return response.json();
+}
+
 export async function fetchInsights(tenantId?: string | null, token?: string): Promise<Insight[]> {
   const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/insights/daily`;
