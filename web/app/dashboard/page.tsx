@@ -16,6 +16,7 @@ import {
   type ModelStats,
   type DailyStats,
 } from "@/lib/api";
+import { getCached, setCached, isCacheStale } from "@/lib/cache";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { CostTrendChart } from "@/components/dashboard/CostTrendChart";
 import { ProviderBreakdown } from "@/components/dashboard/ProviderBreakdown";
@@ -51,44 +52,39 @@ interface DashboardStats {
 // HOOKS
 // ============================================================================
 
-// Cache for dashboard data - persists across navigations
-interface DashboardCache {
+// Dashboard cache data shape
+interface DashboardCacheData {
   runs: Run[];
   providerStats: ProviderStats[];
   modelStats: ModelStats[];
   dailyStats: DailyStats[];
   prevProviderStats: ProviderStats[];
   prevDailyStats: DailyStats[];
-  timestamp: number;
 }
-
-// Simple module-level cache (persists across page navigations)
-const dashboardCache: { [key: string]: DashboardCache } = {};
-const CACHE_STALE_TIME = 30000; // 30 seconds
 
 function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false) {
   const { getToken } = useAuth();
   const { isLoaded, user } = useUser();
   
   const cacheKey = `dashboard-${dateRange}-${compareEnabled}`;
-  const cached = dashboardCache[cacheKey];
-  const hasCachedData = cached && cached.providerStats.length > 0;
+  
+  // Get cached data on initial render
+  const [initialCache] = useState(() => getCached<DashboardCacheData>(cacheKey));
+  const hasCachedData = initialCache && initialCache.providerStats.length > 0;
   
   // Initialize from cache if available
-  const [runs, setRuns] = useState<Run[]>(cached?.runs || []);
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>(cached?.providerStats || []);
-  const [modelStats, setModelStats] = useState<ModelStats[]>(cached?.modelStats || []);
-  const [dailyStats, setDailyStats] = useState<DailyStats[]>(cached?.dailyStats || []);
-  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>(cached?.prevProviderStats || []);
-  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>(cached?.prevDailyStats || []);
+  const [runs, setRuns] = useState<Run[]>(initialCache?.runs || []);
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>(initialCache?.providerStats || []);
+  const [modelStats, setModelStats] = useState<ModelStats[]>(initialCache?.modelStats || []);
+  const [dailyStats, setDailyStats] = useState<DailyStats[]>(initialCache?.dailyStats || []);
+  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>(initialCache?.prevProviderStats || []);
+  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>(initialCache?.prevDailyStats || []);
   
   // Only show full loading if NO cached data
   const [loading, setLoading] = useState(!hasCachedData);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastRefresh, setLastRefresh] = useState<Date>(
-    cached ? new Date(cached.timestamp) : new Date()
-  );
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   
   // Convert date range to hours/days
   const hours = useMemo(() => {
@@ -106,13 +102,13 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     if (!isLoaded || !user) return;
     
     // Check if cache is still fresh
-    const cached = dashboardCache[cacheKey];
-    if (isBackground && cached && Date.now() - cached.timestamp < CACHE_STALE_TIME) {
+    if (isBackground && !isCacheStale(cacheKey)) {
       return; // Skip refresh, cache is still fresh
     }
     
     // Show subtle refreshing indicator if we have data, full loading only if empty
-    if (hasCachedData) {
+    const hasData = providerStats.length > 0;
+    if (hasData) {
       setIsRefreshing(true);
     } else if (!isBackground) {
       setLoading(true);
@@ -158,15 +154,14 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       setLastRefresh(new Date());
       
       // Update cache
-      dashboardCache[cacheKey] = {
+      setCached<DashboardCacheData>(cacheKey, {
         runs: runsData || [],
         providerStats: providersData || [],
         modelStats: modelsData || [],
         dailyStats: dailyData || [],
         prevProviderStats: prevProvidersData,
         prevDailyStats: prevDailyOnly,
-        timestamp: Date.now(),
-      };
+      });
     } catch (err) {
       console.error("[Dashboard] Error loading data:", err);
       setError(err instanceof Error ? err.message : "Failed to load data");
@@ -174,19 +169,17 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken, hours, days, compareEnabled, cacheKey, hasCachedData]);
+  }, [isLoaded, user, getToken, hours, days, compareEnabled, cacheKey, providerStats.length]);
   
   // Initial load - only if cache is stale or empty
   useEffect(() => {
     if (isLoaded && user) {
-      const cached = dashboardCache[cacheKey];
-      const isStale = !cached || Date.now() - cached.timestamp > CACHE_STALE_TIME;
-      
-      if (isStale) {
-        loadData(!!cached); // Background fetch if we have stale data
+      const stale = isCacheStale(cacheKey);
+      if (stale) {
+        loadData(hasCachedData); // Background fetch if we have stale data
       }
     }
-  }, [isLoaded, user, loadData, cacheKey]);
+  }, [isLoaded, user, loadData, cacheKey, hasCachedData]);
   
   // Auto-refresh every 30s (background only)
   useEffect(() => {

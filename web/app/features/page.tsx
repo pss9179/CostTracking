@@ -31,6 +31,7 @@ import {
   formatDuration,
   getStableColor,
 } from "@/lib/format";
+import { getCached, setCached, isCacheStale } from "@/lib/cache";
 import type { DateRange } from "@/contexts/AnalyticsContext";
 
 // ============================================================================
@@ -43,48 +44,42 @@ interface FilterState {
   models?: string[];
 }
 
-// ============================================================================
-// HOOKS
-// ============================================================================
-
-// Module-level cache for features data
-interface FeaturesCache {
+interface FeaturesCacheData {
   sectionStats: SectionStats[];
   providerStats: ProviderStats[];
   modelStats: ModelStats[];
-  timestamp: number;
 }
-const featuresCache: { [key: string]: FeaturesCache } = {};
-const FEATURES_CACHE_STALE_TIME = 30000; // 30 seconds
+
+// ============================================================================
+// HOOKS
+// ============================================================================
 
 function useFeaturesData(hours: number) {
   const { getToken } = useAuth();
   const { isLoaded, user } = useUser();
   
   const cacheKey = `features-${hours}`;
-  const cached = featuresCache[cacheKey];
-  const hasCachedData = cached && cached.sectionStats.length > 0;
+  const [initialCache] = useState(() => getCached<FeaturesCacheData>(cacheKey));
+  const hasCachedData = initialCache && initialCache.sectionStats.length > 0;
   
-  const [sectionStats, setSectionStats] = useState<SectionStats[]>(cached?.sectionStats || []);
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>(cached?.providerStats || []);
-  const [modelStats, setModelStats] = useState<ModelStats[]>(cached?.modelStats || []);
+  const [sectionStats, setSectionStats] = useState<SectionStats[]>(initialCache?.sectionStats || []);
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>(initialCache?.providerStats || []);
+  const [modelStats, setModelStats] = useState<ModelStats[]>(initialCache?.modelStats || []);
   const [loading, setLoading] = useState(!hasCachedData);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastRefresh, setLastRefresh] = useState<Date>(
-    cached ? new Date(cached.timestamp) : new Date()
-  );
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   
   const loadData = useCallback(async (isBackground = false) => {
     if (!isLoaded || !user) return;
     
     // Check if cache is still fresh
-    const cached = featuresCache[cacheKey];
-    if (isBackground && cached && Date.now() - cached.timestamp < FEATURES_CACHE_STALE_TIME) {
+    if (isBackground && !isCacheStale(cacheKey)) {
       return;
     }
     
-    if (hasCachedData) {
+    const hasData = sectionStats.length > 0;
+    if (hasData) {
       setIsRefreshing(true);
     } else if (!isBackground) {
       setLoading(true);
@@ -116,12 +111,11 @@ function useFeaturesData(hours: number) {
       setLastRefresh(new Date());
       
       // Update cache
-      featuresCache[cacheKey] = {
+      setCached<FeaturesCacheData>(cacheKey, {
         sectionStats: filteredStats,
         providerStats: providers || [],
         modelStats: models || [],
-        timestamp: Date.now(),
-      };
+      });
     } catch (err) {
       console.error("[Features] Error loading data:", err);
       setError(err instanceof Error ? err.message : "Failed to load feature data");
@@ -129,17 +123,15 @@ function useFeaturesData(hours: number) {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken, hours, cacheKey, hasCachedData]);
+  }, [isLoaded, user, getToken, hours, cacheKey, sectionStats.length]);
   
   useEffect(() => {
     if (isLoaded && user) {
-      const cached = featuresCache[cacheKey];
-      const isStale = !cached || Date.now() - cached.timestamp > FEATURES_CACHE_STALE_TIME;
-      if (isStale) {
-        loadData(!!cached);
+      if (isCacheStale(cacheKey)) {
+        loadData(hasCachedData);
       }
     }
-  }, [isLoaded, user, loadData, cacheKey]);
+  }, [isLoaded, user, loadData, cacheKey, hasCachedData]);
   
   // Auto-refresh
   useEffect(() => {

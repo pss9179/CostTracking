@@ -71,6 +71,7 @@ import {
 } from "@/lib/api";
 import { formatSmartCost } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { getCached, setCached, isCacheStale } from "@/lib/cache";
 
 // ============================================================================
 // TYPES
@@ -578,23 +579,50 @@ function AlertsList({ alerts }: AlertsListProps) {
 // MAIN PAGE
 // ============================================================================
 
+interface CapsCacheData {
+  caps: Cap[];
+  alerts: Alert[];
+  providers: string[];
+  models: string[];
+  features: string[];
+}
+
+const CAPS_CACHE_KEY = "caps-data";
+
 export default function CapsPage() {
   const { getToken } = useAuth();
   const { isLoaded, user } = useUser();
   
-  const [caps, setCaps] = useState<Cap[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [providers, setProviders] = useState<string[]>([]);
-  const [models, setModels] = useState<string[]>([]);
-  const [features, setFeatures] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialCache] = useState(() => getCached<CapsCacheData>(CAPS_CACHE_KEY));
+  const hasCachedData = initialCache && initialCache.caps.length >= 0;
+  
+  const [caps, setCaps] = useState<Cap[]>(initialCache?.caps || []);
+  const [alerts, setAlerts] = useState<Alert[]>(initialCache?.alerts || []);
+  const [providers, setProviders] = useState<string[]>(initialCache?.providers || []);
+  const [models, setModels] = useState<string[]>(initialCache?.models || []);
+  const [features, setFeatures] = useState<string[]>(initialCache?.features || []);
+  const [loading, setLoading] = useState(!hasCachedData);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"caps" | "alerts">("caps");
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (forceRefresh = false) => {
     if (!isLoaded || !user) return;
+    
+    // Skip if cache is fresh (unless force refresh)
+    if (!forceRefresh && !isCacheStale(CAPS_CACHE_KEY)) {
+      return;
+    }
+    
+    // Show refreshing indicator if we have data
+    const hasData = caps.length > 0 || hasCachedData;
+    if (hasData) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     
     try {
       const token = await getToken();
@@ -608,30 +636,44 @@ export default function CapsPage() {
         fetchSectionStats(24 * 30, null, token).catch(() => []),
       ]);
       
+      const providersList = [...new Set(providersData.map(p => p.provider))]
+        .filter(p => p !== "internal" && p !== "unknown");
+      const modelsList = [...new Set(modelsData.map(m => m.model))];
+      const featuresList = [...new Set(sectionsData.map(s => s.section))]
+        .filter(s => s !== "main" && s !== "default");
+      
       setCaps(capsData);
       setAlerts(alertsData);
-      setProviders(
-        [...new Set(providersData.map(p => p.provider))]
-          .filter(p => p !== "internal" && p !== "unknown")
-      );
-      setModels([...new Set(modelsData.map(m => m.model))]);
-      setFeatures(
-        [...new Set(sectionsData.map(s => s.section))]
-          .filter(s => s !== "main" && s !== "default")
-      );
+      setProviders(providersList);
+      setModels(modelsList);
+      setFeatures(featuresList);
       setLastRefresh(new Date());
       setError(null);
+      
+      // Update cache
+      setCached<CapsCacheData>(CAPS_CACHE_KEY, {
+        caps: capsData,
+        alerts: alertsData,
+        providers: providersList,
+        models: modelsList,
+        features: featuresList,
+      });
     } catch (err) {
       console.error("[CapsPage] Error loading data:", err);
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken]);
+  }, [isLoaded, user, getToken, caps.length, hasCachedData]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (isLoaded && user) {
+      if (isCacheStale(CAPS_CACHE_KEY)) {
+        loadData();
+      }
+    }
+  }, [isLoaded, user, loadData]);
 
   // Auto-refresh every 30s
   useEffect(() => {
@@ -645,7 +687,7 @@ export default function CapsPage() {
     
     console.log("[CapsPage] Creating cap with data:", capData);
     await createCap(capData, token);
-    await loadData();
+    await loadData(true); // Force refresh after mutation
   };
 
   const handleDeleteCap = async (capId: string) => {
@@ -653,7 +695,7 @@ export default function CapsPage() {
     if (!token) throw new Error("Not authenticated");
     
     await deleteCap(capId, token);
-    await loadData();
+    await loadData(true);
   };
 
   const handleToggleCap = async (capId: string, enabled: boolean) => {
@@ -661,7 +703,7 @@ export default function CapsPage() {
     if (!token) throw new Error("Not authenticated");
     
     await updateCap(capId, { enabled }, token);
-    await loadData();
+    await loadData(true);
   };
 
   const alertCount24h = alerts.filter(a => 
@@ -683,7 +725,7 @@ export default function CapsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={loadData}
+                onClick={() => loadData(true)}
                 className="mt-3 text-rose-600 border-rose-200 hover:bg-rose-100"
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
@@ -728,9 +770,9 @@ export default function CapsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={loadData}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
+            <Button variant="outline" size="sm" onClick={() => loadData(true)} disabled={isRefreshing}>
+              <RefreshCw className={cn("w-4 h-4 mr-2", isRefreshing && "animate-spin")} />
+              {isRefreshing ? "Refreshing..." : "Refresh"}
             </Button>
             <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
               <Plus className="w-4 h-4" />

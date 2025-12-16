@@ -34,18 +34,11 @@ import {
 import { fetchCustomerStats, type CustomerStats } from "@/lib/api";
 import { formatSmartCost, formatCompactNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { getCached, setCached, isCacheStale } from "@/lib/cache";
 
 type SortKey = "customer_id" | "total_cost" | "call_count" | "avg_latency_ms";
 type SortDir = "asc" | "desc";
 type DateRange = "7d" | "30d" | "90d" | "all";
-
-// Module-level cache
-interface CustomersCache {
-  customers: CustomerStats[];
-  timestamp: number;
-}
-const customersCache: { [key: string]: CustomersCache } = {};
-const CACHE_STALE_TIME = 30000;
 
 export default function CustomersPage() {
   const { getToken } = useAuth();
@@ -66,10 +59,10 @@ export default function CustomersPage() {
   }, [dateRange]);
 
   const cacheKey = `customers-${hours}`;
-  const cached = customersCache[cacheKey];
-  const hasCachedData = cached && cached.customers.length >= 0;
+  const [initialCache] = useState(() => getCached<CustomerStats[]>(cacheKey));
+  const hasCachedData = initialCache && initialCache.length >= 0;
   
-  const [customers, setCustomers] = useState<CustomerStats[]>(cached?.customers || []);
+  const [customers, setCustomers] = useState<CustomerStats[]>(initialCache || []);
   const [loading, setLoading] = useState(!hasCachedData);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,12 +70,12 @@ export default function CustomersPage() {
   const loadData = useCallback(async () => {
     if (!isLoaded || !user) return;
     
-    const cached = customersCache[cacheKey];
-    if (cached && Date.now() - cached.timestamp < CACHE_STALE_TIME) {
+    if (!isCacheStale(cacheKey)) {
       return;
     }
     
-    if (hasCachedData) {
+    const hasData = customers.length > 0;
+    if (hasData) {
       setIsRefreshing(true);
     } else {
       setLoading(true);
@@ -95,7 +88,7 @@ export default function CustomersPage() {
       
       const data = await fetchCustomerStats(hours, null, token);
       setCustomers(data);
-      customersCache[cacheKey] = { customers: data, timestamp: Date.now() };
+      setCached(cacheKey, data);
     } catch (err) {
       console.error("[Customers] Error:", err);
       setError(err instanceof Error ? err.message : "Failed to load customers");
@@ -103,13 +96,11 @@ export default function CustomersPage() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken, hours, cacheKey, hasCachedData]);
+  }, [isLoaded, user, getToken, hours, cacheKey, customers.length]);
 
   useEffect(() => {
     if (isLoaded && user) {
-      const cached = customersCache[cacheKey];
-      const isStale = !cached || Date.now() - cached.timestamp > CACHE_STALE_TIME;
-      if (isStale) {
+      if (isCacheStale(cacheKey)) {
         loadData();
       }
     }
