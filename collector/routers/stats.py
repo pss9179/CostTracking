@@ -314,6 +314,73 @@ async def get_daily_costs(
     return result_list
 
 
+@router.get("/by-section")
+async def get_costs_by_section(
+    hours: int = Query(24, description="Time window in hours"),
+    tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
+    session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user)
+) -> List[Dict[str, Any]]:
+    """
+    Get costs aggregated by section/feature for the authenticated user.
+    
+    This returns costs broken down by section_path (e.g., "feature:email_processing", 
+    "agent:researcher", "step:analyze"). Use this to see which features cost the most.
+    """
+    user_id = current_user.id
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    
+    # Get section aggregations
+    statement = select(
+        TraceEvent.section,
+        TraceEvent.section_path,
+        func.sum(TraceEvent.cost_usd).label("total_cost"),
+        func.count(TraceEvent.id).label("call_count"),
+        func.avg(TraceEvent.latency_ms).label("avg_latency_ms")
+    ).where(TraceEvent.created_at >= cutoff)
+    
+    # Filter by user_id
+    if tenant_id:
+        statement = statement.where(TraceEvent.tenant_id == tenant_id)
+    elif user_id:
+        statement = statement.where(
+            and_(
+                TraceEvent.user_id == user_id,
+                TraceEvent.user_id.isnot(None)
+            )
+        )
+    
+    # Exclude internal provider and require section
+    statement = statement.where(
+        and_(
+            TraceEvent.provider != "internal",
+            TraceEvent.section.isnot(None),
+            TraceEvent.section != "default"
+        )
+    )
+    
+    statement = statement.group_by(TraceEvent.section, TraceEvent.section_path).order_by(func.sum(TraceEvent.cost_usd).desc())
+    
+    results = session.exec(statement).all()
+    
+    # Calculate total for percentages
+    total_cost = sum(r.total_cost or 0 for r in results)
+    
+    sections = [
+        {
+            "section": r.section,
+            "section_path": r.section_path,
+            "total_cost": r.total_cost or 0,
+            "call_count": r.call_count,
+            "avg_latency_ms": round(r.avg_latency_ms or 0, 2),
+            "percentage": round((r.total_cost / total_cost * 100) if total_cost > 0 else 0, 2)
+        }
+        for r in results
+    ]
+    
+    return sections
+
+
 @router.get("/by-customer")
 async def get_costs_by_customer(
     hours: int = Query(720, description="Time window in hours (default 30 days)"),
