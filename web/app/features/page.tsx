@@ -128,7 +128,7 @@ function useFeaturesData(hours: number) {
   useEffect(() => {
     if (isLoaded && user) {
       if (isCacheStale(cacheKey)) {
-        loadData(hasCachedData);
+        loadData(!!hasCachedData);
       }
     }
   }, [isLoaded, user, loadData, cacheKey, hasCachedData]);

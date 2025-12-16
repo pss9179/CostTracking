@@ -176,7 +176,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     if (isLoaded && user) {
       const stale = isCacheStale(cacheKey);
       if (stale) {
-        loadData(hasCachedData); // Background fetch if we have stale data
+        loadData(!!hasCachedData); // Background fetch if we have stale data
       }
     }
   }, [isLoaded, user, loadData, cacheKey, hasCachedData]);
