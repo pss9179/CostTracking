@@ -441,3 +441,29 @@ async def trigger_cap_check():
     except Exception as e:
         logger.error(f"Error triggering cap check: {e}")
         raise HTTPException(status_code=500, detail=f"Cap check failed: {str(e)}")
+
+
+@router.post("/test-email")
+async def test_email(email: str = Query(..., description="Email address to send test to")):
+    """
+    Send a test email to verify email configuration is working.
+    """
+    try:
+        from email_service import send_alert_email
+        success = await send_alert_email(
+            to_email=email,
+            alert_type="threshold_reached",
+            target_type="global",
+            target_name="Test Alert",
+            current_spend=85.00,
+            cap_limit=100.00,
+            percentage=85.0,
+            period="monthly",
+        )
+        if success:
+            return {"status": "success", "message": f"Test email sent to {email}"}
+        else:
+            return {"status": "error", "message": "Email send failed - check logs"}
+    except Exception as e:
+        logger.error(f"Error sending test email: {e}")
+        raise HTTPException(status_code=500, detail=f"Email test failed: {str(e)}")
