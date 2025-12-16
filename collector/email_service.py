@@ -152,24 +152,35 @@ def _build_email_content(
 
 
 async def _send_via_sendgrid(to_email: str, subject: str, body: str) -> bool:
-    """Send email via SendGrid."""
+    """Send email via SendGrid REST API."""
     if not SENDGRID_API_KEY:
         logger.error("SENDGRID_API_KEY not set")
         return False
     
     try:
-        from sendgrid import SendGridAPIClient
-        from sendgrid.helpers.mail import Mail
+        import httpx
         
-        message = Mail(
-            from_email=FROM_EMAIL,
-            to_emails=to_email,
-            subject=subject,
-            html_content=body,
-        )
+        payload = {
+            "personalizations": [
+                {"to": [{"email": to_email}]}
+            ],
+            "from": {"email": FROM_EMAIL, "name": "LLMObserve Alerts"},
+            "subject": subject,
+            "content": [
+                {"type": "text/html", "value": body}
+            ]
+        }
         
-        sg = SendGridAPIClient(SENDGRID_API_KEY)
-        response = sg.send(message)
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.sendgrid.com/v3/mail/send",
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {SENDGRID_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                timeout=30.0
+            )
         
         logger.info(f"Sent alert email via SendGrid to {to_email}, status: {response.status_code}")
         return response.status_code in [200, 201, 202]
