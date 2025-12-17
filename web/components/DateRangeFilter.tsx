@@ -30,10 +30,17 @@ export function DateRangeFilter({ value, onChange }: DateRangeFilterProps) {
 
 export function getDateRangeMs(range: DateRange): number {
   switch (range) {
+    case "1h": return 1 * 60 * 60 * 1000;
+    case "6h": return 6 * 60 * 60 * 1000;
     case "24h": return 24 * 60 * 60 * 1000;
+    case "3d": return 3 * 24 * 60 * 60 * 1000;
     case "7d": return 7 * 24 * 60 * 60 * 1000;
+    case "14d": return 14 * 24 * 60 * 60 * 1000;
     case "30d": return 30 * 24 * 60 * 60 * 1000;
     case "90d": return 90 * 24 * 60 * 60 * 1000;
+    case "180d": return 180 * 24 * 60 * 60 * 1000;
+    case "365d": return 365 * 24 * 60 * 60 * 1000;
+    default: return 7 * 24 * 60 * 60 * 1000;
   }
 }
 
