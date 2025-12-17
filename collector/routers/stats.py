@@ -154,8 +154,13 @@ async def get_costs_by_provider(
             )
         )
     
-    # Exclude "internal" provider from stats
-    statement = statement.where(TraceEvent.provider != "internal")
+    # Exclude "internal" provider and customer-specific events (dashboard shows only non-customer data)
+    statement = statement.where(
+        and_(
+            TraceEvent.provider != "internal",
+            TraceEvent.customer_id.is_(None)  # Only show non-customer data in dashboard
+        )
+    )
     
     statement = statement.group_by(TraceEvent.provider).order_by(func.sum(TraceEvent.cost_usd).desc())
     
@@ -214,9 +219,10 @@ async def get_costs_by_model(
             )
         )
     
-    # Exclude internal/unknown and require model
+    # Exclude internal/unknown, require model, and exclude customer-specific events
     statement = statement.where(
         and_(
+            TraceEvent.customer_id.is_(None),  # Only show non-customer data in dashboard
             TraceEvent.provider != "internal",
             TraceEvent.model.isnot(None)
         )
@@ -279,8 +285,13 @@ async def get_daily_costs(
             )
         )
     
-    # Exclude internal
-    statement = statement.where(TraceEvent.provider != "internal")
+    # Exclude internal and customer-specific events (dashboard shows only non-customer data)
+    statement = statement.where(
+        and_(
+            TraceEvent.provider != "internal",
+            TraceEvent.customer_id.is_(None)  # Only show non-customer data in dashboard
+        )
+    )
     
     statement = statement.group_by(
         func.date(TraceEvent.created_at),
@@ -367,8 +378,13 @@ async def get_cost_timeseries(
             )
         )
     
-    # Exclude internal
-    statement = statement.where(TraceEvent.provider != "internal")
+    # Exclude internal and customer-specific events (dashboard shows only non-customer data)
+    statement = statement.where(
+        and_(
+            TraceEvent.provider != "internal",
+            TraceEvent.customer_id.is_(None)  # Only show non-customer data in dashboard
+        )
+    )
     statement = statement.order_by(TraceEvent.created_at)
     
     results = session.exec(statement).all()
@@ -462,12 +478,13 @@ async def get_costs_by_section(
             )
         )
     
-    # Exclude internal provider and require section
+    # Exclude internal provider, require section, and exclude customer-specific events (features page shows only non-customer data)
     statement = statement.where(
         and_(
             TraceEvent.provider != "internal",
             TraceEvent.section.isnot(None),
-            TraceEvent.section != "default"
+            TraceEvent.section != "default",
+            TraceEvent.customer_id.is_(None)  # Only show non-customer data in features page
         )
     )
     
