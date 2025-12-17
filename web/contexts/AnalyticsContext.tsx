@@ -66,19 +66,33 @@ const AnalyticsContext = createContext<AnalyticsContextType | null>(null);
 
 function dateRangeToHours(range: DateRange): number {
   switch (range) {
+    case "1h": return 1;
+    case "6h": return 6;
     case "24h": return 24;
+    case "3d": return 3 * 24;
     case "7d": return 7 * 24;
+    case "14d": return 14 * 24;
     case "30d": return 30 * 24;
     case "90d": return 90 * 24;
+    case "180d": return 180 * 24;
+    case "365d": return 365 * 24;
+    default: return 7 * 24;
   }
 }
 
 function dateRangeToDays(range: DateRange): number {
   switch (range) {
+    case "1h": return 1;
+    case "6h": return 1;
     case "24h": return 1;
+    case "3d": return 3;
     case "7d": return 7;
+    case "14d": return 14;
     case "30d": return 30;
     case "90d": return 90;
+    case "180d": return 180;
+    case "365d": return 365;
+    default: return 7;
   }
 }
 
