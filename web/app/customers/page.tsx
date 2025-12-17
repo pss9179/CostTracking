@@ -30,15 +30,39 @@ import {
   TrendingUp,
   DollarSign,
   Activity,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
-import { fetchCustomerStats, type CustomerStats } from "@/lib/api";
+import { 
+  fetchCustomerStats, 
+  fetchProviderStats,
+  fetchModelStats,
+  fetchTimeseries,
+  fetchSectionStats,
+  type CustomerStats,
+  type ProviderStats,
+  type ModelStats,
+  type DailyStats,
+  type SectionStats,
+} from "@/lib/api";
+import { CostTrendChart } from "@/components/dashboard/CostTrendChart";
+import { ProviderBreakdown } from "@/components/dashboard/ProviderBreakdown";
+import { ModelBreakdown } from "@/components/dashboard/ModelBreakdown";
+import { RankedBarChart } from "@/components/analytics/CostDistributionChart";
 import { formatSmartCost, formatCompactNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { getCached, setCached, isCacheStale } from "@/lib/cache";
+import type { DateRange } from "@/contexts/AnalyticsContext";
 
 type SortKey = "customer_id" | "total_cost" | "call_count" | "avg_latency_ms";
 type SortDir = "asc" | "desc";
-type DateRange = "7d" | "30d" | "90d" | "all";
+
+interface CustomerDetailData {
+  providers: ProviderStats[];
+  models: ModelStats[];
+  timeseries: DailyStats[];
+  features: SectionStats[];
+}
 
 export default function CustomersPage() {
   const { getToken } = useAuth();
@@ -48,13 +72,23 @@ export default function CustomersPage() {
   const [dateRange, setDateRange] = useState<DateRange>("30d");
   const [sortKey, setSortKey] = useState<SortKey>("total_cost");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
+  const [customerDetails, setCustomerDetails] = useState<Record<string, CustomerDetailData>>({});
+  const [loadingDetails, setLoadingDetails] = useState<Record<string, boolean>>({});
 
   const hours = useMemo(() => {
     switch (dateRange) {
+      case "1h": return 1;
+      case "6h": return 6;
+      case "24h": return 24;
+      case "3d": return 3 * 24;
       case "7d": return 7 * 24;
+      case "2w": return 14 * 24;
       case "30d": return 30 * 24;
-      case "90d": return 90 * 24;
-      case "all": return 365 * 24;
+      case "3m": return 90 * 24;
+      case "6m": return 180 * 24;
+      case "1y": return 365 * 24;
+      default: return 30 * 24;
     }
   }, [dateRange]);
 
@@ -98,6 +132,38 @@ export default function CustomersPage() {
     }
   }, [isLoaded, user, getToken, hours, cacheKey, customers.length]);
 
+  const loadCustomerDetails = useCallback(async (customerId: string) => {
+    if (customerDetails[customerId]) return; // Already loaded
+    
+    setLoadingDetails(prev => ({ ...prev, [customerId]: true }));
+    
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Not authenticated");
+      
+      const [providers, models, timeseries, features] = await Promise.all([
+        fetchProviderStats(hours, null, customerId, token).catch(() => []),
+        fetchModelStats(hours, null, customerId, token).catch(() => []),
+        fetchTimeseries(hours, null, customerId, token).catch(() => []),
+        fetchSectionStats(hours, null, customerId, token).catch(() => []),
+      ]);
+      
+      setCustomerDetails(prev => ({
+        ...prev,
+        [customerId]: {
+          providers: providers || [],
+          models: models || [],
+          timeseries: timeseries || [],
+          features: features || [],
+        },
+      }));
+    } catch (err) {
+      console.error(`[Customers] Error loading details for ${customerId}:`, err);
+    } finally {
+      setLoadingDetails(prev => ({ ...prev, [customerId]: false }));
+    }
+  }, [getToken, hours, customerDetails]);
+
   useEffect(() => {
     if (isLoaded && user) {
       if (isCacheStale(cacheKey)) {
@@ -105,6 +171,13 @@ export default function CustomersPage() {
       }
     }
   }, [isLoaded, user, loadData, cacheKey]);
+
+  // Load details when customer is expanded
+  useEffect(() => {
+    if (expandedCustomer) {
+      loadCustomerDetails(expandedCustomer);
+    }
+  }, [expandedCustomer, loadCustomerDetails]);
 
   // Filter and sort
   const filteredCustomers = useMemo(() => {
@@ -147,6 +220,14 @@ export default function CustomersPage() {
     }
   };
 
+  const toggleExpand = (customerId: string) => {
+    if (expandedCustomer === customerId) {
+      setExpandedCustomer(null);
+    } else {
+      setExpandedCustomer(customerId);
+    }
+  };
+
   const exportCSV = () => {
     const headers = ["Customer ID", "Total Cost ($)", "API Calls", "Avg Latency (ms)"];
     const rows = filteredCustomers.map(c => [
@@ -163,6 +244,36 @@ export default function CustomersPage() {
     a.download = `customers-${dateRange}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Prepare chart data for customer
+  const getCustomerChartData = (customerId: string) => {
+    const details = customerDetails[customerId];
+    if (!details || !details.timeseries) return [];
+    
+    return details.timeseries.map((day) => {
+      const providerCosts: Record<string, number> = {};
+      if (day.providers && typeof day.providers === 'object') {
+        Object.entries(day.providers).forEach(([provider, data]) => {
+          providerCosts[provider.toLowerCase()] = data.cost;
+        });
+      }
+      
+      let dateLabel = day.date;
+      const parsed = new Date(day.date);
+      if (!isNaN(parsed.getTime())) {
+        dateLabel = parsed.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        });
+      }
+      
+      return {
+        date: dateLabel,
+        value: day.total || 0,
+        ...providerCosts,
+      };
+    });
   };
 
   if (loading) {
@@ -237,18 +348,24 @@ export default function CustomersPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-            <p className="text-gray-500 mt-1">Track costs per customer</p>
+            <p className="text-gray-500 mt-1">Track costs per customer - same dashboard metrics, broken down by customer</p>
           </div>
           <div className="flex items-center gap-3">
             <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="1h">Last 1 hour</SelectItem>
+                <SelectItem value="6h">Last 6 hours</SelectItem>
+                <SelectItem value="24h">Last 24 hours</SelectItem>
+                <SelectItem value="3d">Last 3 days</SelectItem>
                 <SelectItem value="7d">Last 7 days</SelectItem>
+                <SelectItem value="2w">Last 2 weeks</SelectItem>
                 <SelectItem value="30d">Last 30 days</SelectItem>
-                <SelectItem value="90d">Last 90 days</SelectItem>
-                <SelectItem value="all">All time</SelectItem>
+                <SelectItem value="3m">Last 3 months</SelectItem>
+                <SelectItem value="6m">Last 6 months</SelectItem>
+                <SelectItem value="1y">Last year</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" size="sm" onClick={loadData} disabled={isRefreshing}>
@@ -321,6 +438,7 @@ export default function CustomersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12"></TableHead>
                 <TableHead 
                   className="cursor-pointer hover:bg-gray-50"
                   onClick={() => handleSort("customer_id")}
@@ -353,35 +471,146 @@ export default function CustomersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredCustomers.map((customer, idx) => (
-                <TableRow key={customer.customer_id} className="hover:bg-gray-50">
-                  <TableCell className="font-medium">
-                    {customer.customer_id}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold tabular-nums">
-                    {formatSmartCost(customer.total_cost)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-gray-600">
-                    {formatCompactNumber(customer.call_count)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-gray-600">
-                    {customer.avg_latency_ms.toFixed(0)}ms
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-blue-500 rounded-full"
-                          style={{ width: `${Math.min(100, (customer.total_cost / totalCost) * 100)}%` }}
-                        />
-                      </div>
-                      <span className="text-sm text-gray-500 tabular-nums w-12">
-                        {((customer.total_cost / totalCost) * 100).toFixed(1)}%
-                      </span>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filteredCustomers.map((customer) => {
+                const isExpanded = expandedCustomer === customer.customer_id;
+                const details = customerDetails[customer.customer_id];
+                const isLoading = loadingDetails[customer.customer_id];
+                
+                return (
+                  <>
+                    <TableRow 
+                      key={customer.customer_id} 
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => toggleExpand(customer.customer_id)}
+                    >
+                      <TableCell>
+                        {isExpanded ? (
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-gray-400" />
+                        )}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {customer.customer_id}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {formatSmartCost(customer.total_cost)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-gray-600">
+                        {formatCompactNumber(customer.call_count)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-gray-600">
+                        {customer.avg_latency_ms.toFixed(0)}ms
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-blue-500 rounded-full"
+                              style={{ width: `${Math.min(100, (customer.total_cost / totalCost) * 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-sm text-gray-500 tabular-nums w-12">
+                            {((customer.total_cost / totalCost) * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    
+                    {/* Expanded Details */}
+                    {isExpanded && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="p-0 bg-gray-50">
+                          {isLoading ? (
+                            <div className="p-8 text-center">
+                              <RefreshCw className="w-6 h-6 animate-spin mx-auto text-gray-400 mb-2" />
+                              <p className="text-sm text-gray-500">Loading customer details...</p>
+                            </div>
+                          ) : details ? (
+                            <div className="p-6 space-y-6">
+                              {/* Cost Trend Chart */}
+                              <div>
+                                <h3 className="text-sm font-semibold text-gray-900 mb-3">Spend Trend</h3>
+                                {details.timeseries && details.timeseries.length > 0 ? (
+                                  <div className="bg-white rounded-lg border p-4">
+                                    <CostTrendChart 
+                                      data={getCustomerChartData(customer.customer_id)} 
+                                      height={200} 
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="bg-white rounded-lg border p-8 text-center text-gray-400">
+                                    No time series data
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {/* Provider & Model Breakdown */}
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div>
+                                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Provider Breakdown</h3>
+                                  {details.providers && details.providers.length > 0 ? (
+                                    <ProviderBreakdown
+                                      providers={details.providers}
+                                      totalCost={customer.total_cost}
+                                    />
+                                  ) : (
+                                    <div className="bg-white rounded-lg border p-4 text-center text-gray-400 text-sm">
+                                      No provider data
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <div>
+                                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Model Breakdown</h3>
+                                  {details.models && details.models.length > 0 ? (
+                                    <ModelBreakdown
+                                      models={details.models.map(m => ({
+                                        ...m,
+                                        percentage: customer.total_cost > 0 ? (m.total_cost / customer.total_cost) * 100 : 0,
+                                      }))}
+                                      totalCost={customer.total_cost}
+                                    />
+                                  ) : (
+                                    <div className="bg-white rounded-lg border p-4 text-center text-gray-400 text-sm">
+                                      No model data
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Features Breakdown */}
+                              {details.features && details.features.length > 0 && (
+                                <div>
+                                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Features Breakdown</h3>
+                                  <div className="bg-white rounded-lg border p-4">
+                                    <RankedBarChart
+                                      data={details.features
+                                        .filter(f => f.section && !f.section.startsWith("step:") && !f.section.startsWith("tool:") && !f.section.startsWith("agent:"))
+                                        .slice(0, 10)
+                                        .map(f => ({
+                                          name: f.section.replace("feature:", ""),
+                                          value: f.total_cost,
+                                          percentage: f.percentage,
+                                        }))}
+                                      total={customer.total_cost}
+                                      onClick={() => {}}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="p-8 text-center text-gray-400">
+                              No details available
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

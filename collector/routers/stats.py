@@ -123,11 +123,15 @@ async def get_infrastructure_stats(
 async def get_costs_by_provider(
     hours: int = 24,
     tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
+    customer_id: Optional[str] = Query(None, description="Filter by customer_id (for customer page)"),
     session: Session = Depends(get_session),
     current_user = Depends(get_current_clerk_user)  # Require Clerk authentication
 ) -> List[Dict[str, Any]]:
     """
     Get costs aggregated by provider for the authenticated user for the last N hours.
+    
+    If customer_id is provided, shows data for that customer only.
+    If customer_id is None, shows only non-customer data (for dashboard).
     
     Requires Clerk authentication. Returns breakdown with total cost, call count, and percentage.
     """
@@ -154,13 +158,15 @@ async def get_costs_by_provider(
             )
         )
     
-    # Exclude "internal" provider and customer-specific events (dashboard shows only non-customer data)
-    statement = statement.where(
-        and_(
-            TraceEvent.provider != "internal",
-            TraceEvent.customer_id.is_(None)  # Only show non-customer data in dashboard
-        )
-    )
+    # Filter by customer_id if provided, otherwise exclude customer data
+    if customer_id:
+        statement = statement.where(TraceEvent.customer_id == customer_id)
+    else:
+        # Dashboard: exclude customer-specific events
+        statement = statement.where(TraceEvent.customer_id.is_(None))
+    
+    # Exclude "internal" provider
+    statement = statement.where(TraceEvent.provider != "internal")
     
     statement = statement.group_by(TraceEvent.provider).order_by(func.sum(TraceEvent.cost_usd).desc())
     
@@ -186,11 +192,15 @@ async def get_costs_by_provider(
 async def get_costs_by_model(
     hours: int = 24,
     tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
+    customer_id: Optional[str] = Query(None, description="Filter by customer_id (for customer page)"),
     session: Session = Depends(get_session),
     current_user = Depends(get_current_clerk_user)  # Require Clerk authentication
 ) -> List[Dict[str, Any]]:
     """
     Get costs aggregated by model for the authenticated user for the last N hours.
+    
+    If customer_id is provided, shows data for that customer only.
+    If customer_id is None, shows only non-customer data (for dashboard).
     
     Requires Clerk authentication. Returns breakdown with total cost, call count, and percentage per model.
     """
@@ -219,10 +229,16 @@ async def get_costs_by_model(
             )
         )
     
-    # Exclude internal/unknown, require model, and exclude customer-specific events
+    # Filter by customer_id if provided, otherwise exclude customer data
+    if customer_id:
+        statement = statement.where(TraceEvent.customer_id == customer_id)
+    else:
+        # Dashboard: exclude customer-specific events
+        statement = statement.where(TraceEvent.customer_id.is_(None))
+    
+    # Exclude internal/unknown and require model
     statement = statement.where(
         and_(
-            TraceEvent.customer_id.is_(None),  # Only show non-customer data in dashboard
             TraceEvent.provider != "internal",
             TraceEvent.model.isnot(None)
         )
@@ -329,6 +345,7 @@ async def get_daily_costs(
 async def get_cost_timeseries(
     hours: int = Query(24, description="Time window in hours"),
     tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
+    customer_id: Optional[str] = Query(None, description="Filter by customer_id (for customer page)"),
     session: Session = Depends(get_session),
     current_user = Depends(get_current_clerk_user)
 ) -> List[Dict[str, Any]]:
@@ -338,6 +355,9 @@ async def get_cost_timeseries(
     - 6-48 hours: hourly buckets  
     - 2-14 days: 4-hour buckets
     - 14+ days: daily buckets
+    
+    If customer_id is provided, shows data for that customer only.
+    If customer_id is None, shows only non-customer data (for dashboard).
     """
     user_id = current_user.id
     cutoff = datetime.utcnow() - timedelta(hours=hours)
@@ -378,13 +398,15 @@ async def get_cost_timeseries(
             )
         )
     
-    # Exclude internal and customer-specific events (dashboard shows only non-customer data)
-    statement = statement.where(
-        and_(
-            TraceEvent.provider != "internal",
-            TraceEvent.customer_id.is_(None)  # Only show non-customer data in dashboard
-        )
-    )
+    # Filter by customer_id if provided, otherwise exclude customer data
+    if customer_id:
+        statement = statement.where(TraceEvent.customer_id == customer_id)
+    else:
+        # Dashboard: exclude customer-specific events
+        statement = statement.where(TraceEvent.customer_id.is_(None))
+    
+    # Exclude internal provider
+    statement = statement.where(TraceEvent.provider != "internal")
     statement = statement.order_by(TraceEvent.created_at)
     
     results = session.exec(statement).all()
@@ -446,6 +468,7 @@ async def get_cost_timeseries(
 async def get_costs_by_section(
     hours: int = Query(24, description="Time window in hours"),
     tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
+    customer_id: Optional[str] = Query(None, description="Filter by customer_id (for customer page)"),
     session: Session = Depends(get_session),
     current_user = Depends(get_current_clerk_user)
 ) -> List[Dict[str, Any]]:
@@ -454,6 +477,9 @@ async def get_costs_by_section(
     
     This returns costs broken down by section_path (e.g., "feature:email_processing", 
     "agent:researcher", "step:analyze"). Use this to see which features cost the most.
+    
+    If customer_id is provided, shows data for that customer only.
+    If customer_id is None, shows only non-customer data (for features page).
     """
     user_id = current_user.id
     cutoff = datetime.utcnow() - timedelta(hours=hours)
@@ -478,13 +504,19 @@ async def get_costs_by_section(
             )
         )
     
-    # Exclude internal provider, require section, and exclude customer-specific events (features page shows only non-customer data)
+    # Filter by customer_id if provided, otherwise exclude customer data
+    if customer_id:
+        statement = statement.where(TraceEvent.customer_id == customer_id)
+    else:
+        # Features page: exclude customer-specific events
+        statement = statement.where(TraceEvent.customer_id.is_(None))
+    
+    # Exclude internal provider and require section
     statement = statement.where(
         and_(
             TraceEvent.provider != "internal",
             TraceEvent.section.isnot(None),
-            TraceEvent.section != "default",
-            TraceEvent.customer_id.is_(None)  # Only show non-customer data in features page
+            TraceEvent.section != "default"
         )
     )
     

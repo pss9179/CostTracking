@@ -274,11 +274,14 @@ export async function fetchRunDetail(runId: string, tenantId?: string | null, to
   return response.json();
 }
 
-export async function fetchProviderStats(hours: number = 24, tenantId?: string | null, token?: string): Promise<ProviderStats[]> {
+export async function fetchProviderStats(hours: number = 24, tenantId?: string | null, customerId?: string | null, token?: string): Promise<ProviderStats[]> {
   const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/stats/by-provider?hours=${hours}`;
   if (tenantId) {
     url += `&tenant_id=${encodeURIComponent(tenantId)}`;
+  }
+  if (customerId) {
+    url += `&customer_id=${encodeURIComponent(customerId)}`;
   }
   const response = await fetch(url, {
     headers,
@@ -303,11 +306,14 @@ export interface ModelStats {
   percentage: number;
 }
 
-export async function fetchModelStats(hours: number = 24, tenantId?: string | null, token?: string): Promise<ModelStats[]> {
+export async function fetchModelStats(hours: number = 24, tenantId?: string | null, customerId?: string | null, token?: string): Promise<ModelStats[]> {
   const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/stats/by-model?hours=${hours}`;
   if (tenantId) {
     url += `&tenant_id=${encodeURIComponent(tenantId)}`;
+  }
+  if (customerId) {
+    url += `&customer_id=${encodeURIComponent(customerId)}`;
   }
   const response = await fetch(url, {
     headers,
@@ -345,11 +351,14 @@ export async function fetchDailyStats(days: number = 7, tenantId?: string | null
   return response.json();
 }
 
-export async function fetchTimeseries(hours: number = 24, tenantId?: string | null, token?: string): Promise<DailyStats[]> {
+export async function fetchTimeseries(hours: number = 24, tenantId?: string | null, customerId?: string | null, token?: string): Promise<DailyStats[]> {
   const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/stats/timeseries?hours=${hours}`;
   if (tenantId) {
     url += `&tenant_id=${encodeURIComponent(tenantId)}`;
+  }
+  if (customerId) {
+    url += `&customer_id=${encodeURIComponent(customerId)}`;
   }
   const response = await fetch(url, {
     headers,
@@ -373,11 +382,14 @@ export interface SectionStats {
   percentage: number;
 }
 
-export async function fetchSectionStats(hours: number = 24, tenantId?: string | null, token?: string): Promise<SectionStats[]> {
+export async function fetchSectionStats(hours: number = 24, tenantId?: string | null, customerId?: string | null, token?: string): Promise<SectionStats[]> {
   const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/stats/by-section?hours=${hours}`;
   if (tenantId) {
     url += `&tenant_id=${encodeURIComponent(tenantId)}`;
+  }
+  if (customerId) {
+    url += `&customer_id=${encodeURIComponent(customerId)}`;
   }
   const response = await fetch(url, {
     headers,
