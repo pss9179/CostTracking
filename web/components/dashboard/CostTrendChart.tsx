@@ -464,8 +464,8 @@ export function CostTrendChart({
                   dataKey={provider}
                   stroke={getProviderColor(provider)}
                   strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4, strokeWidth: 2, fill: "white" }}
+                  dot={{ r: 3, fill: getProviderColor(provider), strokeWidth: 0 }}
+                  activeDot={{ r: 5, strokeWidth: 2, fill: "white" }}
                   connectNulls
                 />
               ))
