@@ -373,26 +373,32 @@ async def get_cost_timeseries(
     
     results = session.exec(statement).all()
     
+    # Helper to get bucket key/label based on time and bucket size
+    def get_bucket_info(dt: datetime, bucket_mins: int):
+        if bucket_mins >= 1440:
+            # Daily buckets
+            bucket_key = dt.strftime("%Y-%m-%d")
+            bucket_label = dt.strftime("%b %d")
+        elif bucket_mins >= 60:
+            # Multi-hour buckets: round hour down to bucket boundary
+            hours_per_bucket = bucket_mins // 60
+            rounded_hour = (dt.hour // hours_per_bucket) * hours_per_bucket
+            bucket_key = dt.strftime(f"%Y-%m-%d {rounded_hour:02d}:00")
+            bucket_label = dt.strftime(f"%b %d {rounded_hour:02d}:00")
+        else:
+            # Sub-hourly buckets
+            minute_bucket = (dt.minute // bucket_mins) * bucket_mins
+            bucket_key = dt.strftime(f"%Y-%m-%d %H:{minute_bucket:02d}")
+            bucket_label = dt.strftime(f"%H:{minute_bucket:02d}")
+        return bucket_key, bucket_label
+    
     # Create time buckets
     now = datetime.utcnow()
     buckets = {}
     
     for i in range(bucket_count + 1):
         bucket_time = now - timedelta(minutes=bucket_minutes * (bucket_count - i))
-        # Round to bucket boundary
-        if bucket_minutes >= 1440:
-            # Daily: use date
-            bucket_key = bucket_time.strftime("%Y-%m-%d")
-            bucket_label = bucket_time.strftime("%b %d")
-        elif bucket_minutes >= 60:
-            # Hourly: use hour
-            bucket_key = bucket_time.strftime("%Y-%m-%d %H:00")
-            bucket_label = bucket_time.strftime("%b %d %H:%M")
-        else:
-            # Sub-hourly: use minute bucket
-            minute_bucket = (bucket_time.minute // bucket_minutes) * bucket_minutes
-            bucket_key = bucket_time.strftime(f"%Y-%m-%d %H:{minute_bucket:02d}")
-            bucket_label = bucket_time.strftime(f"%H:{minute_bucket:02d}")
+        bucket_key, bucket_label = get_bucket_info(bucket_time, bucket_minutes)
         
         if bucket_key not in buckets:
             buckets[bucket_key] = {
@@ -405,14 +411,7 @@ async def get_cost_timeseries(
     # Aggregate events into buckets
     for event in results:
         event_time = event.created_at
-        
-        if bucket_minutes >= 1440:
-            bucket_key = event_time.strftime("%Y-%m-%d")
-        elif bucket_minutes >= 60:
-            bucket_key = event_time.strftime("%Y-%m-%d %H:00")
-        else:
-            minute_bucket = (event_time.minute // bucket_minutes) * bucket_minutes
-            bucket_key = event_time.strftime(f"%Y-%m-%d %H:{minute_bucket:02d}")
+        bucket_key, _ = get_bucket_info(event_time, bucket_minutes)
         
         if bucket_key in buckets:
             buckets[bucket_key]["total"] += event.cost_usd or 0
