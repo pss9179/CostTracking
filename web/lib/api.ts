@@ -345,6 +345,24 @@ export async function fetchDailyStats(days: number = 7, tenantId?: string | null
   return response.json();
 }
 
+export async function fetchTimeseries(hours: number = 24, tenantId?: string | null, token?: string): Promise<DailyStats[]> {
+  const headers = await getDashboardAuthHeaders(token);
+  let url = `${COLLECTOR_URL}/stats/timeseries?hours=${hours}`;
+  if (tenantId) {
+    url += `&tenant_id=${encodeURIComponent(tenantId)}`;
+  }
+  const response = await fetch(url, {
+    headers,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => response.statusText);
+    throw new Error(`Failed to fetch timeseries (${response.status}): ${errorText}`);
+  }
+
+  return response.json();
+}
+
 // Section/Feature Stats
 export interface SectionStats {
   section: string;

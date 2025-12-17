@@ -10,7 +10,7 @@ import {
   fetchRuns,
   fetchProviderStats,
   fetchModelStats,
-  fetchDailyStats,
+  fetchTimeseries,
   type Run,
   type ProviderStats,
   type ModelStats,
@@ -125,7 +125,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
         fetchRuns(50, null, token).catch(() => []),
         fetchProviderStats(hours, null, token).catch(() => []),
         fetchModelStats(hours, null, token).catch(() => []),
-        fetchDailyStats(days, null, token).catch(() => []),
+        fetchTimeseries(hours, null, token).catch(() => []),
       ]);
       
       let prevProvidersData: ProviderStats[] = [];
@@ -137,7 +137,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
         const [prevProviders, prevModels, prevDaily] = await Promise.all([
           fetchProviderStats(prevHours, null, token).catch(() => []),
           fetchModelStats(prevHours, null, token).catch(() => []),
-          fetchDailyStats(days * 2, null, token).catch(() => []),
+          fetchTimeseries(prevHours, null, token).catch(() => []),
         ]);
         
         const halfwayPoint = Math.floor((prevDaily || []).length / 2);

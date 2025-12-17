@@ -314,6 +314,119 @@ async def get_daily_costs(
     return result_list
 
 
+@router.get("/timeseries")
+async def get_cost_timeseries(
+    hours: int = Query(24, description="Time window in hours"),
+    tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
+    session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user)
+) -> List[Dict[str, Any]]:
+    """
+    Get cost timeseries with appropriate granularity based on time window.
+    - 1-6 hours: 15-minute buckets
+    - 6-48 hours: hourly buckets  
+    - 2-14 days: 4-hour buckets
+    - 14+ days: daily buckets
+    """
+    user_id = current_user.id
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    
+    # Determine bucket size based on time range
+    if hours <= 6:
+        # 15-minute buckets for very short ranges
+        bucket_minutes = 15
+        bucket_count = (hours * 60) // bucket_minutes
+    elif hours <= 48:
+        # Hourly buckets for 1-2 days
+        bucket_minutes = 60
+        bucket_count = hours
+    elif hours <= 14 * 24:
+        # 4-hour buckets for up to 2 weeks
+        bucket_minutes = 240
+        bucket_count = (hours * 60) // bucket_minutes
+    else:
+        # Daily buckets for longer ranges
+        bucket_minutes = 1440
+        bucket_count = (hours * 60) // bucket_minutes
+    
+    # Query raw events within time window
+    statement = select(
+        TraceEvent.created_at,
+        TraceEvent.provider,
+        TraceEvent.cost_usd
+    ).where(TraceEvent.created_at >= cutoff)
+    
+    # Filter by user
+    if tenant_id:
+        statement = statement.where(TraceEvent.tenant_id == tenant_id)
+    elif user_id:
+        statement = statement.where(
+            and_(
+                TraceEvent.user_id == user_id,
+                TraceEvent.user_id.isnot(None)
+            )
+        )
+    
+    # Exclude internal
+    statement = statement.where(TraceEvent.provider != "internal")
+    statement = statement.order_by(TraceEvent.created_at)
+    
+    results = session.exec(statement).all()
+    
+    # Create time buckets
+    now = datetime.utcnow()
+    buckets = {}
+    
+    for i in range(bucket_count + 1):
+        bucket_time = now - timedelta(minutes=bucket_minutes * (bucket_count - i))
+        # Round to bucket boundary
+        if bucket_minutes >= 1440:
+            # Daily: use date
+            bucket_key = bucket_time.strftime("%Y-%m-%d")
+            bucket_label = bucket_time.strftime("%b %d")
+        elif bucket_minutes >= 60:
+            # Hourly: use hour
+            bucket_key = bucket_time.strftime("%Y-%m-%d %H:00")
+            bucket_label = bucket_time.strftime("%b %d %H:%M")
+        else:
+            # Sub-hourly: use minute bucket
+            minute_bucket = (bucket_time.minute // bucket_minutes) * bucket_minutes
+            bucket_key = bucket_time.strftime(f"%Y-%m-%d %H:{minute_bucket:02d}")
+            bucket_label = bucket_time.strftime(f"%H:{minute_bucket:02d}")
+        
+        if bucket_key not in buckets:
+            buckets[bucket_key] = {
+                "date": bucket_label,
+                "timestamp": bucket_key,
+                "total": 0,
+                "providers": {}
+            }
+    
+    # Aggregate events into buckets
+    for event in results:
+        event_time = event.created_at
+        
+        if bucket_minutes >= 1440:
+            bucket_key = event_time.strftime("%Y-%m-%d")
+        elif bucket_minutes >= 60:
+            bucket_key = event_time.strftime("%Y-%m-%d %H:00")
+        else:
+            minute_bucket = (event_time.minute // bucket_minutes) * bucket_minutes
+            bucket_key = event_time.strftime(f"%Y-%m-%d %H:{minute_bucket:02d}")
+        
+        if bucket_key in buckets:
+            buckets[bucket_key]["total"] += event.cost_usd or 0
+            provider = event.provider or "unknown"
+            if provider not in buckets[bucket_key]["providers"]:
+                buckets[bucket_key]["providers"][provider] = {"cost": 0, "calls": 0}
+            buckets[bucket_key]["providers"][provider]["cost"] += event.cost_usd or 0
+            buckets[bucket_key]["providers"][provider]["calls"] += 1
+    
+    # Return sorted by timestamp
+    result_list = sorted(buckets.values(), key=lambda x: x["timestamp"])
+    return result_list
+
+
 @router.get("/by-section")
 async def get_costs_by_section(
     hours: int = Query(24, description="Time window in hours"),
