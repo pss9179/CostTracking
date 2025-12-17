@@ -68,20 +68,14 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   
   const cacheKey = `dashboard-${dateRange}-${compareEnabled}`;
   
-  // Get cached data on initial render
-  const [initialCache] = useState(() => getCached<DashboardCacheData>(cacheKey));
-  const hasCachedData = initialCache && initialCache.providerStats.length > 0;
-  
-  // Initialize from cache if available
-  const [runs, setRuns] = useState<Run[]>(initialCache?.runs || []);
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>(initialCache?.providerStats || []);
-  const [modelStats, setModelStats] = useState<ModelStats[]>(initialCache?.modelStats || []);
-  const [dailyStats, setDailyStats] = useState<DailyStats[]>(initialCache?.dailyStats || []);
-  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>(initialCache?.prevProviderStats || []);
-  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>(initialCache?.prevDailyStats || []);
-  
-  // Only show full loading if NO cached data
-  const [loading, setLoading] = useState(!hasCachedData);
+  // State for data
+  const [runs, setRuns] = useState<Run[]>([]);
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
+  const [modelStats, setModelStats] = useState<ModelStats[]>([]);
+  const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
+  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>([]);
+  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
@@ -89,10 +83,17 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   // Convert date range to hours/days
   const hours = useMemo(() => {
     switch (dateRange) {
+      case "1h": return 1;
+      case "6h": return 6;
       case "24h": return 24;
+      case "3d": return 3 * 24;
       case "7d": return 7 * 24;
+      case "14d": return 14 * 24;
       case "30d": return 30 * 24;
       case "90d": return 90 * 24;
+      case "180d": return 180 * 24;
+      case "365d": return 365 * 24;
+      default: return 7 * 24;
     }
   }, [dateRange]);
   
@@ -101,7 +102,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   const loadData = useCallback(async (isBackground = false) => {
     if (!isLoaded || !user) return;
     
-    // Check if cache is still fresh
+    // Check if cache is still fresh for background refreshes
     if (isBackground && !isCacheStale(cacheKey)) {
       return; // Skip refresh, cache is still fresh
     }
@@ -171,15 +172,31 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     }
   }, [isLoaded, user, getToken, hours, days, compareEnabled, cacheKey, providerStats.length]);
   
-  // Initial load - only if cache is stale or empty
+  // Load data when dateRange or compareEnabled changes
   useEffect(() => {
     if (isLoaded && user) {
-      const stale = isCacheStale(cacheKey);
-      if (stale) {
-        loadData(!!hasCachedData); // Background fetch if we have stale data
+      // Check cache first
+      const cachedData = getCached<DashboardCacheData>(cacheKey);
+      if (cachedData && cachedData.providerStats.length > 0) {
+        // Use cached data immediately
+        setRuns(cachedData.runs || []);
+        setProviderStats(cachedData.providerStats || []);
+        setModelStats(cachedData.modelStats || []);
+        setDailyStats(cachedData.dailyStats || []);
+        setPrevProviderStats(cachedData.prevProviderStats || []);
+        setPrevDailyStats(cachedData.prevDailyStats || []);
+        setLoading(false);
+        
+        // Refresh in background if stale
+        if (isCacheStale(cacheKey)) {
+          loadData(true);
+        }
+      } else {
+        // No cache, fetch fresh data
+        loadData(false);
       }
     }
-  }, [isLoaded, user, loadData, cacheKey, hasCachedData]);
+  }, [isLoaded, user, cacheKey]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Auto-refresh every 30s (background only)
   useEffect(() => {

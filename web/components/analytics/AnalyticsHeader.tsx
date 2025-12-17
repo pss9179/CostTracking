@@ -69,10 +69,16 @@ interface AnalyticsHeaderProps {
 // ============================================================================
 
 const DATE_RANGE_OPTIONS: { value: DateRange; label: string; shortLabel: string }[] = [
+  { value: "1h", label: "Last 1 hour", shortLabel: "1h" },
+  { value: "6h", label: "Last 6 hours", shortLabel: "6h" },
   { value: "24h", label: "Last 24 hours", shortLabel: "24h" },
+  { value: "3d", label: "Last 3 days", shortLabel: "3d" },
   { value: "7d", label: "Last 7 days", shortLabel: "7d" },
+  { value: "14d", label: "Last 2 weeks", shortLabel: "14d" },
   { value: "30d", label: "Last 30 days", shortLabel: "30d" },
-  { value: "90d", label: "Last 90 days", shortLabel: "90d" },
+  { value: "90d", label: "Last 3 months", shortLabel: "90d" },
+  { value: "180d", label: "Last 6 months", shortLabel: "180d" },
+  { value: "365d", label: "Last 1 year", shortLabel: "1y" },
 ];
 
 // ============================================================================

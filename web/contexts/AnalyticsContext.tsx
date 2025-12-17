@@ -7,7 +7,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 // TYPES
 // ============================================================================
 
-export type DateRange = "24h" | "7d" | "30d" | "90d";
+export type DateRange = "1h" | "6h" | "24h" | "3d" | "7d" | "14d" | "30d" | "90d" | "180d" | "365d";
 
 export interface AnalyticsFilters {
   dateRange: DateRange;
