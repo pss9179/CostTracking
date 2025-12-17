@@ -352,11 +352,22 @@ function DashboardPageContent() {
           providerCosts[provider.toLowerCase()] = data.cost;
         });
       }
-      return {
-        date: new Date(day.date).toLocaleDateString("en-US", {
+      
+      // Use the date label directly from the API (already formatted)
+      // The timeseries endpoint returns pre-formatted labels like "Dec 17 19:00" for hourly
+      // or "Dec 17" for daily. Try to parse, fallback to using as-is.
+      let dateLabel = day.date;
+      const parsed = new Date(day.date);
+      if (!isNaN(parsed.getTime())) {
+        // Valid date string, format it nicely
+        dateLabel = parsed.toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
-        }),
+        });
+      }
+      
+      return {
+        date: dateLabel,
         value: day.total || 0,
         ...providerCosts,
       };
