@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, Suspense } from "react";
 import { useAuth, useUser } from "@clerk/nextjs";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -22,16 +24,28 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   AlertCircle,
   RefreshCw,
   Users,
   Search,
   Download,
   TrendingUp,
+  TrendingDown,
   DollarSign,
   Activity,
-  ChevronDown,
   ChevronRight,
+  X,
+  Filter,
+  Sparkles,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 import { 
   fetchCustomerStats, 
@@ -46,38 +60,649 @@ import {
   type SectionStats,
 } from "@/lib/api";
 import { CostTrendChart } from "@/components/dashboard/CostTrendChart";
-import { ProviderBreakdown } from "@/components/dashboard/ProviderBreakdown";
-import { ModelBreakdown } from "@/components/dashboard/ModelBreakdown";
-import { RankedBarChart } from "@/components/analytics/CostDistributionChart";
 import { formatSmartCost, formatCompactNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { getCached, setCached, isCacheStale } from "@/lib/cache";
+import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import type { DateRange } from "@/contexts/AnalyticsContext";
 
-type SortKey = "customer_id" | "total_cost" | "call_count" | "avg_latency_ms";
-type SortDir = "asc" | "desc";
+type SortKey = "customer_id" | "total_cost" | "call_count" | "cost_per_call";
 
-interface CustomerDetailData {
-  providers: ProviderStats[];
-  models: ModelStats[];
-  timeseries: DailyStats[];
-  features: SectionStats[];
+interface CustomerWithDelta extends CustomerStats {
+  prevCost?: number;
+  costDelta?: number;
+  costDeltaPercent?: number;
+  primaryProvider?: string;
+  primaryModel?: string;
+  trend?: "up" | "down" | "stable";
+  cost_per_call: number; // Calculated field
+}
+type SortDir = "asc" | "desc";
+type QuickFilter = "all" | "spiking" | "top_spenders" | "high_cost_per_call" | "long_tail";
+
+interface CustomerWithDelta extends CustomerStats {
+  prevCost?: number;
+  costDelta?: number;
+  costDeltaPercent?: number;
+  primaryProvider?: string;
+  primaryModel?: string;
+  trend?: "up" | "down" | "stable";
 }
 
-export default function CustomersPage() {
+// ============================================================================
+// CUSTOMER HEALTH STRIP
+// ============================================================================
+
+function CustomerHealthStrip({
+  customers,
+  prevCustomers,
+  totalCost,
+  prevTotalCost,
+}: {
+  customers: CustomerWithDelta[];
+  prevCustomers: CustomerStats[];
+  totalCost: number;
+  prevTotalCost: number;
+}) {
+  const costDelta = totalCost - prevTotalCost;
+  const costDeltaPercent = prevTotalCost > 0 ? (costDelta / prevTotalCost) * 100 : 0;
+  
+  // Calculate concentration
+  const top5Cost = customers.slice(0, 5).reduce((sum, c) => sum + c.total_cost, 0);
+  const top10Cost = customers.slice(0, 10).reduce((sum, c) => sum + c.total_cost, 0);
+  const top5Percent = totalCost > 0 ? (top5Cost / totalCost) * 100 : 0;
+  const top10Percent = totalCost > 0 ? (top10Cost / totalCost) * 100 : 0;
+  
+  // Detect spikes (50%+ increase)
+  const spikingCustomers = customers.filter(c => {
+    const prev = prevCustomers.find(p => p.customer_id === c.customer_id);
+    if (!prev || prev.total_cost === 0) return false;
+    const increase = ((c.total_cost - prev.total_cost) / prev.total_cost) * 100;
+    return increase >= 50;
+  }).length;
+  
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      {/* Total Spend */}
+      <div className="bg-white rounded-lg border p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-gray-500">Total Customer Spend</span>
+          <DollarSign className="w-4 h-4 text-gray-400" />
+        </div>
+        <div className="text-2xl font-bold text-gray-900">{formatSmartCost(totalCost)}</div>
+        {prevTotalCost > 0 && (
+          <div className={cn(
+            "text-xs mt-1 flex items-center gap-1",
+            costDelta >= 0 ? "text-red-600" : "text-green-600"
+          )}>
+            {costDelta >= 0 ? (
+              <TrendingUp className="w-3 h-3" />
+            ) : (
+              <TrendingDown className="w-3 h-3" />
+            )}
+            {Math.abs(costDeltaPercent).toFixed(1)}% vs prev period
+          </div>
+        )}
+      </div>
+      
+      {/* Spend Delta */}
+      <div className="bg-white rounded-lg border p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-gray-500">Spend Δ</span>
+          <Activity className="w-4 h-4 text-gray-400" />
+        </div>
+        <div className={cn(
+          "text-2xl font-bold",
+          costDelta >= 0 ? "text-red-600" : "text-green-600"
+        )}>
+          {costDelta >= 0 ? "+" : ""}{formatSmartCost(costDelta)}
+        </div>
+        <div className="text-xs text-gray-500 mt-1">vs previous period</div>
+      </div>
+      
+      {/* Spiking Customers */}
+      <div className="bg-white rounded-lg border p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-gray-500">Spiking Customers</span>
+          <AlertCircle className="w-4 h-4 text-amber-500" />
+        </div>
+        <div className="text-2xl font-bold text-gray-900">{spikingCustomers}</div>
+        <div className="text-xs text-gray-500 mt-1">50%+ increase</div>
+      </div>
+      
+      {/* Concentration */}
+      <div className="bg-white rounded-lg border p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-gray-500">Spend Concentration</span>
+          <Users className="w-4 h-4 text-gray-400" />
+        </div>
+        <div className="text-2xl font-bold text-gray-900">Top 5: {top5Percent.toFixed(0)}%</div>
+        <div className="mt-2 space-y-1">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-blue-500 rounded-full"
+                style={{ width: `${top5Percent}%` }}
+              />
+            </div>
+            <span className="text-xs text-gray-500">Top 5</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-blue-400 rounded-full"
+                style={{ width: `${top10Percent}%` }}
+              />
+            </div>
+            <span className="text-xs text-gray-500">Top 10</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// CUSTOMER LEADERBOARD TABLE
+// ============================================================================
+
+function CustomerLeaderboard({
+  customers,
+  totalCost,
+  onRowClick,
+  sortKey,
+  sortDir,
+  onSort,
+  search,
+  onSearch,
+  quickFilter,
+  onQuickFilter,
+  minSpendThreshold,
+  onMinSpendChange,
+}: {
+  customers: CustomerWithDelta[];
+  totalCost: number;
+  onRowClick: (customer: CustomerWithDelta) => void;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (key: SortKey) => void;
+  search: string;
+  onSearch: (value: string) => void;
+  quickFilter: QuickFilter;
+  onQuickFilter: (filter: QuickFilter) => void;
+  minSpendThreshold: number;
+  onMinSpendChange: (value: number) => void;
+}) {
+  const filteredCustomers = useMemo(() => {
+    let filtered = customers;
+    
+    // Search
+    if (search) {
+      const term = search.toLowerCase();
+      filtered = filtered.filter(c => 
+        c.customer_id.toLowerCase().includes(term)
+      );
+    }
+    
+    // Quick filters
+    if (quickFilter === "spiking") {
+      filtered = filtered.filter(c => c.trend === "up");
+    } else if (quickFilter === "top_spenders") {
+      filtered = filtered.slice(0, 10);
+    } else if (quickFilter === "high_cost_per_call") {
+      const avgCostPerCall = filtered.reduce((sum, c) => {
+        const cpc = c.call_count > 0 ? c.total_cost / c.call_count : 0;
+        return sum + cpc;
+      }, 0) / filtered.length;
+      filtered = filtered.filter(c => {
+        const cpc = c.call_count > 0 ? c.total_cost / c.call_count : 0;
+        return cpc > avgCostPerCall * 2;
+      });
+    } else if (quickFilter === "long_tail") {
+      const top10Cost = filtered.slice(0, 10).reduce((sum, c) => sum + c.total_cost, 0);
+      filtered = filtered.slice(10);
+    }
+    
+    // Min spend threshold
+    filtered = filtered.filter(c => c.total_cost >= minSpendThreshold);
+    
+    // Sort
+    return [...filtered].sort((a, b) => {
+      const aVal = a[sortKey];
+      const bVal = b[sortKey];
+      let cmp = 0;
+      
+      if (sortKey === "customer_id") {
+        cmp = (aVal as string).localeCompare(bVal as string);
+      } else {
+        cmp = (aVal as number) - (bVal as number);
+      }
+      
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [customers, search, quickFilter, minSpendThreshold, sortKey, sortDir]);
+
+  const formatCustomerName = (customerId: string) => {
+    // Convert customer_startup_io -> Startup IO
+    return customerId
+      .replace(/^customer_/, "")
+      .replace(/_/g, " ")
+      .split(" ")
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
+  return (
+    <div className="bg-white rounded-lg border">
+      {/* Toolbar */}
+      <div className="p-4 border-b space-y-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Search customers..."
+              value={search}
+              onChange={(e) => onSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Select value={quickFilter} onValueChange={(v) => onQuickFilter(v as QuickFilter)}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Customers</SelectItem>
+                <SelectItem value="spiking">Spiking</SelectItem>
+                <SelectItem value="top_spenders">Top 10</SelectItem>
+                <SelectItem value="high_cost_per_call">High Cost/Call</SelectItem>
+                <SelectItem value="long_tail">Long Tail</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Filter className="w-4 h-4" />
+              <span>Min:</span>
+              <Input
+                type="number"
+                value={minSpendThreshold}
+                onChange={(e) => onMinSpendChange(parseFloat(e.target.value) || 0)}
+                className="w-24 h-8"
+                step="0.01"
+                min="0"
+              />
+            </div>
+            
+            <Button variant="outline" size="sm" onClick={() => {
+              const csv = [
+                ["Customer ID", "Total Cost ($)", "Δ vs Prev ($)", "Δ vs Prev (%)", "Calls", "Cost/Call", "Primary Provider", "Primary Model"],
+                ...filteredCustomers.map(c => [
+                  c.customer_id,
+                  c.total_cost.toFixed(6),
+                  c.costDelta?.toFixed(6) || "0",
+                  c.costDeltaPercent?.toFixed(1) || "0",
+                  c.call_count,
+                  (c.call_count > 0 ? c.total_cost / c.call_count : 0).toFixed(6),
+                  c.primaryProvider || "",
+                  c.primaryModel || "",
+                ]),
+              ].map(r => r.join(",")).join("\n");
+              
+              const blob = new Blob([csv], { type: "text/csv" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `customers-export.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}>
+              <Download className="w-4 h-4 mr-1" /> Export
+            </Button>
+          </div>
+        </div>
+        
+        <div className="text-sm text-gray-500">
+          Showing {filteredCustomers.length} of {customers.length} customers
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead 
+                className="cursor-pointer hover:bg-gray-50"
+                onClick={() => onSort("customer_id")}
+              >
+                Customer
+                {sortKey === "customer_id" && (sortDir === "asc" ? " ↑" : " ↓")}
+              </TableHead>
+              <TableHead 
+                className="text-right cursor-pointer hover:bg-gray-50"
+                onClick={() => onSort("total_cost")}
+              >
+                Total Cost
+                {sortKey === "total_cost" && (sortDir === "asc" ? " ↑" : " ↓")}
+              </TableHead>
+              <TableHead className="text-right">Δ vs Prev</TableHead>
+              <TableHead className="text-right">% of Org</TableHead>
+              <TableHead 
+                className="text-right cursor-pointer hover:bg-gray-50"
+                onClick={() => onSort("call_count")}
+              >
+                Calls
+                {sortKey === "call_count" && (sortDir === "asc" ? " ↑" : " ↓")}
+              </TableHead>
+              <TableHead 
+                className="text-right cursor-pointer hover:bg-gray-50"
+                onClick={() => onSort("cost_per_call")}
+              >
+                Cost/Call
+                {sortKey === "cost_per_call" && (sortDir === "asc" ? " ↑" : " ↓")}
+              </TableHead>
+              <TableHead>Primary Provider</TableHead>
+              <TableHead>Primary Model</TableHead>
+              <TableHead>Trend</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredCustomers.map((customer) => {
+              const costPerCall = customer.call_count > 0 ? customer.total_cost / customer.call_count : 0;
+              const percentage = totalCost > 0 ? (customer.total_cost / totalCost) * 100 : 0;
+              
+              return (
+                <TableRow 
+                  key={customer.customer_id}
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={() => onRowClick(customer)}
+                >
+                  <TableCell className="font-medium">
+                    <div>
+                      <div className="font-semibold">{formatCustomerName(customer.customer_id)}</div>
+                      <div className="text-xs text-gray-400 font-mono">{customer.customer_id}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {formatSmartCost(customer.total_cost)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {customer.costDelta !== undefined ? (
+                      <div className={cn(
+                        "flex items-center justify-end gap-1",
+                        customer.costDelta >= 0 ? "text-red-600" : "text-green-600"
+                      )}>
+                        {customer.costDelta >= 0 ? (
+                          <TrendingUp className="w-3 h-3" />
+                        ) : (
+                          <TrendingDown className="w-3 h-3" />
+                        )}
+                        <span>{formatSmartCost(Math.abs(customer.costDelta))}</span>
+                        {customer.costDeltaPercent !== undefined && (
+                          <span className="text-xs">({customer.costDeltaPercent >= 0 ? "+" : ""}{customer.costDeltaPercent.toFixed(1)}%)</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-blue-500 rounded-full"
+                          style={{ width: `${Math.min(100, percentage)}%` }}
+                        />
+                      </div>
+                      <span className="text-sm text-gray-500 tabular-nums w-12">
+                        {percentage.toFixed(1)}%
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-gray-600">
+                    {formatCompactNumber(customer.call_count)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-gray-600">
+                    {formatSmartCost(costPerCall)}
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-gray-400 text-xs">Click to view</span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-gray-400 text-xs">Click to view</span>
+                  </TableCell>
+                  <TableCell>
+                    {customer.trend === "up" ? (
+                      <Badge variant="destructive" className="text-xs">Spike</Badge>
+                    ) : customer.trend === "down" ? (
+                      <Badge variant="secondary" className="text-xs">↓</Badge>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// CUSTOMER DETAIL PANEL
+// ============================================================================
+
+function CustomerDetailPanel({
+  customer,
+  isOpen,
+  onClose,
+  hours,
+  onViewInDashboard,
+}: {
+  customer: CustomerWithDelta | null;
+  isOpen: boolean;
+  onClose: () => void;
+  hours: number;
+  onViewInDashboard: (customerId: string) => void;
+}) {
+  const { getToken } = useAuth();
+  const [details, setDetails] = useState<{
+    providers: ProviderStats[];
+    models: ModelStats[];
+    timeseries: DailyStats[];
+    features: SectionStats[];
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && customer) {
+      setLoading(true);
+      getToken().then(token => {
+        if (!token) return;
+        
+        Promise.all([
+          fetchProviderStats(hours, null, customer.customer_id, token).catch(() => []),
+          fetchModelStats(hours, null, customer.customer_id, token).catch(() => []),
+          fetchTimeseries(hours, null, customer.customer_id, token).catch(() => []),
+          fetchSectionStats(hours, null, customer.customer_id, token).catch(() => []),
+        ]).then(([providers, models, timeseries, features]) => {
+          setDetails({
+            providers: providers || [],
+            models: models || [],
+            timeseries: timeseries || [],
+            features: features || [],
+          });
+          setLoading(false);
+        });
+      });
+    }
+  }, [isOpen, customer, hours, getToken]);
+
+  if (!customer) return null;
+
+  const costPerCall = customer.call_count > 0 ? customer.total_cost / customer.call_count : 0;
+
+  return (
+    <Sheet open={isOpen} onOpenChange={onClose}>
+      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>{customer.customer_id}</SheetTitle>
+          <SheetDescription>
+            Detailed breakdown for this customer
+          </SheetDescription>
+          <div className="mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                onViewInDashboard(customer.customer_id);
+                onClose();
+              }}
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              View in Dashboard
+            </Button>
+          </div>
+        </SheetHeader>
+        
+        {loading ? (
+          <div className="mt-6 space-y-4">
+            <Skeleton className="h-32" />
+            <Skeleton className="h-64" />
+          </div>
+        ) : details ? (
+          <div className="mt-6 space-y-6">
+            {/* Summary */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="text-sm text-gray-500">Total Spend</div>
+                <div className="text-xl font-bold">{formatSmartCost(customer.total_cost)}</div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="text-sm text-gray-500">Calls</div>
+                <div className="text-xl font-bold">{formatCompactNumber(customer.call_count)}</div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="text-sm text-gray-500">Cost/Call</div>
+                <div className="text-xl font-bold">{formatSmartCost(costPerCall)}</div>
+              </div>
+            </div>
+            
+            {/* Drivers */}
+            <div>
+              <h3 className="text-sm font-semibold mb-3">Drivers</h3>
+              
+              <div className="space-y-4">
+                {/* Providers */}
+                {details.providers.length > 0 && (
+                  <div>
+                    <div className="text-xs text-gray-500 mb-2">By Provider</div>
+                    <div className="space-y-2">
+                      {details.providers.slice(0, 5).map((p) => (
+                        <div key={p.provider} className="flex items-center justify-between text-sm">
+                          <span>{p.provider}</span>
+                          <span className="font-medium">{formatSmartCost(p.total_cost)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Models */}
+                {details.models.length > 0 && (
+                  <div>
+                    <div className="text-xs text-gray-500 mb-2">By Model</div>
+                    <div className="space-y-2">
+                      {details.models.slice(0, 5).map((m) => (
+                        <div key={`${m.provider}-${m.model}`} className="flex items-center justify-between text-sm">
+                          <span>{m.model}</span>
+                          <span className="font-medium">{formatSmartCost(m.total_cost)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Features */}
+                {details.features.length > 0 && (
+                  <div>
+                    <div className="text-xs text-gray-500 mb-2">By Feature</div>
+                    <div className="space-y-2">
+                      {details.features
+                        .filter(f => f.section && !f.section.startsWith("step:") && !f.section.startsWith("tool:"))
+                        .slice(0, 5)
+                        .map((f) => (
+                          <div key={f.section} className="flex items-center justify-between text-sm">
+                            <span>{f.section.replace("feature:", "")}</span>
+                            <span className="font-medium">{formatSmartCost(f.total_cost)}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Trend Chart */}
+            {details.timeseries.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold mb-3">Spend Trend</h3>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <CostTrendChart 
+                    data={details.timeseries.map((day) => {
+                      const providerCosts: Record<string, number> = {};
+                      if (day.providers && typeof day.providers === 'object') {
+                        Object.entries(day.providers).forEach(([provider, data]) => {
+                          providerCosts[provider.toLowerCase()] = data.cost;
+                        });
+                      }
+                      return {
+                        date: day.date,
+                        value: day.total || 0,
+                        ...providerCosts,
+                      };
+                    })} 
+                    height={200} 
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ============================================================================
+// MAIN PAGE
+// ============================================================================
+
+function CustomersPageContent() {
   const { getToken } = useAuth();
   const { isLoaded, user } = useUser();
+  const router = useRouter();
+  const { filters, setSelectedCustomer: setGlobalCustomer } = useGlobalFilters();
+  
+  const [customers, setCustomers] = useState<CustomerStats[]>([]);
+  const [prevCustomers, setPrevCustomers] = useState<CustomerStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerWithDelta | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   
   const [search, setSearch] = useState("");
-  const [dateRange, setDateRange] = useState<DateRange>("30d");
   const [sortKey, setSortKey] = useState<SortKey>("total_cost");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
-  const [customerDetails, setCustomerDetails] = useState<Record<string, CustomerDetailData>>({});
-  const [loadingDetails, setLoadingDetails] = useState<Record<string, boolean>>({});
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
+  const [minSpendThreshold, setMinSpendThreshold] = useState(0);
 
   const hours = useMemo(() => {
-    switch (dateRange) {
+    switch (filters.dateRange) {
       case "1h": return 1;
       case "6h": return 6;
       case "24h": return 24;
@@ -88,127 +713,91 @@ export default function CustomersPage() {
       case "3m": return 90 * 24;
       case "6m": return 180 * 24;
       case "1y": return 365 * 24;
-      default: return 30 * 24;
+      default: return 7 * 24;
     }
-  }, [dateRange]);
-
-  const cacheKey = `customers-${hours}`;
-  const [initialCache] = useState(() => getCached<CustomerStats[]>(cacheKey));
-  const hasCachedData = initialCache && initialCache.length >= 0;
-  
-  const [customers, setCustomers] = useState<CustomerStats[]>(initialCache || []);
-  const [loading, setLoading] = useState(!hasCachedData);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  }, [filters.dateRange]);
 
   const loadData = useCallback(async () => {
     if (!isLoaded || !user) return;
     
-    if (!isCacheStale(cacheKey)) {
-      return;
-    }
-    
-    const hasData = customers.length > 0;
-    if (hasData) {
-      setIsRefreshing(true);
-    } else {
-      setLoading(true);
-    }
+    setLoading(true);
     setError(null);
     
     try {
       const token = await getToken();
       if (!token) throw new Error("Not authenticated");
       
-      const data = await fetchCustomerStats(hours, null, token);
-      setCustomers(data);
-      setCached(cacheKey, data);
+      // Fetch current and previous period
+      const [current, previous] = await Promise.all([
+        fetchCustomerStats(hours, null, token),
+        fetchCustomerStats(hours * 2, null, token), // Previous period
+      ]);
+      
+      // Calculate previous period subset
+      const prevCutoff = Math.floor(previous.length / 2);
+      const prev = previous.slice(prevCutoff);
+      
+      setCustomers(current);
+      setPrevCustomers(prev);
     } catch (err) {
       console.error("[Customers] Error:", err);
       setError(err instanceof Error ? err.message : "Failed to load customers");
     } finally {
       setLoading(false);
-      setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken, hours, cacheKey, customers.length]);
-
-  const loadCustomerDetails = useCallback(async (customerId: string) => {
-    if (customerDetails[customerId]) return; // Already loaded
-    
-    setLoadingDetails(prev => ({ ...prev, [customerId]: true }));
-    
-    try {
-      const token = await getToken();
-      if (!token) throw new Error("Not authenticated");
-      
-      const [providers, models, timeseries, features] = await Promise.all([
-        fetchProviderStats(hours, null, customerId, token).catch(() => []),
-        fetchModelStats(hours, null, customerId, token).catch(() => []),
-        fetchTimeseries(hours, null, customerId, token).catch(() => []),
-        fetchSectionStats(hours, null, customerId, token).catch(() => []),
-      ]);
-      
-      setCustomerDetails(prev => ({
-        ...prev,
-        [customerId]: {
-          providers: providers || [],
-          models: models || [],
-          timeseries: timeseries || [],
-          features: features || [],
-        },
-      }));
-    } catch (err) {
-      console.error(`[Customers] Error loading details for ${customerId}:`, err);
-    } finally {
-      setLoadingDetails(prev => ({ ...prev, [customerId]: false }));
-    }
-  }, [getToken, hours, customerDetails]);
+  }, [isLoaded, user, getToken, hours]);
 
   useEffect(() => {
     if (isLoaded && user) {
-      if (isCacheStale(cacheKey)) {
-        loadData();
+      loadData();
+    }
+  }, [isLoaded, user, loadData]);
+
+
+  // Enrich customers with delta and primary provider/model
+  const enrichedCustomers = useMemo(() => {
+    return customers.map(customer => {
+      const prev = prevCustomers.find(p => p.customer_id === customer.customer_id);
+      const costDelta = prev ? customer.total_cost - prev.total_cost : undefined;
+      const costDeltaPercent = prev && prev.total_cost > 0 
+        ? (costDelta! / prev.total_cost) * 100 
+        : undefined;
+      
+      // Calculate cost per call
+      const cost_per_call = customer.call_count > 0 
+        ? customer.total_cost / customer.call_count 
+        : 0;
+      
+      // Determine trend
+      let trend: "up" | "down" | "stable" | undefined;
+      if (costDeltaPercent !== undefined) {
+        if (costDeltaPercent >= 50) trend = "up";
+        else if (costDeltaPercent <= -50) trend = "down";
+        else trend = "stable";
       }
-    }
-  }, [isLoaded, user, loadData, cacheKey]);
-
-  // Load details when customer is expanded
-  useEffect(() => {
-    if (expandedCustomer) {
-      loadCustomerDetails(expandedCustomer);
-    }
-  }, [expandedCustomer, loadCustomerDetails]);
-
-  // Filter and sort
-  const filteredCustomers = useMemo(() => {
-    let filtered = customers;
-    
-    if (search) {
-      const term = search.toLowerCase();
-      filtered = filtered.filter(c => 
-        c.customer_id.toLowerCase().includes(term)
-      );
-    }
-    
-    return [...filtered].sort((a, b) => {
-      const aVal = a[sortKey];
-      const bVal = b[sortKey];
-      const cmp = typeof aVal === "string" 
-        ? aVal.localeCompare(bVal as string)
-        : (aVal as number) - (bVal as number);
-      return sortDir === "asc" ? cmp : -cmp;
+      
+      return {
+        ...customer,
+        prevCost: prev?.total_cost,
+        costDelta,
+        costDeltaPercent,
+        trend,
+        cost_per_call,
+        // Primary provider/model will be fetched on-demand in detail panel
+        primaryProvider: undefined,
+        primaryModel: undefined,
+      } as CustomerWithDelta;
     });
-  }, [customers, search, sortKey, sortDir]);
+  }, [customers, prevCustomers]);
 
-  // Stats
   const totalCost = useMemo(() => 
     customers.reduce((sum, c) => sum + c.total_cost, 0), 
     [customers]
   );
   
-  const totalCalls = useMemo(() => 
-    customers.reduce((sum, c) => sum + c.call_count, 0), 
-    [customers]
+  const prevTotalCost = useMemo(() => 
+    prevCustomers.reduce((sum, c) => sum + c.total_cost, 0), 
+    [prevCustomers]
   );
 
   const handleSort = (key: SortKey) => {
@@ -220,69 +809,25 @@ export default function CustomersPage() {
     }
   };
 
-  const toggleExpand = (customerId: string) => {
-    if (expandedCustomer === customerId) {
-      setExpandedCustomer(null);
-    } else {
-      setExpandedCustomer(customerId);
-    }
+  const handleRowClick = (customer: CustomerWithDelta) => {
+    setSelectedCustomer(customer);
+    setIsDetailOpen(true);
+    // Set global filter for cross-linking
+    setGlobalCustomer(customer.customer_id);
+  };
+  
+  const handleViewInDashboard = (customerId: string) => {
+    setGlobalCustomer(customerId);
+    router.push("/dashboard");
   };
 
-  const exportCSV = () => {
-    const headers = ["Customer ID", "Total Cost ($)", "API Calls", "Avg Latency (ms)"];
-    const rows = filteredCustomers.map(c => [
-      c.customer_id,
-      c.total_cost.toFixed(6),
-      c.call_count,
-      c.avg_latency_ms.toFixed(2),
-    ]);
-    const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `customers-${dateRange}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Prepare chart data for customer
-  const getCustomerChartData = (customerId: string) => {
-    const details = customerDetails[customerId];
-    if (!details || !details.timeseries) return [];
-    
-    return details.timeseries.map((day) => {
-      const providerCosts: Record<string, number> = {};
-      if (day.providers && typeof day.providers === 'object') {
-        Object.entries(day.providers).forEach(([provider, data]) => {
-          providerCosts[provider.toLowerCase()] = data.cost;
-        });
-      }
-      
-      let dateLabel = day.date;
-      const parsed = new Date(day.date);
-      if (!isNaN(parsed.getTime())) {
-        dateLabel = parsed.toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        });
-      }
-      
-      return {
-        date: dateLabel,
-        value: day.total || 0,
-        ...providerCosts,
-      };
-    });
-  };
-
-  if (loading) {
+  if (loading && customers.length === 0) {
     return (
       <ProtectedLayout>
         <div className="space-y-6 p-6">
           <Skeleton className="h-10 w-48" />
-          <div className="grid grid-cols-3 gap-4">
-            {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+          <div className="grid grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
           </div>
           <Skeleton className="h-96 rounded-xl" />
         </div>
@@ -308,7 +853,6 @@ export default function CustomersPage() {
     );
   }
 
-  // Empty state
   if (customers.length === 0) {
     return (
       <ProtectedLayout>
@@ -327,14 +871,6 @@ export default function CustomersPage() {
               Use <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">set_customer_id()</code> in 
               your code to track costs per customer.
             </p>
-            <div className="bg-gray-900 text-gray-100 rounded-lg p-4 max-w-lg mx-auto text-left font-mono text-sm">
-              <div className="text-gray-400"># Python example</div>
-              <div><span className="text-purple-400">from</span> llmobserve <span className="text-purple-400">import</span> set_customer_id</div>
-              <br />
-              <div><span className="text-gray-400"># Tag all API calls with this customer</span></div>
-              <div>set_customer_id(<span className="text-green-400">"customer_123"</span>)</div>
-              <div>response = client.chat.completions.create(...)</div>
-            </div>
           </div>
         </div>
       </ProtectedLayout>
@@ -348,273 +884,64 @@ export default function CustomersPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-            <p className="text-gray-500 mt-1">Track costs per customer - same dashboard metrics, broken down by customer</p>
+            <p className="text-gray-500 mt-1">Tenant attribution + triage</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRange)}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1h">Last 1 hour</SelectItem>
-                <SelectItem value="6h">Last 6 hours</SelectItem>
-                <SelectItem value="24h">Last 24 hours</SelectItem>
-                <SelectItem value="3d">Last 3 days</SelectItem>
-                <SelectItem value="7d">Last 7 days</SelectItem>
-                <SelectItem value="2w">Last 2 weeks</SelectItem>
-                <SelectItem value="30d">Last 30 days</SelectItem>
-                <SelectItem value="3m">Last 3 months</SelectItem>
-                <SelectItem value="6m">Last 6 months</SelectItem>
-                <SelectItem value="1y">Last year</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="sm" onClick={loadData} disabled={isRefreshing}>
-              <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
+            <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+          </Button>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl border p-5">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <Users className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Total Customers</p>
-                <p className="text-2xl font-bold">{customers.length}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border p-5">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-emerald-50 rounded-lg">
-                <DollarSign className="w-5 h-5 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Total Cost</p>
-                <p className="text-2xl font-bold">{formatSmartCost(totalCost)}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border p-5">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-50 rounded-lg">
-                <Activity className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Total API Calls</p>
-                <p className="text-2xl font-bold">{formatCompactNumber(totalCalls)}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Health Strip */}
+        <CustomerHealthStrip
+          customers={enrichedCustomers}
+          prevCustomers={prevCustomers}
+          totalCost={totalCost}
+          prevTotalCost={prevTotalCost}
+        />
 
-        {/* Table */}
-        <div className="bg-white rounded-xl border">
-          {/* Toolbar */}
-          <div className="p-4 border-b flex items-center justify-between gap-4">
-            <div className="relative max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Search customers..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">
-                {filteredCustomers.length} of {customers.length}
-              </span>
-              <Button variant="outline" size="sm" onClick={exportCSV}>
-                <Download className="w-4 h-4 mr-1" /> Export
-              </Button>
-            </div>
-          </div>
+        {/* Leaderboard */}
+        <CustomerLeaderboard
+          customers={enrichedCustomers}
+          totalCost={totalCost}
+          onRowClick={handleRowClick}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSort={handleSort}
+          search={search}
+          onSearch={setSearch}
+          quickFilter={quickFilter}
+          onQuickFilter={setQuickFilter}
+          minSpendThreshold={minSpendThreshold}
+          onMinSpendChange={setMinSpendThreshold}
+        />
 
-          {/* Table Content */}
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12"></TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort("customer_id")}
-                >
-                  Customer ID
-                  {sortKey === "customer_id" && (sortDir === "asc" ? " ↑" : " ↓")}
-                </TableHead>
-                <TableHead 
-                  className="text-right cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort("total_cost")}
-                >
-                  Total Cost
-                  {sortKey === "total_cost" && (sortDir === "asc" ? " ↑" : " ↓")}
-                </TableHead>
-                <TableHead 
-                  className="text-right cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort("call_count")}
-                >
-                  API Calls
-                  {sortKey === "call_count" && (sortDir === "asc" ? " ↑" : " ↓")}
-                </TableHead>
-                <TableHead 
-                  className="text-right cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort("avg_latency_ms")}
-                >
-                  Avg Latency
-                  {sortKey === "avg_latency_ms" && (sortDir === "asc" ? " ↑" : " ↓")}
-                </TableHead>
-                <TableHead className="text-right">% of Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCustomers.map((customer) => {
-                const isExpanded = expandedCustomer === customer.customer_id;
-                const details = customerDetails[customer.customer_id];
-                const isLoading = loadingDetails[customer.customer_id];
-                
-                return (
-                  <>
-                    <TableRow 
-                      key={customer.customer_id} 
-                      className="hover:bg-gray-50 cursor-pointer"
-                      onClick={() => toggleExpand(customer.customer_id)}
-                    >
-                      <TableCell>
-                        {isExpanded ? (
-                          <ChevronDown className="w-4 h-4 text-gray-400" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-gray-400" />
-                        )}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {customer.customer_id}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums">
-                        {formatSmartCost(customer.total_cost)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums text-gray-600">
-                        {formatCompactNumber(customer.call_count)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums text-gray-600">
-                        {customer.avg_latency_ms.toFixed(0)}ms
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-blue-500 rounded-full"
-                              style={{ width: `${Math.min(100, (customer.total_cost / totalCost) * 100)}%` }}
-                            />
-                          </div>
-                          <span className="text-sm text-gray-500 tabular-nums w-12">
-                            {((customer.total_cost / totalCost) * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                    
-                    {/* Expanded Details */}
-                    {isExpanded && (
-                      <TableRow>
-                        <TableCell colSpan={6} className="p-0 bg-gray-50">
-                          {isLoading ? (
-                            <div className="p-8 text-center">
-                              <RefreshCw className="w-6 h-6 animate-spin mx-auto text-gray-400 mb-2" />
-                              <p className="text-sm text-gray-500">Loading customer details...</p>
-                            </div>
-                          ) : details ? (
-                            <div className="p-6 space-y-6">
-                              {/* Cost Trend Chart */}
-                              <div>
-                                <h3 className="text-sm font-semibold text-gray-900 mb-3">Spend Trend</h3>
-                                {details.timeseries && details.timeseries.length > 0 ? (
-                                  <div className="bg-white rounded-lg border p-4">
-                                    <CostTrendChart 
-                                      data={getCustomerChartData(customer.customer_id)} 
-                                      height={200} 
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="bg-white rounded-lg border p-8 text-center text-gray-400">
-                                    No time series data
-                                  </div>
-                                )}
-                              </div>
-                              
-                              {/* Provider & Model Breakdown */}
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <div>
-                                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Provider Breakdown</h3>
-                                  {details.providers && details.providers.length > 0 ? (
-                                    <ProviderBreakdown
-                                      providers={details.providers}
-                                      totalCost={customer.total_cost}
-                                    />
-                                  ) : (
-                                    <div className="bg-white rounded-lg border p-4 text-center text-gray-400 text-sm">
-                                      No provider data
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                <div>
-                                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Model Breakdown</h3>
-                                  {details.models && details.models.length > 0 ? (
-                                    <ModelBreakdown
-                                      models={details.models.map(m => ({
-                                        ...m,
-                                        percentage: customer.total_cost > 0 ? (m.total_cost / customer.total_cost) * 100 : 0,
-                                      }))}
-                                      totalCost={customer.total_cost}
-                                    />
-                                  ) : (
-                                    <div className="bg-white rounded-lg border p-4 text-center text-gray-400 text-sm">
-                                      No model data
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              {/* Features Breakdown */}
-                              {details.features && details.features.length > 0 && (
-                                <div>
-                                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Features Breakdown</h3>
-                                  <div className="bg-white rounded-lg border p-4">
-                                    <RankedBarChart
-                                      data={details.features
-                                        .filter(f => f.section && !f.section.startsWith("step:") && !f.section.startsWith("tool:") && !f.section.startsWith("agent:"))
-                                        .slice(0, 10)
-                                        .map(f => ({
-                                          name: f.section.replace("feature:", ""),
-                                          value: f.total_cost,
-                                          percentage: f.percentage,
-                                        }))}
-                                      total={customer.total_cost}
-                                      onClick={() => {}}
-                                    />
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="p-8 text-center text-gray-400">
-                              No details available
-                            </div>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+        {/* Detail Panel */}
+        <CustomerDetailPanel
+          customer={selectedCustomer}
+          isOpen={isDetailOpen}
+          onClose={() => setIsDetailOpen(false)}
+          hours={hours}
+          onViewInDashboard={handleViewInDashboard}
+        />
       </div>
     </ProtectedLayout>
+  );
+}
+
+export default function CustomersPage() {
+  return (
+    <Suspense fallback={
+      <ProtectedLayout>
+        <div className="space-y-6 p-6">
+          <Skeleton className="h-10 w-48" />
+          <div className="grid grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+          </div>
+          <Skeleton className="h-96 rounded-xl" />
+        </div>
+      </ProtectedLayout>
+    }>
+      <CustomersPageContent />
+    </Suspense>
   );
 }

@@ -3,7 +3,9 @@
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { DateRangeProvider } from "@/contexts/DateRangeContext";
+import { GlobalFiltersProvider } from "@/contexts/GlobalFiltersContext";
 import { TopBar } from "@/components/TopBar";
+import { GlobalFilterBar } from "@/components/GlobalFilterBar";
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -18,15 +20,18 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <DateRangeProvider>
-      <div className="flex h-screen overflow-hidden bg-black">
-        <Sidebar />
+      <GlobalFiltersProvider>
+        <div className="flex h-screen overflow-hidden bg-black">
+          <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 mt-2 mb-4 mr-2 rounded-xl bg-white shadow-lg overflow-hidden">
           <TopBar />
+          <GlobalFilterBar />
           <main className="flex-1 overflow-y-auto bg-background px-8 py-6">
             {children}
           </main>
         </div>
-      </div>
+        </div>
+      </GlobalFiltersProvider>
     </DateRangeProvider>
   );
 }
