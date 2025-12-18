@@ -7,7 +7,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 // TYPES
 // ============================================================================
 
-export type DateRange = "1h" | "6h" | "24h" | "3d" | "7d" | "14d" | "30d" | "90d" | "180d" | "365d";
+export type DateRange = "1h" | "6h" | "24h" | "3d" | "7d" | "2w" | "14d" | "30d" | "3m" | "90d" | "6m" | "180d" | "1y" | "365d";
 
 export interface AnalyticsFilters {
   dateRange: DateRange;
@@ -71,10 +71,14 @@ function dateRangeToHours(range: DateRange): number {
     case "24h": return 24;
     case "3d": return 3 * 24;
     case "7d": return 7 * 24;
+    case "2w":
     case "14d": return 14 * 24;
     case "30d": return 30 * 24;
+    case "3m":
     case "90d": return 90 * 24;
+    case "6m":
     case "180d": return 180 * 24;
+    case "1y":
     case "365d": return 365 * 24;
     default: return 7 * 24;
   }
@@ -87,10 +91,14 @@ function dateRangeToDays(range: DateRange): number {
     case "24h": return 1;
     case "3d": return 3;
     case "7d": return 7;
+    case "2w":
     case "14d": return 14;
     case "30d": return 30;
+    case "3m":
     case "90d": return 90;
+    case "6m":
     case "180d": return 180;
+    case "1y":
     case "365d": return 365;
     default: return 7;
   }

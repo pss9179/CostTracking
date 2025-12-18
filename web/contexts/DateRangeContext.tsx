@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, ReactNode } from "react";
 
-export type DateRange = "1h" | "6h" | "24h" | "3d" | "7d" | "14d" | "30d" | "90d" | "180d" | "365d";
+export type DateRange = "1h" | "6h" | "24h" | "3d" | "7d" | "2w" | "14d" | "30d" | "3m" | "90d" | "6m" | "180d" | "1y" | "365d";
 
 interface DateRangeContextType {
   dateRange: DateRange;
