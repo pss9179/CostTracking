@@ -844,19 +844,6 @@ export interface CustomerDetail {
 }
 
 // Customer API Functions
-export async function fetchCustomerStats(hours: number = 720, token?: string): Promise<CustomerStats[]> {
-  const headers = await getDashboardAuthHeaders(token);
-  const response = await fetch(`${COLLECTOR_URL}/stats/by-customer?hours=${hours}`, {
-    headers,
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch customer stats: ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
 export async function fetchCustomerDetail(customerId: string, days: number = 30, token?: string): Promise<CustomerDetail> {
   const headers = await getDashboardAuthHeaders(token);
   const response = await fetch(`${COLLECTOR_URL}/stats/customer/${encodeURIComponent(customerId)}?days=${days}`, {
