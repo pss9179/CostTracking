@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
+import { useState, Suspense } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { KPICard } from "@/components/layout/KPICard";
 import {
   AlertTriangle,
   DollarSign,
@@ -20,7 +17,8 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { fetchInsights, type Insight } from "@/lib/api";
+import { useInsightsData } from "@/lib/hooks";
+import type { Insight } from "@/lib/api";
 
 const INSIGHT_ICONS = {
   section_spike: AlertTriangle,
@@ -38,41 +36,12 @@ const INSIGHT_COLORS = {
 };
 
 function InsightsPageContent() {
-  const searchParams = useSearchParams();
-  const { getToken } = useAuth();
-  const [insights, setInsights] = useState<Insight[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(
     new Set(["section_spike", "model_inefficiency", "token_bloat", "retry_loop"])
   );
 
-  useEffect(() => {
-    async function loadInsights() {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const token = await getToken();
-        if (!token) {
-          setError("Not authenticated. Please sign in.");
-          setLoading(false);
-          return;
-        }
-        const data = await fetchInsights(null, token);
-        setInsights(data);
-      } catch (err) {
-        console.error("[Insights] Error loading insights:", err);
-        setError(err instanceof Error ? err.message : "Failed to load insights");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadInsights();
-    const interval = setInterval(loadInsights, 60000); // Refresh every minute
-    return () => clearInterval(interval);
-  }, [getToken]);
+  // Use cached hook - data persists across navigation
+  const { insights, loading, error } = useInsightsData();
 
   const toggleType = (type: string) => {
     const newExpanded = new Set(expandedTypes);

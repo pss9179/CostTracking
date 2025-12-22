@@ -602,3 +602,95 @@ async def get_costs_by_customer(
     
     return customers
 
+
+@router.get("/customer/{customer_id}")
+async def get_customer_detail(
+    customer_id: str,
+    days: int = Query(30, ge=1, le=90, description="Number of days to look back"),
+    session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user)  # Require Clerk authentication
+) -> Dict[str, Any]:
+    """
+    Get detailed breakdown for a specific customer.
+    
+    Requires Clerk authentication. Returns cost, calls, latency breakdown by provider and model.
+    """
+    user_id = current_user.id
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    
+    # Overall stats for this customer
+    stats_stmt = (
+        select(
+            func.sum(TraceEvent.cost_usd).label("total_cost"),
+            func.count(TraceEvent.id).label("call_count"),
+            func.avg(TraceEvent.latency_ms).label("avg_latency")
+        )
+        .where(and_(
+            TraceEvent.user_id == user_id,
+            TraceEvent.customer_id == customer_id,
+            TraceEvent.created_at >= cutoff
+        ))
+    )
+    stats = session.exec(stats_stmt).first()
+    
+    # Breakdown by provider
+    provider_stmt = (
+        select(
+            TraceEvent.provider,
+            func.sum(TraceEvent.cost_usd).label("cost"),
+            func.count(TraceEvent.id).label("calls")
+        )
+        .where(and_(
+            TraceEvent.user_id == user_id,
+            TraceEvent.customer_id == customer_id,
+            TraceEvent.created_at >= cutoff,
+            TraceEvent.provider != "internal"
+        ))
+        .group_by(TraceEvent.provider)
+        .order_by(func.sum(TraceEvent.cost_usd).desc())
+    )
+    providers = session.exec(provider_stmt).all()
+    
+    # Breakdown by model
+    model_stmt = (
+        select(
+            TraceEvent.model,
+            func.sum(TraceEvent.cost_usd).label("cost"),
+            func.count(TraceEvent.id).label("calls")
+        )
+        .where(and_(
+            TraceEvent.user_id == user_id,
+            TraceEvent.customer_id == customer_id,
+            TraceEvent.model.isnot(None),
+            TraceEvent.created_at >= cutoff
+        ))
+        .group_by(TraceEvent.model)
+        .order_by(func.sum(TraceEvent.cost_usd).desc())
+        .limit(10)
+    )
+    models = session.exec(model_stmt).all()
+    
+    return {
+        "customer_id": customer_id,
+        "total_cost": round(stats.total_cost or 0, 6),
+        "call_count": stats.call_count or 0,
+        "avg_latency_ms": round(stats.avg_latency or 0, 2),
+        "by_provider": [
+            {
+                "provider": p.provider,
+                "cost": round(p.cost or 0, 6),
+                "calls": p.calls
+            }
+            for p in providers
+        ],
+        "top_models": [
+            {
+                "model": m.model,
+                "cost": round(m.cost or 0, 6),
+                "calls": m.calls
+            }
+            for m in models
+        ],
+        "period_days": days
+    }
+

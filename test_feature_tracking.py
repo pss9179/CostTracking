@@ -18,7 +18,7 @@ from llmobserve.transport import flush_events
 # Configuration
 COLLECTOR_URL = "https://llmobserve-api-production-d791.up.railway.app"
 LLMO_API_KEY = "llmo_sk_7d92be37ef5044a0552fd3b3f73789c68057a08353dae789"  # Real user API key
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "your-openai-api-key")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "your-openai-api-key-here")
 
 print("=" * 70)
 print("🧪 FEATURE TRACKING TEST")

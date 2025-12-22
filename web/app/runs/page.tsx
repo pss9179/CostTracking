@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
+import { useState, useMemo, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,8 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SearchInput } from "@/components/filters/SearchInput";
-import { fetchRuns, type Run } from "@/lib/api";
-import { formatCost, formatDuration } from "@/lib/stats";
+import { formatCost } from "@/lib/stats";
 import { format } from "date-fns";
 import {
   ArrowUpDown,
@@ -22,47 +20,21 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { exportToCSV } from "@/lib/export";
+import { useRunsData } from "@/lib/hooks";
 
 type SortField = "started_at" | "total_cost" | "call_count" | "top_section";
 type SortDirection = "asc" | "desc";
 
 function RunsPageContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const { getToken } = useAuth();
   const parentRef = useRef<HTMLDivElement>(null);
 
-  const [runs, setRuns] = useState<Run[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("started_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  useEffect(() => {
-    async function loadRuns() {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const token = await getToken();
-        if (!token) {
-          setError("Not authenticated. Please sign in.");
-          setLoading(false);
-          return;
-        }
-        const data = await fetchRuns(5000, null, token); // Load many runs for virtualization demo
-        setRuns(data);
-      } catch (err) {
-        console.error("[Runs] Error loading runs:", err);
-        setError(err instanceof Error ? err.message : "Failed to load runs");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadRuns();
-  }, [getToken]);
+  // Use cached hook - data persists across navigation
+  const { runs, loading, error, refresh } = useRunsData(5000);
 
   // Filter and sort runs
   const filteredAndSortedRuns = useMemo(() => {
@@ -171,7 +143,7 @@ function RunsPageContent() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.location.reload()}
+              onClick={refresh}
             >
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh

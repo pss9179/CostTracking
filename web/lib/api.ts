@@ -817,3 +817,56 @@ export async function fetchPricingOptions(token?: string): Promise<PricingOption
   return response.json();
 }
 
+// Customer Stats Types
+export interface CustomerStats {
+  customer_id: string;
+  total_cost: number;
+  call_count: number;
+  avg_latency_ms: number;
+}
+
+export interface CustomerDetail {
+  customer_id: string;
+  total_cost: number;
+  call_count: number;
+  avg_latency_ms: number;
+  by_provider: Array<{
+    provider: string;
+    cost: number;
+    calls: number;
+  }>;
+  top_models: Array<{
+    model: string;
+    cost: number;
+    calls: number;
+  }>;
+  period_days: number;
+}
+
+// Customer API Functions
+export async function fetchCustomerStats(hours: number = 720, token?: string): Promise<CustomerStats[]> {
+  const headers = await getDashboardAuthHeaders(token);
+  const response = await fetch(`${COLLECTOR_URL}/stats/by-customer?hours=${hours}`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch customer stats: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchCustomerDetail(customerId: string, days: number = 30, token?: string): Promise<CustomerDetail> {
+  const headers = await getDashboardAuthHeaders(token);
+  const response = await fetch(`${COLLECTOR_URL}/stats/customer/${encodeURIComponent(customerId)}?days=${days}`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch customer detail: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+

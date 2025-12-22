@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useState, Suspense } from "react";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,22 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Phone, Clock, DollarSign, TrendingUp, Mic, Volume2, MessageSquare, Radio, ArrowRight, Calculator, Zap } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
-  fetchVoiceCalls,
-  fetchVoiceProviderStats,
-  fetchVoiceSegmentStats,
-  fetchVoiceCostPerMinute,
-  fetchVoiceForecast,
-  fetchVoiceAlternativeCosts,
-  fetchVoicePlatformComparison,
   type VoiceCall,
-  type VoiceProviderStats,
-  type VoiceSegmentStats,
-  type VoiceCostPerMinute,
-  type VoiceForecast,
   type VoiceAlternativeCosts,
-  type VoicePlatformComparison,
 } from "@/lib/api";
-import { Suspense } from "react";
+import { useVoiceAgentsData } from "@/lib/hooks";
 
 // Segment colors for consistent visualization
 const SEGMENT_COLORS: { [key: string]: string } = {
@@ -260,56 +247,20 @@ function ProviderCalculator({ altCosts }: { altCosts: VoiceAlternativeCosts | nu
 }
 
 function VoiceAgentsContent() {
-  const { getToken } = useAuth();
-  const [calls, setCalls] = useState<VoiceCall[]>([]);
-  const [providerStats, setProviderStats] = useState<VoiceProviderStats[]>([]);
-  const [segmentStats, setSegmentStats] = useState<VoiceSegmentStats[]>([]);
-  const [costPerMinute, setCostPerMinute] = useState<VoiceCostPerMinute | null>(null);
-  const [forecast, setForecast] = useState<VoiceForecast | null>(null);
-  const [alternativeCosts, setAlternativeCosts] = useState<VoiceAlternativeCosts | null>(null);
-  const [platformComparison, setPlatformComparison] = useState<VoicePlatformComparison | null>(null);
-  const [loading, setLoading] = useState(true);
   const [timeWindow, setTimeWindow] = useState<string>("24");
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true);
-        const token = await getToken();
-        if (!token) {
-          console.error("No Clerk token available");
-          return;
-        }
-
-        const hours = parseInt(timeWindow);
-
-        // Fetch all voice stats in parallel
-        const [callsData, providersData, segmentsData, cpmData, forecastData, altCostsData, platformData] = await Promise.all([
-          fetchVoiceCalls(hours, 50, token).catch(() => []),
-          fetchVoiceProviderStats(hours, token).catch(() => []),
-          fetchVoiceSegmentStats(hours, token).catch(() => []),
-          fetchVoiceCostPerMinute(hours, token).catch(() => null),
-          fetchVoiceForecast(token).catch(() => null),
-          fetchVoiceAlternativeCosts(hours, token).catch(() => null),
-          fetchVoicePlatformComparison(hours, token).catch(() => null),
-        ]);
-
-        setCalls(callsData);
-        setProviderStats(providersData);
-        setSegmentStats(segmentsData);
-        setCostPerMinute(cpmData);
-        setForecast(forecastData);
-        setAlternativeCosts(altCostsData);
-        setPlatformComparison(platformData);
-      } catch (error) {
-        console.error("Failed to load voice stats:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadData();
-  }, [getToken, timeWindow]);
+  const hours = parseInt(timeWindow);
+  
+  // Use cached hook - data persists across navigation
+  const {
+    calls,
+    providerStats,
+    segmentStats,
+    costPerMinute,
+    forecast,
+    alternativeCosts,
+    platformComparison,
+    loading,
+  } = useVoiceAgentsData(hours);
 
   // Calculate totals
   const totalCost = costPerMinute?.total_cost || 0;
