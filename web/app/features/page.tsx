@@ -59,16 +59,29 @@ function useFeaturesData(hours: number) {
   const { isLoaded, user } = useUser();
   
   const cacheKey = `features-${hours}`;
-  const [initialCache] = useState(() => getCached<FeaturesCacheData>(cacheKey));
-  const hasCachedData = initialCache && initialCache.sectionStats.length > 0;
   
-  const [sectionStats, setSectionStats] = useState<SectionStats[]>(initialCache?.sectionStats || []);
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>(initialCache?.providerStats || []);
-  const [modelStats, setModelStats] = useState<ModelStats[]>(initialCache?.modelStats || []);
-  const [loading, setLoading] = useState(!hasCachedData);
+  // Track hydration state
+  const [isHydrated, setIsHydrated] = useState(false);
+  
+  const [sectionStats, setSectionStats] = useState<SectionStats[]>([]);
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
+  const [modelStats, setModelStats] = useState<ModelStats[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  
+  // Hydration effect - sync cache to state
+  useEffect(() => {
+    const cachedData = getCached<FeaturesCacheData>(cacheKey);
+    if (cachedData && cachedData.sectionStats.length > 0) {
+      setSectionStats(cachedData.sectionStats || []);
+      setProviderStats(cachedData.providerStats || []);
+      setModelStats(cachedData.modelStats || []);
+      setLoading(false);
+    }
+    setIsHydrated(true);
+  }, []); // Run once on mount
   
   const loadData = useCallback(async (isBackground = false) => {
     if (!isLoaded || !user) return;
@@ -126,12 +139,18 @@ function useFeaturesData(hours: number) {
   }, [isLoaded, user, getToken, hours, cacheKey, sectionStats.length]);
   
   useEffect(() => {
-    if (isLoaded && user) {
-      if (isCacheStale(cacheKey)) {
-        loadData(!!hasCachedData);
-      }
+    if (!isHydrated) return;
+    if (!isLoaded || !user) return;
+    
+    const cachedData = getCached<FeaturesCacheData>(cacheKey);
+    const hasCachedData = cachedData && cachedData.sectionStats.length > 0;
+    
+    if (hasCachedData && !isCacheStale(cacheKey)) {
+      return; // Cache is fresh
     }
-  }, [isLoaded, user, loadData, cacheKey, hasCachedData]);
+    
+    loadData(!!hasCachedData);
+  }, [isHydrated, isLoaded, user, cacheKey]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Auto-refresh
   useEffect(() => {

@@ -687,16 +687,27 @@ function CustomersPageContent() {
   const router = useRouter();
   const { filters, setSelectedCustomer: setGlobalCustomer } = useGlobalFilters();
   
-  // Initialize from cache to prevent loading flash
   const cacheKey = `customers-${filters.dateRange}`;
-  const [initialCache] = useState(() => getCached<{ customers: CustomerStats[], prevCustomers: CustomerStats[] }>(cacheKey));
-  const hasCachedData = !!(initialCache && initialCache.customers.length > 0);
   
-  const [customers, setCustomers] = useState<CustomerStats[]>(initialCache?.customers || []);
-  const [prevCustomers, setPrevCustomers] = useState<CustomerStats[]>(initialCache?.prevCustomers || []);
-  const [loading, setLoading] = useState(!hasCachedData);
+  // Track hydration state
+  const [isHydrated, setIsHydrated] = useState(false);
+  
+  const [customers, setCustomers] = useState<CustomerStats[]>([]);
+  const [prevCustomers, setPrevCustomers] = useState<CustomerStats[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Hydration effect - sync cache to state
+  useEffect(() => {
+    const cachedData = getCached<{ customers: CustomerStats[], prevCustomers: CustomerStats[] }>(cacheKey);
+    if (cachedData && cachedData.customers.length > 0) {
+      setCustomers(cachedData.customers);
+      setPrevCustomers(cachedData.prevCustomers || []);
+      setLoading(false);
+    }
+    setIsHydrated(true);
+  }, []); // Run once on mount
   
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerWithDelta | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -769,13 +780,18 @@ function CustomersPageContent() {
   }, [isLoaded, user, getToken, hours, cacheKey, customers.length]);
 
   useEffect(() => {
-    if (isLoaded && user) {
-      // Refresh in background if stale, or load fresh if no data
-      if (isCacheStale(cacheKey) || !hasCachedData) {
-        loadData(!!hasCachedData);
-      }
+    if (!isHydrated) return;
+    if (!isLoaded || !user) return;
+    
+    const cachedData = getCached<{ customers: CustomerStats[], prevCustomers: CustomerStats[] }>(cacheKey);
+    const hasCachedData = cachedData && cachedData.customers.length > 0;
+    
+    if (hasCachedData && !isCacheStale(cacheKey)) {
+      return; // Cache is fresh
     }
-  }, [isLoaded, user, cacheKey, hasCachedData]); // eslint-disable-line react-hooks/exhaustive-deps
+    
+    loadData(!!hasCachedData);
+  }, [isHydrated, isLoaded, user, cacheKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // Enrich customers with delta and primary provider/model

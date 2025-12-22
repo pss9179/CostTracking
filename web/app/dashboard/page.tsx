@@ -68,24 +68,37 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   
   const cacheKey = `dashboard-${dateRange}-${compareEnabled}`;
   
-  // Initialize from cache IMMEDIATELY to avoid loading flash
-  const initialCache = useMemo(() => {
-    if (typeof window === 'undefined') return null;
-    return getCached<DashboardCacheData>(cacheKey);
-  }, [cacheKey]);
+  // Track if we're hydrated (client-side)
+  const [isHydrated, setIsHydrated] = useState(false);
   
-  // State for data - initialize from cache if available
-  const [runs, setRuns] = useState<Run[]>(initialCache?.runs || []);
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>(initialCache?.providerStats || []);
-  const [modelStats, setModelStats] = useState<ModelStats[]>(initialCache?.modelStats || []);
-  const [dailyStats, setDailyStats] = useState<DailyStats[]>(initialCache?.dailyStats || []);
-  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>(initialCache?.prevProviderStats || []);
-  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>(initialCache?.prevDailyStats || []);
-  // Only show loading if we have no cached data
-  const [loading, setLoading] = useState(!initialCache || initialCache.providerStats.length === 0);
+  // State for data
+  const [runs, setRuns] = useState<Run[]>([]);
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
+  const [modelStats, setModelStats] = useState<ModelStats[]>([]);
+  const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
+  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>([]);
+  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>([]);
+  // Start with loading=true, will be set to false after hydration check
+  const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  
+  // Hydration effect - runs ONCE on client after mount
+  // This syncs cache data to state and fixes SSR/client mismatch
+  useEffect(() => {
+    const cachedData = getCached<DashboardCacheData>(cacheKey);
+    if (cachedData && cachedData.providerStats.length > 0) {
+      setRuns(cachedData.runs || []);
+      setProviderStats(cachedData.providerStats || []);
+      setModelStats(cachedData.modelStats || []);
+      setDailyStats(cachedData.dailyStats || []);
+      setPrevProviderStats(cachedData.prevProviderStats || []);
+      setPrevDailyStats(cachedData.prevDailyStats || []);
+      setLoading(false);
+    }
+    setIsHydrated(true);
+  }, []); // Empty deps - only run once on mount
   
   // Convert date range to hours/days
   const hours = useMemo(() => {
@@ -179,31 +192,23 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     }
   }, [isLoaded, user, getToken, hours, days, compareEnabled, cacheKey, providerStats.length]);
   
-  // Load data when dateRange or compareEnabled changes
+  // Load data when dateRange or compareEnabled changes (only after hydration)
   useEffect(() => {
-    if (isLoaded && user) {
-      // Check cache first
-      const cachedData = getCached<DashboardCacheData>(cacheKey);
-      if (cachedData && cachedData.providerStats.length > 0) {
-        // Use cached data immediately
-        setRuns(cachedData.runs || []);
-        setProviderStats(cachedData.providerStats || []);
-        setModelStats(cachedData.modelStats || []);
-        setDailyStats(cachedData.dailyStats || []);
-        setPrevProviderStats(cachedData.prevProviderStats || []);
-        setPrevDailyStats(cachedData.prevDailyStats || []);
-        setLoading(false);
-        
-        // Refresh in background if stale
-        if (isCacheStale(cacheKey)) {
-          loadData(true);
-        }
-      } else {
-        // No cache, fetch fresh data
-        loadData(false);
-      }
+    if (!isHydrated) return; // Wait for hydration
+    if (!isLoaded || !user) return; // Wait for Clerk
+    
+    // Check if we need to fetch
+    const cachedData = getCached<DashboardCacheData>(cacheKey);
+    const hasCachedData = cachedData && cachedData.providerStats.length > 0;
+    
+    if (hasCachedData && !isCacheStale(cacheKey)) {
+      // Cache is fresh, no need to fetch
+      return;
     }
-  }, [isLoaded, user, cacheKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    
+    // Fetch data (background if we have cached data, foreground if not)
+    loadData(!!hasCachedData);
+  }, [isHydrated, isLoaded, user, cacheKey]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Auto-refresh every 30s (background only)
   useEffect(() => {
