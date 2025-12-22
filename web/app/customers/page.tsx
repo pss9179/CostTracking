@@ -687,9 +687,15 @@ function CustomersPageContent() {
   const router = useRouter();
   const { filters, setSelectedCustomer: setGlobalCustomer } = useGlobalFilters();
   
-  const [customers, setCustomers] = useState<CustomerStats[]>([]);
-  const [prevCustomers, setPrevCustomers] = useState<CustomerStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Initialize from cache to prevent loading flash
+  const cacheKey = `customers-${filters.dateRange}`;
+  const [initialCache] = useState(() => getCached<{ customers: CustomerStats[], prevCustomers: CustomerStats[] }>(cacheKey));
+  const hasCachedData = !!(initialCache && initialCache.customers.length > 0);
+  
+  const [customers, setCustomers] = useState<CustomerStats[]>(initialCache?.customers || []);
+  const [prevCustomers, setPrevCustomers] = useState<CustomerStats[]>(initialCache?.prevCustomers || []);
+  const [loading, setLoading] = useState(!hasCachedData);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerWithDelta | null>(null);
@@ -717,10 +723,21 @@ function CustomersPageContent() {
     }
   }, [filters.dateRange]);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (isBackground = false) => {
     if (!isLoaded || !user) return;
     
-    setLoading(true);
+    // Skip if cache is fresh
+    if (isBackground && !isCacheStale(cacheKey)) {
+      return;
+    }
+    
+    // Show refreshing indicator if we have data, loading only if empty
+    const hasData = customers.length > 0;
+    if (hasData) {
+      setIsRefreshing(true);
+    } else if (!isBackground) {
+      setLoading(true);
+    }
     setError(null);
     
     try {
@@ -739,19 +756,26 @@ function CustomersPageContent() {
       
       setCustomers(current);
       setPrevCustomers(prev);
+      
+      // Update cache
+      setCached(cacheKey, { customers: current, prevCustomers: prev });
     } catch (err) {
       console.error("[Customers] Error:", err);
       setError(err instanceof Error ? err.message : "Failed to load customers");
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken, hours]);
+  }, [isLoaded, user, getToken, hours, cacheKey, customers.length]);
 
   useEffect(() => {
     if (isLoaded && user) {
-      loadData();
+      // Refresh in background if stale, or load fresh if no data
+      if (isCacheStale(cacheKey) || !hasCachedData) {
+        loadData(!!hasCachedData);
+      }
     }
-  }, [isLoaded, user, loadData]);
+  }, [isLoaded, user, cacheKey, hasCachedData]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // Enrich customers with delta and primary provider/model
@@ -843,7 +867,7 @@ function CustomersPageContent() {
             <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-rose-700 font-medium">{error}</p>
-              <Button variant="outline" size="sm" onClick={loadData} className="mt-3">
+              <Button variant="outline" size="sm" onClick={() => loadData(false)} className="mt-3">
                 <RefreshCw className="w-4 h-4 mr-2" /> Retry
               </Button>
             </div>
@@ -886,7 +910,7 @@ function CustomersPageContent() {
             <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
             <p className="text-gray-500 mt-1">Tenant attribution + triage</p>
           </div>
-          <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => loadData(false)} disabled={loading}>
             <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
           </Button>
         </div>

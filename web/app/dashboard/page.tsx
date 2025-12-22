@@ -68,14 +68,21 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   
   const cacheKey = `dashboard-${dateRange}-${compareEnabled}`;
   
-  // State for data
-  const [runs, setRuns] = useState<Run[]>([]);
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
-  const [modelStats, setModelStats] = useState<ModelStats[]>([]);
-  const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
-  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>([]);
-  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Initialize from cache IMMEDIATELY to avoid loading flash
+  const initialCache = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    return getCached<DashboardCacheData>(cacheKey);
+  }, [cacheKey]);
+  
+  // State for data - initialize from cache if available
+  const [runs, setRuns] = useState<Run[]>(initialCache?.runs || []);
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>(initialCache?.providerStats || []);
+  const [modelStats, setModelStats] = useState<ModelStats[]>(initialCache?.modelStats || []);
+  const [dailyStats, setDailyStats] = useState<DailyStats[]>(initialCache?.dailyStats || []);
+  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>(initialCache?.prevProviderStats || []);
+  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>(initialCache?.prevDailyStats || []);
+  // Only show loading if we have no cached data
+  const [loading, setLoading] = useState(!initialCache || initialCache.providerStats.length === 0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
