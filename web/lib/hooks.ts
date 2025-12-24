@@ -41,19 +41,19 @@ import {
 // ============================================================================
 
 const SWR_CONFIG = {
-  // Keep data fresh for 30 seconds before revalidating
-  dedupingInterval: 30000,
-  // Revalidate in background when returning to tab
+  // Keep data fresh for 2 minutes before revalidating (increased from 30s)
+  dedupingInterval: 120000,
+  // Revalidate in background when returning to tab (but throttled)
   revalidateOnFocus: true,
-  // Don't refetch if data is less than 30 seconds old
-  focusThrottleInterval: 30000,
+  // Don't refetch if data is less than 2 minutes old
+  focusThrottleInterval: 120000,
   // Keep stale data while fetching fresh data
   keepPreviousData: true,
-  // Retry on error
-  errorRetryCount: 2,
-  // Don't revalidate on mount if we have fresh data
+  // Retry on error (reduced from 2 to 1 to avoid excessive retries)
+  errorRetryCount: 1,
+  // Only revalidate if stale (don't always revalidate on mount)
   revalidateIfStale: true,
-  revalidateOnMount: true,
+  revalidateOnMount: false, // Changed to false - use cached data if available
 };
 
 // ============================================================================

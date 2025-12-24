@@ -7,7 +7,7 @@ interface CacheEntry<T> {
 }
 
 const CACHE_KEY = '__llmobserve_cache__';
-const STALE_TIME = 30000; // 30 seconds
+const STALE_TIME = 120000; // 2 minutes - increased from 30s to reduce API calls
 
 function getGlobalCache(): Record<string, CacheEntry<unknown>> {
   if (typeof window === 'undefined') return {};

@@ -73,11 +73,11 @@ export function useCachedData<T>(
   key: string,
   fetcher: () => Promise<T>,
   options: {
-    staleTime?: number; // How long before data is considered stale (default: 30s)
+    staleTime?: number; // How long before data is considered stale (default: 2 minutes)
     enabled?: boolean;  // Whether to enable fetching
   } = {}
 ) {
-  const { staleTime = 30000, enabled = true } = options;
+  const { staleTime = 120000, enabled = true } = options; // Default 2 minutes instead of 30s
   const cache = useDataCache();
   
   const [data, setData] = React.useState<T | null>(() => cache.get<T>(key));

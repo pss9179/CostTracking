@@ -29,37 +29,45 @@ async def get_my_customers(
     For MVP: Returns all customer data if no user_id or tenant_id provided.
     Returns cost, calls, and latency per customer.
     """
-    time_ago = datetime.utcnow() - timedelta(days=days)
-    
-    statement = select(
-        TraceEvent.customer_id,
-        func.sum(TraceEvent.cost_usd).label("total_cost"),
-        func.count(TraceEvent.id).label("call_count"),
-        func.avg(TraceEvent.latency_ms).label("avg_latency")
-    ).where(and_(
-        TraceEvent.customer_id.isnot(None),
-        TraceEvent.created_at >= time_ago
-    ))
-    
-    # Filter by tenant_id (preferred) or user_id
-    if tenant_id:
-        statement = statement.where(TraceEvent.tenant_id == tenant_id)
-    elif user_id:
-        statement = statement.where(TraceEvent.user_id == user_id)
-    
-    statement = statement.group_by(TraceEvent.customer_id).order_by(func.sum(TraceEvent.cost_usd).desc())
-    
-    results = session.exec(statement).all()
-    
-    return [
-        {
-            "customer_id": r.customer_id,
-            "total_cost": round(r.total_cost, 6),
-            "call_count": r.call_count,
-            "avg_latency_ms": round(r.avg_latency, 2) if r.avg_latency else 0.0
-        }
-        for r in results
-    ]
+    try:
+        time_ago = datetime.utcnow() - timedelta(days=days)
+        
+        statement = select(
+            TraceEvent.customer_id,
+            func.sum(TraceEvent.cost_usd).label("total_cost"),
+            func.count(TraceEvent.id).label("call_count"),
+            func.avg(TraceEvent.latency_ms).label("avg_latency")
+        ).where(and_(
+            TraceEvent.customer_id.isnot(None),
+            TraceEvent.created_at >= time_ago
+        ))
+        
+        # Filter by tenant_id (preferred) or user_id
+        if tenant_id:
+            statement = statement.where(TraceEvent.tenant_id == tenant_id)
+        elif user_id:
+            statement = statement.where(TraceEvent.user_id == user_id)
+        
+        statement = statement.group_by(TraceEvent.customer_id).order_by(func.sum(TraceEvent.cost_usd).desc())
+        
+        results = session.exec(statement).all()
+        
+        return [
+            {
+                "customer_id": r.customer_id,
+                "total_cost": round(r.total_cost, 6),
+                "call_count": r.call_count,
+                "avg_latency_ms": round(r.avg_latency, 2) if r.avg_latency else 0.0
+            }
+            for r in results
+        ]
+    except Exception as e:
+        # Log error but return empty list instead of crashing
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Database error in get_my_customers: {e}")
+        # Return empty list so frontend can render gracefully
+        return []
 
 
 @router.get("/stats", response_model=Dict[str, Any])
