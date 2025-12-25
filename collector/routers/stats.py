@@ -554,53 +554,61 @@ async def get_costs_by_customer(
     
     Requires Clerk authentication. Returns breakdown with total cost, call count, and average latency.
     """
-    user_id = current_user.id
-    # Calculate time window
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
-    
-    # Get customer aggregations
-    statement = select(
-        TraceEvent.customer_id,
-        func.sum(TraceEvent.cost_usd).label("total_cost"),
-        func.count(TraceEvent.id).label("call_count"),
-        func.avg(TraceEvent.latency_ms).label("avg_latency_ms")
-    ).where(TraceEvent.created_at >= cutoff)
-    
-    # Filter by tenant_id (preferred) or user_id
-    # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
-    if tenant_id:
-        statement = statement.where(TraceEvent.tenant_id == tenant_id)
-    elif user_id:
+    try:
+        user_id = current_user.id
+        # Calculate time window
+        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        
+        # Get customer aggregations
+        statement = select(
+            TraceEvent.customer_id,
+            func.sum(TraceEvent.cost_usd).label("total_cost"),
+            func.count(TraceEvent.id).label("call_count"),
+            func.avg(TraceEvent.latency_ms).label("avg_latency_ms")
+        ).where(TraceEvent.created_at >= cutoff)
+        
+        # Filter by tenant_id (preferred) or user_id
+        # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
+        if tenant_id:
+            statement = statement.where(TraceEvent.tenant_id == tenant_id)
+        elif user_id:
+            statement = statement.where(
+                and_(
+                    TraceEvent.user_id == user_id,
+                    TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+                )
+            )
+        
+        # Exclude "internal" provider and null customer_ids
         statement = statement.where(
             and_(
-                TraceEvent.user_id == user_id,
-                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+                TraceEvent.provider != "internal",
+                TraceEvent.customer_id.isnot(None)
             )
         )
-    
-    # Exclude "internal" provider and null customer_ids
-    statement = statement.where(
-        and_(
-            TraceEvent.provider != "internal",
-            TraceEvent.customer_id.isnot(None)
-        )
-    )
-    
-    statement = statement.group_by(TraceEvent.customer_id).order_by(func.sum(TraceEvent.cost_usd).desc())
-    
-    results = session.exec(statement).all()
-    
-    customers = [
-        {
-            "customer_id": r.customer_id,
-            "total_cost": r.total_cost,
-            "call_count": r.call_count,
-            "avg_latency_ms": round(r.avg_latency_ms or 0, 2)
-        }
-        for r in results
-    ]
-    
-    return customers
+        
+        statement = statement.group_by(TraceEvent.customer_id).order_by(func.sum(TraceEvent.cost_usd).desc())
+        
+        results = session.exec(statement).all()
+        
+        customers = [
+            {
+                "customer_id": r.customer_id,
+                "total_cost": r.total_cost,
+                "call_count": r.call_count,
+                "avg_latency_ms": round(r.avg_latency_ms or 0, 2)
+            }
+            for r in results
+        ]
+        
+        return customers
+    except Exception as e:
+        # Log error but return empty list instead of crashing
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Database error in get_costs_by_customer: {e}")
+        # Return empty list so frontend can render gracefully
+        return []
 
 
 @router.get("/customer/{customer_id}")
@@ -615,26 +623,27 @@ async def get_customer_detail(
     
     Requires Clerk authentication. Returns cost, calls, latency breakdown by provider and model.
     """
-    user_id = current_user.id
-    cutoff = datetime.utcnow() - timedelta(days=days)
-    
-    # Overall stats for this customer
-    stats_stmt = (
-        select(
-            func.sum(TraceEvent.cost_usd).label("total_cost"),
-            func.count(TraceEvent.id).label("call_count"),
-            func.avg(TraceEvent.latency_ms).label("avg_latency")
+    try:
+        user_id = current_user.id
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        
+        # Overall stats for this customer
+        stats_stmt = (
+            select(
+                func.sum(TraceEvent.cost_usd).label("total_cost"),
+                func.count(TraceEvent.id).label("call_count"),
+                func.avg(TraceEvent.latency_ms).label("avg_latency")
+            )
+            .where(and_(
+                TraceEvent.user_id == user_id,
+                TraceEvent.customer_id == customer_id,
+                TraceEvent.created_at >= cutoff
+            ))
         )
-        .where(and_(
-            TraceEvent.user_id == user_id,
-            TraceEvent.customer_id == customer_id,
-            TraceEvent.created_at >= cutoff
-        ))
-    )
-    stats = session.exec(stats_stmt).first()
-    
-    # Breakdown by provider
-    provider_stmt = (
+        stats = session.exec(stats_stmt).first()
+        
+        # Breakdown by provider
+        provider_stmt = (
         select(
             TraceEvent.provider,
             func.sum(TraceEvent.cost_usd).label("cost"),
@@ -648,11 +657,11 @@ async def get_customer_detail(
         ))
         .group_by(TraceEvent.provider)
         .order_by(func.sum(TraceEvent.cost_usd).desc())
-    )
-    providers = session.exec(provider_stmt).all()
-    
-    # Breakdown by model
-    model_stmt = (
+        )
+        providers = session.exec(provider_stmt).all()
+        
+        # Breakdown by model
+        model_stmt = (
         select(
             TraceEvent.model,
             func.sum(TraceEvent.cost_usd).label("cost"),
@@ -667,30 +676,45 @@ async def get_customer_detail(
         .group_by(TraceEvent.model)
         .order_by(func.sum(TraceEvent.cost_usd).desc())
         .limit(10)
-    )
-    models = session.exec(model_stmt).all()
-    
-    return {
-        "customer_id": customer_id,
-        "total_cost": round(stats.total_cost or 0, 6),
-        "call_count": stats.call_count or 0,
-        "avg_latency_ms": round(stats.avg_latency or 0, 2),
-        "by_provider": [
-            {
-                "provider": p.provider,
-                "cost": round(p.cost or 0, 6),
-                "calls": p.calls
-            }
-            for p in providers
-        ],
-        "top_models": [
-            {
-                "model": m.model,
-                "cost": round(m.cost or 0, 6),
-                "calls": m.calls
-            }
-            for m in models
-        ],
-        "period_days": days
-    }
+        )
+        models = session.exec(model_stmt).all()
+        
+        return {
+            "customer_id": customer_id,
+            "total_cost": round(stats.total_cost or 0, 6),
+            "call_count": stats.call_count or 0,
+            "avg_latency_ms": round(stats.avg_latency or 0, 2),
+            "by_provider": [
+                {
+                    "provider": p.provider,
+                    "cost": round(p.cost or 0, 6),
+                    "calls": p.calls
+                }
+                for p in providers
+            ],
+            "top_models": [
+                {
+                    "model": m.model,
+                    "cost": round(m.cost or 0, 6),
+                    "calls": m.calls
+                }
+                for m in models
+            ],
+            "period_days": days
+        }
+    except Exception as e:
+        # Log error but return empty data structure instead of crashing
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Database error in get_customer_detail: {e}")
+        # Return empty structure so frontend can render gracefully
+        return {
+            "customer_id": customer_id,
+            "total_cost": 0,
+            "call_count": 0,
+            "avg_latency_ms": 0,
+            "by_provider": [],
+            "top_models": [],
+            "period_days": days
+        }
 

@@ -675,11 +675,40 @@ export default function CapsPage() {
     }
   }, [isLoaded, user, loadData]);
 
-  // Auto-refresh every 30s
+  // Auto-refresh every 2 minutes (paused when tab is hidden)
   useEffect(() => {
-    const interval = setInterval(() => loadData(), 30000);
-    return () => clearInterval(interval);
-  }, [loadData]);
+    if (!isLoaded || !user) return;
+    
+    let interval: NodeJS.Timeout | null = null;
+    
+    const startInterval = () => {
+      if (interval) clearInterval(interval);
+      interval = setInterval(() => {
+        if (!document.hidden) {
+          loadData();
+        }
+      }, 120000); // 2 minutes instead of 30 seconds
+    };
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
+      } else {
+        startInterval();
+      }
+    };
+    
+    startInterval();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      if (interval) clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isLoaded, user, loadData]);
 
   const handleCreateCap = async (capData: CapCreate) => {
     const token = await getToken();

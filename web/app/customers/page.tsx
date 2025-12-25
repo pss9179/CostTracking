@@ -777,7 +777,7 @@ function CustomersPageContent() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken, hours, cacheKey, customers.length]);
+  }, [isLoaded, user, getToken, hours, cacheKey]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -791,7 +791,42 @@ function CustomersPageContent() {
     }
     
     loadData(!!hasCachedData);
-  }, [isHydrated, isLoaded, user, cacheKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isHydrated, isLoaded, user, cacheKey, hours]); // eslint-disable-line react-hooks/exhaustive-deps
+  
+  // Auto-refresh every 2 minutes (paused when tab is hidden)
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+    
+    let interval: NodeJS.Timeout | null = null;
+    
+    const startInterval = () => {
+      if (interval) clearInterval(interval);
+      interval = setInterval(() => {
+        if (!document.hidden) {
+          loadData(true);
+        }
+      }, 120000); // 2 minutes
+    };
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
+      } else {
+        startInterval();
+      }
+    };
+    
+    startInterval();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      if (interval) clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isLoaded, user, loadData]);
 
 
   // Enrich customers with delta and primary provider/model

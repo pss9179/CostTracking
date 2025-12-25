@@ -417,16 +417,27 @@ export async function fetchCustomerStats(hours: number = 720, tenantId?: string 
   if (tenantId) {
     url += `&tenant_id=${encodeURIComponent(tenantId)}`;
   }
-  const response = await fetch(url, {
-    headers,
-  });
+  try {
+    const response = await fetch(url, {
+      headers,
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => response.statusText);
-    throw new Error(`Failed to fetch customer stats (${response.status}): ${errorText}`);
+    if (!response.ok) {
+      // If database error (500), return empty array instead of throwing
+      if (response.status === 500) {
+        console.warn("Database unavailable, returning empty customer list");
+        return [];
+      }
+      const errorText = await response.text().catch(() => response.statusText);
+      throw new Error(`Failed to fetch customer stats (${response.status}): ${errorText}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    // If network error or database unavailable, return empty array
+    console.warn("Error fetching customer stats, returning empty list:", error);
+    return [];
   }
-
-  return response.json();
 }
 
 export async function fetchInsights(tenantId?: string | null, token?: string): Promise<Insight[]> {

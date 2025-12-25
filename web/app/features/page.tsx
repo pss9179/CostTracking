@@ -136,7 +136,7 @@ function useFeaturesData(hours: number) {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken, hours, cacheKey, sectionStats.length]);
+  }, [isLoaded, user, getToken, hours, cacheKey]);
   
   useEffect(() => {
     if (!isHydrated) return;
@@ -150,13 +150,42 @@ function useFeaturesData(hours: number) {
     }
     
     loadData(!!hasCachedData);
-  }, [isHydrated, isLoaded, user, cacheKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isHydrated, isLoaded, user, cacheKey, hours]); // eslint-disable-line react-hooks/exhaustive-deps
   
-  // Auto-refresh
+  // Auto-refresh every 2 minutes (paused when tab is hidden)
   useEffect(() => {
-    const interval = setInterval(() => loadData(true), 30000);
-    return () => clearInterval(interval);
-  }, [loadData]);
+    if (!isLoaded || !user) return;
+    
+    let interval: NodeJS.Timeout | null = null;
+    
+    const startInterval = () => {
+      if (interval) clearInterval(interval);
+      interval = setInterval(() => {
+        if (!document.hidden) {
+          loadData(true);
+        }
+      }, 120000); // 2 minutes
+    };
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
+      } else {
+        startInterval();
+      }
+    };
+    
+    startInterval();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      if (interval) clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isLoaded, user, loadData]);
   
   return {
     sectionStats,

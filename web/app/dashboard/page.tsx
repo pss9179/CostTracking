@@ -190,7 +190,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken, hours, days, compareEnabled, cacheKey, providerStats.length]);
+  }, [isLoaded, user, getToken, hours, days, compareEnabled, cacheKey]);
   
   // Load data when dateRange or compareEnabled changes (only after hydration)
   useEffect(() => {
@@ -208,13 +208,45 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     
     // Fetch data (background if we have cached data, foreground if not)
     loadData(!!hasCachedData);
-  }, [isHydrated, isLoaded, user, cacheKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isHydrated, isLoaded, user, cacheKey, hours, days, compareEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
   
-  // Auto-refresh every 30s (background only)
+  // Auto-refresh every 2 minutes (background only, paused when tab is hidden)
   useEffect(() => {
-    const interval = setInterval(() => loadData(true), 30000);
-    return () => clearInterval(interval);
-  }, [loadData]);
+    if (!isLoaded || !user) return;
+    
+    let interval: NodeJS.Timeout | null = null;
+    
+    const startInterval = () => {
+      if (interval) clearInterval(interval);
+      interval = setInterval(() => {
+        // Only refresh if tab is visible
+        if (!document.hidden) {
+          loadData(true);
+        }
+      }, 120000); // 2 minutes instead of 30 seconds
+    };
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Pause when tab is hidden
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
+      } else {
+        // Resume when tab becomes visible
+        startInterval();
+      }
+    };
+    
+    startInterval();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      if (interval) clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isLoaded, user, loadData]);
   
   return {
     runs,
