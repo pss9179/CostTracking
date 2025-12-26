@@ -683,7 +683,7 @@ function CustomerDetailPanel({
 
 function CustomersPageContent() {
   const { getToken } = useAuth();
-  const { isLoaded, user } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
   const { filters, setSelectedCustomer: setGlobalCustomer } = useGlobalFilters();
   
@@ -735,7 +735,7 @@ function CustomersPageContent() {
   }, [filters.dateRange]);
 
   const loadData = useCallback(async (isBackground = false) => {
-    if (!isLoaded || !user) return;
+    if (!isLoaded || !isSignedIn || !user) return;
     
     // Skip if cache is fresh
     if (isBackground && !isCacheStale(cacheKey)) {
@@ -777,11 +777,11 @@ function CustomersPageContent() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken, hours, cacheKey]);
+  }, [isLoaded, isSignedIn, user, getToken, hours, cacheKey]);
 
   useEffect(() => {
     if (!isHydrated) return;
-    if (!isLoaded || !user) return;
+    if (!isLoaded || !isSignedIn || !user) return;
     
     const cachedData = getCached<{ customers: CustomerStats[], prevCustomers: CustomerStats[] }>(cacheKey);
     const hasCachedData = cachedData && cachedData.customers.length > 0;
@@ -791,11 +791,11 @@ function CustomersPageContent() {
     }
     
     loadData(!!hasCachedData);
-  }, [isHydrated, isLoaded, user, cacheKey, hours]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isHydrated, isLoaded, isSignedIn, user, cacheKey, hours]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Auto-refresh every 2 minutes (paused when tab is hidden)
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    if (!isLoaded || !isSignedIn || !user) return;
     
     let interval: NodeJS.Timeout | null = null;
     
@@ -826,7 +826,7 @@ function CustomersPageContent() {
       if (interval) clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isLoaded, user, loadData]);
+  }, [isLoaded, isSignedIn, user, loadData]);
 
 
   // Enrich customers with delta and primary provider/model

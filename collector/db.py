@@ -6,8 +6,8 @@ from sqlmodel import create_engine, SQLModel, Session
 from typing import Generator
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (override=True to use .env file over shell env vars)
+load_dotenv(override=True)
 
 # Database URL from environment (PostgreSQL or SQLite fallback)
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./collector.db")

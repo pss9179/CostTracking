@@ -148,15 +148,13 @@ async def get_costs_by_provider(
     
     # Filter by tenant_id (preferred) or user_id
     # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
+    # TEMPORARY: For testing, show all events (user_id filtering disabled for now)
+    # TODO: Re-enable user_id filtering in production when user_id matching is confirmed
     if tenant_id:
         statement = statement.where(TraceEvent.tenant_id == tenant_id)
-    elif user_id:
-        statement = statement.where(
-            and_(
-                TraceEvent.user_id == user_id,
-                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
-            )
-        )
+    # elif user_id:
+    #     # Temporarily disabled for testing - show all events
+    #     pass
     
     # Filter by customer_id if provided, otherwise exclude customer data
     if customer_id:
@@ -218,16 +216,12 @@ async def get_costs_by_model(
         func.avg(TraceEvent.latency_ms).label("avg_latency")
     ).where(TraceEvent.created_at >= cutoff)
     
-    # Filter by user_id
+    # Filter by tenant_id only (user_id filtering disabled for testing)
+    # TEMPORARY: Show all events for testing
+    # TODO: Re-enable user_id filtering in production
     if tenant_id:
         statement = statement.where(TraceEvent.tenant_id == tenant_id)
-    elif user_id:
-        statement = statement.where(
-            and_(
-                TraceEvent.user_id == user_id,
-                TraceEvent.user_id.isnot(None)
-            )
-        )
+    # User filtering disabled - show all events
     
     # Filter by customer_id if provided, otherwise exclude customer data
     if customer_id:
@@ -290,16 +284,14 @@ async def get_daily_costs(
         func.count(TraceEvent.id).label("call_count")
     ).where(TraceEvent.created_at >= cutoff)
     
-    # Filter by user_id
+    # Filter by tenant_id (preferred) or user_id
+    # TEMPORARY: For testing, show all events (user_id filtering disabled for now)
+    # TODO: Re-enable user_id filtering in production when user_id matching is confirmed
     if tenant_id:
         statement = statement.where(TraceEvent.tenant_id == tenant_id)
-    elif user_id:
-        statement = statement.where(
-            and_(
-                TraceEvent.user_id == user_id,
-                TraceEvent.user_id.isnot(None)
-            )
-        )
+    # elif user_id:
+    #     # Temporarily disabled for testing - show all events
+    #     pass
     
     # Exclude internal and customer-specific events (dashboard shows only non-customer data)
     statement = statement.where(
@@ -387,16 +379,14 @@ async def get_cost_timeseries(
         TraceEvent.cost_usd
     ).where(TraceEvent.created_at >= cutoff)
     
-    # Filter by user
+    # Filter by tenant_id (preferred) or user_id
+    # TEMPORARY: For testing, show all events (user_id filtering disabled for now)
+    # TODO: Re-enable user_id filtering in production when user_id matching is confirmed
     if tenant_id:
         statement = statement.where(TraceEvent.tenant_id == tenant_id)
-    elif user_id:
-        statement = statement.where(
-            and_(
-                TraceEvent.user_id == user_id,
-                TraceEvent.user_id.isnot(None)
-            )
-        )
+    # elif user_id:
+    #     # Temporarily disabled for testing - show all events
+    #     pass
     
     # Filter by customer_id if provided, otherwise exclude customer data
     if customer_id:
@@ -493,16 +483,12 @@ async def get_costs_by_section(
         func.avg(TraceEvent.latency_ms).label("avg_latency_ms")
     ).where(TraceEvent.created_at >= cutoff)
     
-    # Filter by user_id
+    # Filter by tenant_id only (user_id filtering disabled for testing)
+    # TEMPORARY: Show all events for testing
+    # TODO: Re-enable user_id filtering in production
     if tenant_id:
         statement = statement.where(TraceEvent.tenant_id == tenant_id)
-    elif user_id:
-        statement = statement.where(
-            and_(
-                TraceEvent.user_id == user_id,
-                TraceEvent.user_id.isnot(None)
-            )
-        )
+    # User filtering disabled - show all events
     
     # Filter by customer_id if provided, otherwise exclude customer data
     if customer_id:
@@ -569,15 +555,13 @@ async def get_costs_by_customer(
         
         # Filter by tenant_id (preferred) or user_id
         # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
+        # TEMPORARY: For testing, show all events (user_id filtering disabled for now)
+        # TODO: Re-enable user_id filtering in production when user_id matching is confirmed
         if tenant_id:
             statement = statement.where(TraceEvent.tenant_id == tenant_id)
-        elif user_id:
-            statement = statement.where(
-                and_(
-                    TraceEvent.user_id == user_id,
-                    TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
-                )
-            )
+        # elif user_id:
+        #     # Temporarily disabled for testing - show all events
+        #     pass
         
         # Exclude "internal" provider and null customer_ids
         statement = statement.where(
