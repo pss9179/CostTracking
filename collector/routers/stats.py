@@ -1,6 +1,7 @@
 """
 Stats router - provides aggregated statistics.
 """
+import logging
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime, timedelta
@@ -11,6 +12,8 @@ from models import TraceEvent
 from db import get_session
 from auth import get_current_user_id
 from clerk_auth import get_current_clerk_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
@@ -154,7 +157,7 @@ async def get_costs_by_provider(
         statement = statement.where(
             and_(
                 TraceEvent.user_id == user_id,
-                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+                TraceEvent.user_id.isnot(None)
             )
         )
     
@@ -184,7 +187,6 @@ async def get_costs_by_provider(
         }
         for r in results
     ]
-    
     return providers
 
 
@@ -218,7 +220,8 @@ async def get_costs_by_model(
         func.avg(TraceEvent.latency_ms).label("avg_latency")
     ).where(TraceEvent.created_at >= cutoff)
     
-    # Filter by user_id
+    # Filter by tenant_id (preferred) or user_id
+    # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
     if tenant_id:
         statement = statement.where(TraceEvent.tenant_id == tenant_id)
     elif user_id:
@@ -290,7 +293,8 @@ async def get_daily_costs(
         func.count(TraceEvent.id).label("call_count")
     ).where(TraceEvent.created_at >= cutoff)
     
-    # Filter by user_id
+    # Filter by tenant_id (preferred) or user_id
+    # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
     if tenant_id:
         statement = statement.where(TraceEvent.tenant_id == tenant_id)
     elif user_id:
@@ -387,7 +391,8 @@ async def get_cost_timeseries(
         TraceEvent.cost_usd
     ).where(TraceEvent.created_at >= cutoff)
     
-    # Filter by user
+    # Filter by tenant_id (preferred) or user_id
+    # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
     if tenant_id:
         statement = statement.where(TraceEvent.tenant_id == tenant_id)
     elif user_id:
@@ -493,7 +498,8 @@ async def get_costs_by_section(
         func.avg(TraceEvent.latency_ms).label("avg_latency_ms")
     ).where(TraceEvent.created_at >= cutoff)
     
-    # Filter by user_id
+    # Filter by tenant_id (preferred) or user_id
+    # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
     if tenant_id:
         statement = statement.where(TraceEvent.tenant_id == tenant_id)
     elif user_id:
@@ -575,7 +581,7 @@ async def get_costs_by_customer(
             statement = statement.where(
                 and_(
                     TraceEvent.user_id == user_id,
-                    TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+                    TraceEvent.user_id.isnot(None)
                 )
             )
         

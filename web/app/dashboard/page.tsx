@@ -11,6 +11,7 @@ import {
   fetchProviderStats,
   fetchModelStats,
   fetchTimeseries,
+  fetchDailyStats,
   type Run,
   type ProviderStats,
   type ModelStats,
@@ -64,7 +65,7 @@ interface DashboardCacheData {
 
 function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false) {
   const { getToken } = useAuth();
-  const { isLoaded, user } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   
   const cacheKey = `dashboard-${dateRange}-${compareEnabled}`;
   
@@ -75,7 +76,8 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   const [runs, setRuns] = useState<Run[]>([]);
   const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
   const [modelStats, setModelStats] = useState<ModelStats[]>([]);
-  const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
+  const [dailyStats, setDailyStats] = useState<DailyStats[]>([]); // For chart (timeseries)
+  const [dailyAggregates, setDailyAggregates] = useState<DailyStats[]>([]); // For week/month calculations
   const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>([]);
   const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>([]);
   // Start with loading=true, will be set to false after hydration check
@@ -93,6 +95,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       setProviderStats(cachedData.providerStats || []);
       setModelStats(cachedData.modelStats || []);
       setDailyStats(cachedData.dailyStats || []);
+      setDailyAggregates(cachedData.dailyStats || []); // Use same data initially, will be updated on fetch
       setPrevProviderStats(cachedData.prevProviderStats || []);
       setPrevDailyStats(cachedData.prevDailyStats || []);
       setLoading(false);
@@ -141,11 +144,14 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       if (!token) throw new Error("Not authenticated. Please sign in again.");
       
       // Fetch current period data
-      const [runsData, providersData, modelsData, dailyData] = await Promise.all([
+      // Use fetchDailyStats for week/month calculations (returns daily aggregates)
+      // Use fetchTimeseries for chart (returns time-bucketed data)
+      const [runsData, providersData, modelsData, timeseriesData, dailyData] = await Promise.all([
         fetchRuns(50, null, token).catch(() => []),
-        fetchProviderStats(hours, null, token).catch(() => []),
-        fetchModelStats(hours, null, token).catch(() => []),
-        fetchTimeseries(hours, null, token).catch(() => []),
+        fetchProviderStats(hours, null, null, token).catch(() => []),
+        fetchModelStats(hours, null, null, token).catch(() => []),
+        fetchTimeseries(hours, null, null, token).catch(() => []),
+        fetchDailyStats(days, null, token).catch(() => []), // For week/month calculations
       ]);
       
       let prevProvidersData: ProviderStats[] = [];
@@ -155,9 +161,9 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       if (compareEnabled) {
         const prevHours = hours * 2;
         const [prevProviders, prevModels, prevDaily] = await Promise.all([
-          fetchProviderStats(prevHours, null, token).catch(() => []),
-          fetchModelStats(prevHours, null, token).catch(() => []),
-          fetchTimeseries(prevHours, null, token).catch(() => []),
+          fetchProviderStats(prevHours, null, null, token).catch(() => []),
+          fetchModelStats(prevHours, null, null, token).catch(() => []),
+          fetchTimeseries(prevHours, null, null, token).catch(() => []),
         ]);
         
         const halfwayPoint = Math.floor((prevDaily || []).length / 2);
@@ -165,11 +171,15 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
         prevDailyOnly = (prevDaily || []).slice(0, halfwayPoint);
       }
       
+      // Store dailyData for week/month calculations (separate from timeseries)
+      const dailyStatsForCalc = dailyData || [];
+      
       // Update state
       setRuns(runsData || []);
       setProviderStats(providersData || []);
       setModelStats(modelsData || []);
-      setDailyStats(dailyData || []);
+      setDailyStats(timeseriesData || []); // Use timeseries for chart
+      setDailyAggregates(dailyData || []); // Use daily aggregates for week/month calculations
       setPrevProviderStats(prevProvidersData);
       setPrevDailyStats(prevDailyOnly);
       setLastRefresh(new Date());
@@ -179,7 +189,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
         runs: runsData || [],
         providerStats: providersData || [],
         modelStats: modelsData || [],
-        dailyStats: dailyData || [],
+        dailyStats: timeseriesData || [], // Cache timeseries for chart
         prevProviderStats: prevProvidersData,
         prevDailyStats: prevDailyOnly,
       });
@@ -190,12 +200,12 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken, hours, days, compareEnabled, cacheKey]);
+  }, [isLoaded, isSignedIn, user, getToken, hours, days, compareEnabled, cacheKey]);
   
   // Load data when dateRange or compareEnabled changes (only after hydration)
   useEffect(() => {
     if (!isHydrated) return; // Wait for hydration
-    if (!isLoaded || !user) return; // Wait for Clerk
+    if (!isLoaded || !isSignedIn || !user) return; // Wait for Clerk and ensure signed in
     
     // Check if we need to fetch
     const cachedData = getCached<DashboardCacheData>(cacheKey);
@@ -208,11 +218,11 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     
     // Fetch data (background if we have cached data, foreground if not)
     loadData(!!hasCachedData);
-  }, [isHydrated, isLoaded, user, cacheKey, hours, days, compareEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isHydrated, isLoaded, isSignedIn, user, cacheKey, hours, days, compareEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Auto-refresh every 2 minutes (background only, paused when tab is hidden)
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    if (!isLoaded || !isSignedIn || !user) return;
     
     let interval: NodeJS.Timeout | null = null;
     
@@ -246,13 +256,14 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       if (interval) clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isLoaded, user, loadData]);
+  }, [isLoaded, isSignedIn, user, loadData]);
   
   return {
     runs,
     providerStats,
     modelStats,
     dailyStats,
+    dailyAggregates, // Expose daily aggregates for week/month calculations
     prevProviderStats,
     prevDailyStats,
     loading,
@@ -281,6 +292,7 @@ function DashboardPageContent() {
     providerStats,
     modelStats,
     dailyStats,
+    dailyAggregates,
     prevProviderStats,
     prevDailyStats,
     loading,
@@ -352,15 +364,15 @@ function DashboardPageContent() {
     const totalCost = filteredProviderStats.reduce((sum, stat) => sum + (stat.total_cost || 0), 0);
     const totalCalls = filteredProviderStats.reduce((sum, stat) => sum + (stat.call_count || 0), 0);
     
-    // Week cost from daily stats
-    const weekCost = dailyStats.slice(-7).reduce((sum, day) => sum + (day.total || 0), 0);
+    // Week cost: sum of last 7 days from daily aggregates
+    const weekCost = dailyAggregates.slice(-7).reduce((sum, day) => sum + (day.total || 0), 0);
     
-    // Month estimate
-    const monthCost = dailyStats.reduce((sum, day) => sum + (day.total || 0), 0);
+    // Month cost: sum of last 30 days from daily aggregates
+    const monthCost = dailyAggregates.slice(-30).reduce((sum, day) => sum + (day.total || 0), 0);
     
-    // Yesterday's cost
-    const yesterdayCost = dailyStats.length >= 2 
-      ? dailyStats[dailyStats.length - 2]?.total || 0 
+    // Yesterday's cost from daily aggregates
+    const yesterdayCost = dailyAggregates.length >= 2 
+      ? dailyAggregates[dailyAggregates.length - 2]?.total || 0 
       : 0;
     
     // Top provider
@@ -381,7 +393,7 @@ function DashboardPageContent() {
       topProvider,
       topModel,
     };
-  }, [filteredProviderStats, filteredModelStats, dailyStats]);
+  }, [filteredProviderStats, filteredModelStats, dailyAggregates]);
   
   // Prepare chart data
   const chartData = useMemo(() => {

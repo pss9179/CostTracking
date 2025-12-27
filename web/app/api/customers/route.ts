@@ -24,6 +24,12 @@ export async function GET() {
     });
 
     if (!response.ok) {
+      // If database error, return empty array instead of error
+      if (response.status === 500) {
+        const errorText = await response.text();
+        console.warn("Database unavailable, returning empty customer list:", errorText);
+        return NextResponse.json([]);
+      }
       throw new Error(`Collector API error: ${response.status}`);
     }
 
@@ -31,10 +37,8 @@ export async function GET() {
     return NextResponse.json(data);
   } catch (error) {
     console.error("Failed to fetch customer data:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch customer data" },
-      { status: 500 }
-    );
+    // Return empty array instead of error so page can render
+    return NextResponse.json([]);
   }
 }
 

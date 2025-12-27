@@ -6,8 +6,8 @@ from sqlmodel import create_engine, SQLModel, Session
 from typing import Generator
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (override=True to use .env file over shell env vars)
+load_dotenv(override=True)
 
 # Database URL from environment (PostgreSQL or SQLite fallback)
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./collector.db")
@@ -24,19 +24,22 @@ if DATABASE_URL.startswith("sqlite"):
         connect_args={"check_same_thread": False}
     )
 else:
-    # PostgreSQL/Supabase
-    # Force IPv4 to avoid Railway IPv6 connection issues
-    import urllib.parse
-    parsed = urllib.parse.urlparse(DATABASE_URL)
-    # Add connect_timeout and force IPv4 via connection args
+    # PostgreSQL/Railway
+    # Configure connection pooling for reliability with remote databases
     engine = create_engine(
         DATABASE_URL,
         echo=False,
-        pool_pre_ping=True,  # Verify connections before using
+        pool_pre_ping=True,      # Verify connections before using (detects stale connections)
+        pool_recycle=300,        # Recycle connections every 5 minutes (Railway drops idle connections)
+        pool_size=5,             # Keep 5 connections in the pool
+        max_overflow=10,         # Allow 10 additional connections if needed
+        pool_timeout=30,         # Wait up to 30 seconds for a connection
         connect_args={
             "connect_timeout": 10,
-            # Force IPv4 by using hostname (psycopg2 will resolve to IPv4)
-            # If still issues, we can try adding: "host": parsed.hostname
+            "keepalives": 1,               # Enable TCP keepalives
+            "keepalives_idle": 30,         # Send keepalive after 30s idle
+            "keepalives_interval": 10,     # Retry every 10s
+            "keepalives_count": 5,         # Retry 5 times before giving up
         }
     )
 
