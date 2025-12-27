@@ -1,6 +1,7 @@
 """
 Stats router - provides aggregated statistics.
 """
+import logging
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime, timedelta
@@ -11,6 +12,8 @@ from models import TraceEvent
 from db import get_session
 from auth import get_current_user_id
 from clerk_auth import get_current_clerk_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
@@ -184,7 +187,6 @@ async def get_costs_by_provider(
         }
         for r in results
     ]
-    
     return providers
 
 
