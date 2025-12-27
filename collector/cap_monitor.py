@@ -25,8 +25,10 @@ async def check_all_caps():
     """Check all enabled spending caps and trigger alerts if needed."""
     logger.info("[CapMonitor] Starting cap check cycle...")
     
-    session = SessionLocal()
+    session = None
     try:
+        session = SessionLocal()
+        
         # Get all enabled caps
         caps = session.exec(
             select(SpendingCap).where(SpendingCap.enabled == True)
@@ -37,16 +39,35 @@ async def check_all_caps():
         for cap in caps:
             try:
                 await check_single_cap(session, cap)
+                session.commit()  # Commit after each successful cap check
             except Exception as e:
-                logger.error(f"[CapMonitor] Error checking cap {cap.id}: {e}", exc_info=True)
+                logger.error(f"[CapMonitor] Error checking cap {cap.id}: {e}")
+                # Rollback and get a fresh session to continue
+                try:
+                    session.rollback()
+                except Exception:
+                    pass
+                # Close and recreate session to clear invalid state
+                try:
+                    session.close()
+                except Exception:
+                    pass
+                session = SessionLocal()
         
-        session.commit()
         logger.info("[CapMonitor] Cap check cycle complete")
     except Exception as e:
-        logger.error(f"[CapMonitor] Error in cap check cycle: {e}", exc_info=True)
-        session.rollback()
+        logger.error(f"[CapMonitor] Error in cap check cycle: {e}")
+        if session:
+            try:
+                session.rollback()
+            except Exception:
+                pass
     finally:
-        session.close()
+        if session:
+            try:
+                session.close()
+            except Exception:
+                pass
 
 
 async def check_single_cap(session: Session, cap: SpendingCap):
