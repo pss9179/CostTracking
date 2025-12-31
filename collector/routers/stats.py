@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Caches identical queries to avoid repeated slow DB calls
 # =============================================================================
 _response_cache: Dict[str, Tuple[Any, float]] = {}
-_cache_ttl_seconds = 60  # Cache for 60 seconds
+_cache_ttl_seconds = 300  # Cache for 5 minutes - Railway DB is very slow, need longer cache
 
 def get_cached_response(cache_key: str) -> Optional[Any]:
     """Get cached response if it exists and is not expired."""
