@@ -396,20 +396,11 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     }
   }, [isLoaded, isSignedIn, user, getToken, hours, days, compareEnabled, cacheKey]);
   
-  // Effect: Trigger fetch when auth becomes ready or cache key changes
+  // Effect: Trigger fetch immediately on mount and when deps change
+  // loadData now handles auth retry internally - don't wait for isLoaded here
   useEffect(() => {
-    console.log('[Dashboard] Effect running at', Date.now(), ':', { isLoaded, isSignedIn, hasUser: !!user });
-    
-    if (!isLoaded) {
-      console.log('[Dashboard] Effect: waiting for auth to load');
-      return;
-    }
-    
-    if (!isSignedIn || !user) {
-      console.log('[Dashboard] Effect: not signed in or no user');
-      if (!hasLoadedRef.current && mountedRef.current) setLoading(false);
-      return;
-    }
+    const mountTime = (performance.now() - PAGE_MOUNT_TIME).toFixed(0);
+    console.log('[Dashboard] Effect running at', mountTime, 'ms since mount:', { isLoaded, isSignedIn, hasUser: !!user });
     
     const cache = getCachedWithMeta<DashboardCacheData>(cacheKey);
     // FIX: Check cache.exists, NOT data length (empty [] is valid cached data)
@@ -423,7 +414,8 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       return;
     }
     
-    console.log('[Dashboard] Effect: calling loadData, cache exists:', cache.exists);
+    // IMMEDIATE LOAD: Call loadData now - it handles auth retry internally
+    console.log('[Dashboard] Effect: calling loadData immediately (', mountTime, 'ms since mount)');
     loadData(!!cache.exists);
   }, [isLoaded, isSignedIn, user, cacheKey, loadData]);
   

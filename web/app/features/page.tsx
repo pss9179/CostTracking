@@ -297,14 +297,10 @@ function useFeaturesData(hours: number) {
     }
   }, [isLoaded, isSignedIn, user, getToken, hours, cacheKey]);
   
-  // Trigger fetch when auth ready
+  // Effect: Trigger fetch immediately - loadData handles auth retry internally
   useEffect(() => {
-    if (!isLoaded) return;
-    
-    if (!isSignedIn || !user) {
-      if (!hasLoadedRef.current && mountedRef.current) setLoading(false);
-      return;
-    }
+    const mountTime = (performance.now() - FEATURES_MOUNT_TIME).toFixed(0);
+    console.log('[Features] Effect running at', mountTime, 'ms since mount:', { isLoaded, isSignedIn, hasUser: !!user });
     
     const cache = getCachedWithMeta<FeaturesCacheData>(cacheKey);
     // FIX: Check cache.exists, NOT data length (empty [] is valid cached data)
@@ -315,6 +311,8 @@ function useFeaturesData(hours: number) {
       return;
     }
     
+    // IMMEDIATE LOAD: Call loadData now - it handles auth retry internally
+    console.log('[Features] Effect: calling loadData immediately (', mountTime, 'ms since mount)');
     loadData(!!cache.exists);
   }, [isLoaded, isSignedIn, user, cacheKey, loadData]);
   

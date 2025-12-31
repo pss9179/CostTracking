@@ -825,22 +825,21 @@ export default function CapsPage() {
     }
   }, [isLoaded, isSignedIn, user, getToken]);
 
-  // Trigger fetch when auth ready
+  // Effect: Trigger fetch immediately - loadData handles auth retry internally
   useEffect(() => {
-    if (!isLoaded) return;
-    
-    if (!isSignedIn || !user) {
-      if (!hasLoadedRef.current && mountedRef.current) setLoading(false);
-      return;
-    }
+    const mountTime = (performance.now() - CAPS_MOUNT_TIME).toFixed(0);
+    console.log('[Caps] Effect running at', mountTime, 'ms since mount:', { isLoaded, isSignedIn, hasUser: !!user });
     
     const cache = getCachedWithMeta<CapsCacheData>(CAPS_CACHE_KEY);
     if (cache.exists && !cache.isStale) {
+      console.log('[Caps] Effect: using fresh cache, skipping fetch');
       hasLoadedRef.current = true;
       if (mountedRef.current) setLoading(false);
       return;
     }
     
+    // IMMEDIATE LOAD: Call loadData now - it handles auth retry internally
+    console.log('[Caps] Effect: calling loadData immediately (', mountTime, 'ms since mount)');
     loadData(false);
   }, [isLoaded, isSignedIn, user, loadData]);
   
