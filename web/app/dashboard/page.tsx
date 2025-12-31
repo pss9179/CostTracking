@@ -322,12 +322,27 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       
       // Track whether each fetch succeeded (200) vs failed (error caught)
       let fetchSucceeded = true;
+      
+      // DIAGNOSTIC: Time each individual fetch to find the slow one
+      const timeFetch = async <T,>(name: string, fn: () => Promise<T>): Promise<T> => {
+        const start = Date.now();
+        try {
+          const result = await fn();
+          console.log(`[Dashboard] ${name} completed in ${Date.now() - start}ms`);
+          return result;
+        } catch (e: any) {
+          console.error(`[Dashboard] ${name} FAILED in ${Date.now() - start}ms:`, e.message);
+          fetchSucceeded = false;
+          return [] as unknown as T;
+        }
+      };
+      
       const [runsData, providersData, modelsData, timeseriesData, dailyData] = await Promise.all([
-        fetchRuns(50, null, token).catch((e) => { console.error('[Dashboard] fetchRuns error:', e.message); fetchSucceeded = false; return []; }),
-        fetchProviderStats(hours, null, null, token).catch((e) => { console.error('[Dashboard] fetchProviderStats error:', e.message); fetchSucceeded = false; return []; }),
-        fetchModelStats(hours, null, null, token).catch((e) => { console.error('[Dashboard] fetchModelStats error:', e.message); fetchSucceeded = false; return []; }),
-        fetchTimeseries(hours, null, null, token).catch((e) => { console.error('[Dashboard] fetchTimeseries error:', e.message); fetchSucceeded = false; return []; }),
-        fetchDailyStats(days, null, token).catch((e) => { console.error('[Dashboard] fetchDailyStats error:', e.message); fetchSucceeded = false; return []; }),
+        timeFetch('fetchRuns', () => fetchRuns(50, null, token)),
+        timeFetch('fetchProviderStats', () => fetchProviderStats(hours, null, null, token)),
+        timeFetch('fetchModelStats', () => fetchModelStats(hours, null, null, token)),
+        timeFetch('fetchTimeseries', () => fetchTimeseries(hours, null, null, token)),
+        timeFetch('fetchDailyStats', () => fetchDailyStats(days, null, token)),
       ]);
       console.log('[Dashboard] Fetch complete in', Date.now() - fetchStart, 'ms (', (performance.now() - PAGE_MOUNT_TIME).toFixed(0), 'ms since mount):', { 
         fetchSucceeded,
