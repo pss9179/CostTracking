@@ -804,13 +804,13 @@ export default function CapsPage() {
       
       // Cache successful responses (even if empty) to prevent refetching on navigation
       if (fetchSucceeded) {
-        setCached<CapsCacheData>(CAPS_CACHE_KEY, {
-          caps: capsData,
-          alerts: alertsData,
-          providers: providersList,
-          models: modelsList,
-          features: featuresList,
-        });
+      setCached<CapsCacheData>(CAPS_CACHE_KEY, {
+        caps: capsData,
+        alerts: alertsData,
+        providers: providersList,
+        models: modelsList,
+        features: featuresList,
+      });
         console.log('[Caps] Cache written:', { caps: capsData.length, alerts: alertsData.length });
       } else {
         console.log('[Caps] NOT caching - fetch failed');
@@ -845,7 +845,8 @@ export default function CapsPage() {
     // IMMEDIATE LOAD: Call loadData now - it handles auth retry internally
     console.log('[Caps] Effect: calling loadData immediately (', mountTime, 'ms since mount)');
     loadData(false);
-  }, [isLoaded, isSignedIn, user, loadData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn, user]);
   
   // E) FIX: Cleanup on unmount
   useEffect(() => {
@@ -884,7 +885,8 @@ export default function CapsPage() {
       if (intervalRef.current) clearInterval(intervalRef.current);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isLoaded, isSignedIn, user, loadData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn, user]);
 
   const handleCreateCap = async (capData: CapCreate) => {
     const token = await getToken();

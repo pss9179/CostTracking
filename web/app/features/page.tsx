@@ -318,7 +318,8 @@ function useFeaturesData(hours: number) {
     // IMMEDIATE LOAD: Call loadData now - it handles auth retry internally
     console.log('[Features] Effect: calling loadData immediately (', mountTime, 'ms since mount)');
     loadData(!!cache.exists);
-  }, [isLoaded, isSignedIn, user, cacheKey, loadData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn, user, cacheKey]);
   
   // E) FIX: Cleanup on unmount
   useEffect(() => {
@@ -357,7 +358,8 @@ function useFeaturesData(hours: number) {
       if (intervalRef.current) clearInterval(intervalRef.current);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isLoaded, isSignedIn, user, cacheKey, loadData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn, user, cacheKey]);
   
   return {
     sectionStats,
