@@ -90,9 +90,10 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   const [providerStats, setProviderStats] = useState<ProviderStats[]>(() => {
     if (typeof window === 'undefined') return [];
     const cached = getCached<DashboardCacheData>(cacheKey);
-    const hasData = !!(cached?.providerStats?.length);
-    console.log('[Dashboard] useState init providerStats, hasData:', hasData);
-    if (hasData) hasLoadedRef.current = true;
+    // FIX: Check if cache exists, not data length (empty [] is valid)
+    const hasCachedData = cached !== null && cached !== undefined;
+    console.log('[Dashboard] useState init providerStats, hasCachedData:', hasCachedData);
+    if (hasCachedData) hasLoadedRef.current = true;
     return cached?.providerStats ?? [];
   });
   
@@ -121,11 +122,12 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     return getCached<DashboardCacheData>(cacheKey)?.prevDailyStats ?? [];
   });
   
-  // Loading starts false if we have cached data (checked in providerStats initializer)
+  // Loading starts false if we have cached data
   const [loading, setLoading] = useState(() => {
     if (typeof window === 'undefined') return true;
     const cached = getCached<DashboardCacheData>(cacheKey);
-    const hasCache = !!(cached?.providerStats?.length);
+    // FIX: Check if cache exists, not data length (empty [] is valid)
+    const hasCache = cached !== null && cached !== undefined;
     console.log('[Dashboard] useState init loading, hasCache:', hasCache, '-> loading:', !hasCache);
     return !hasCache;
   });
@@ -166,7 +168,8 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     const cached = getCached<DashboardCacheData>(cacheKey);
     logCacheStatus('Dashboard', cacheKey, !!cached, !cached);
     
-    if (cached?.providerStats?.length) {
+    // FIX: Check if cache exists, not data length (empty [] is valid cached data)
+    if (cached !== null && cached !== undefined) {
       if (!mountedRef.current) return;
       setRuns(cached.runs || []);
       setProviderStats(cached.providerStats || []);
@@ -351,8 +354,9 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     }
     
     const cache = getCachedWithMeta<DashboardCacheData>(cacheKey);
-    const hasFreshCache = cache.exists && !cache.isStale && cache.data?.providerStats?.length;
-    console.log('[Dashboard] Effect: cache status', { exists: cache.exists, isStale: cache.isStale, hasData: !!cache.data?.providerStats?.length, hasFreshCache });
+    // FIX: Check cache.exists, NOT data length (empty [] is valid cached data)
+    const hasFreshCache = cache.exists && !cache.isStale;
+    console.log('[Dashboard] Effect: cache status', { exists: cache.exists, isStale: cache.isStale, hasFreshCache });
     
     if (hasFreshCache) {
       console.log('[Dashboard] Effect: using fresh cache, skipping fetch');
@@ -361,7 +365,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       return;
     }
     
-    console.log('[Dashboard] Effect: calling loadData');
+    console.log('[Dashboard] Effect: calling loadData, cache exists:', cache.exists);
     loadData(!!cache.exists);
   }, [isLoaded, isSignedIn, user, cacheKey, loadData]);
   

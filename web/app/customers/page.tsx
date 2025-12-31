@@ -698,8 +698,10 @@ function CustomersPageContent() {
   const [customers, setCustomers] = useState<CustomerStats[]>(() => {
     if (typeof window === 'undefined') return [];
     const cached = getCached<CustomersCacheData>(cacheKey);
-    console.log('[Customers] useState init customers, hasData:', !!(cached?.customers?.length));
-    if (cached?.customers?.length) hasLoadedRef.current = true;
+    // FIX: Check if cache exists, not data length (empty [] is valid)
+    const hasCachedData = cached !== null && cached !== undefined;
+    console.log('[Customers] useState init customers, hasCachedData:', hasCachedData);
+    if (hasCachedData) hasLoadedRef.current = true;
     return cached?.customers ?? [];
   });
   
@@ -711,7 +713,8 @@ function CustomersPageContent() {
   const [loading, setLoading] = useState(() => {
     if (typeof window === 'undefined') return true;
     const cached = getCached<CustomersCacheData>(cacheKey);
-    const hasCache = !!(cached?.customers?.length);
+    // FIX: Check if cache exists, not data length (empty [] is valid)
+    const hasCache = cached !== null && cached !== undefined;
     console.log('[Customers] useState init loading, hasCache:', hasCache);
     return !hasCache;
   });
@@ -755,12 +758,14 @@ function CustomersPageContent() {
     const cached = getCached<CustomersCacheData>(cacheKey);
     logCacheStatus('Customers', cacheKey, !!cached, !cached);
     
-    if (cached?.customers?.length) {
+    // FIX: Check if cache exists, not data length (empty [] is valid)
+    if (cached !== null && cached !== undefined) {
       if (!mountedRef.current) return;
       setCustomers(cached.customers || []);
       setPrevCustomers(cached.prevCustomers || []);
       hasLoadedRef.current = true;
       setLoading(false);
+      console.log('[Customers] Hydrated from cache on key change');
     }
     // NEVER clear state on cache miss
   }, [cacheKey]);
@@ -871,7 +876,9 @@ function CustomersPageContent() {
     }
     
     const cache = getCachedWithMeta<CustomersCacheData>(cacheKey);
-    if (cache.exists && !cache.isStale && cache.data?.customers?.length) {
+    // FIX: Check cache.exists, NOT data length (empty [] is valid cached data)
+    if (cache.exists && !cache.isStale) {
+      console.log('[Customers] Effect: using fresh cache, skipping fetch');
       hasLoadedRef.current = true;
       if (mountedRef.current) setLoading(false);
       return;

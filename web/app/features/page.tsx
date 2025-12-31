@@ -73,8 +73,10 @@ function useFeaturesData(hours: number) {
   const [sectionStats, setSectionStats] = useState<SectionStats[]>(() => {
     if (typeof window === 'undefined') return [];
     const cached = getCached<FeaturesCacheData>(cacheKey);
-    console.log('[Features] useState init sectionStats, hasData:', !!(cached?.sectionStats?.length));
-    if (cached?.sectionStats?.length) hasLoadedRef.current = true;
+    // FIX: Check if cache exists, not data length (empty [] is valid)
+    const hasCachedData = cached !== null && cached !== undefined;
+    console.log('[Features] useState init sectionStats, hasCachedData:', hasCachedData);
+    if (hasCachedData) hasLoadedRef.current = true;
     return cached?.sectionStats ?? [];
   });
   
@@ -91,7 +93,8 @@ function useFeaturesData(hours: number) {
   const [loading, setLoading] = useState(() => {
     if (typeof window === 'undefined') return true;
     const cached = getCached<FeaturesCacheData>(cacheKey);
-    const hasCache = !!(cached?.sectionStats?.length);
+    // FIX: Check if cache exists, not data length (empty [] is valid)
+    const hasCache = cached !== null && cached !== undefined;
     console.log('[Features] useState init loading, hasCache:', hasCache);
     return !hasCache;
   });
@@ -111,7 +114,8 @@ function useFeaturesData(hours: number) {
     const cached = getCached<FeaturesCacheData>(cacheKey);
     logCacheStatus('Features', cacheKey, !!cached, !cached);
     
-    if (cached?.sectionStats?.length) {
+    // FIX: Check if cache exists, not data length (empty [] is valid)
+    if (cached !== null && cached !== undefined) {
       if (!mountedRef.current) return;
       setSectionStats(cached.sectionStats || []);
       setProviderStats(cached.providerStats || []);
@@ -249,7 +253,9 @@ function useFeaturesData(hours: number) {
     }
     
     const cache = getCachedWithMeta<FeaturesCacheData>(cacheKey);
-    if (cache.exists && !cache.isStale && cache.data?.sectionStats?.length) {
+    // FIX: Check cache.exists, NOT data length (empty [] is valid cached data)
+    if (cache.exists && !cache.isStale) {
+      console.log('[Features] Effect: using fresh cache, skipping fetch');
       hasLoadedRef.current = true;
       if (mountedRef.current) setLoading(false);
       return;
