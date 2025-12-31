@@ -248,6 +248,8 @@ def migrate_performance_indexes(session: Session = Depends(get_session)):
             ("idx_trace_user_provider_created", "CREATE INDEX IF NOT EXISTS idx_trace_user_provider_created ON trace_events(user_id, provider, created_at DESC)"),
             ("idx_trace_user_section_created", "CREATE INDEX IF NOT EXISTS idx_trace_user_section_created ON trace_events(user_id, section, created_at DESC)"),
             ("idx_trace_user_customer_created", "CREATE INDEX IF NOT EXISTS idx_trace_user_customer_created ON trace_events(user_id, customer_id, created_at DESC)"),
+            # CRITICAL: Partial index for dashboard queries (customer_id IS NULL is very common)
+            ("idx_trace_user_no_customer", "CREATE INDEX IF NOT EXISTS idx_trace_user_no_customer ON trace_events(user_id, provider, created_at DESC) WHERE customer_id IS NULL"),
         ]
         
         results = []
