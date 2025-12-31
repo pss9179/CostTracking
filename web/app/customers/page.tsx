@@ -686,24 +686,36 @@ function CustomersPageContent() {
   
   const cacheKey = `customers-${filters.dateRange}`;
   
-  // SYNC CACHE INIT: Read cache BEFORE first paint
-  const initialCache = typeof window !== 'undefined' 
-    ? getCached<CustomersCacheData>(cacheKey) 
-    : null;
-  const hasValidCache = !!(initialCache?.customers?.length);
-  
   // Refs for fetch management
   const fetchInProgressRef = useRef(false);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
-  const hasLoadedRef = useRef(hasValidCache); // Init from cache
+  const hasLoadedRef = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const prevCacheKeyRef = useRef(cacheKey);
   
-  // State - initialized from cache synchronously
-  const [customers, setCustomers] = useState<CustomerStats[]>(() => initialCache?.customers ?? []);
-  const [prevCustomers, setPrevCustomers] = useState<CustomerStats[]>(() => initialCache?.prevCustomers ?? []);
-  const [loading, setLoading] = useState(!hasValidCache); // False if cache exists
+  // SYNC CACHE INIT: Read cache INSIDE useState initializers
+  const [customers, setCustomers] = useState<CustomerStats[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const cached = getCached<CustomersCacheData>(cacheKey);
+    console.log('[Customers] useState init customers, hasData:', !!(cached?.customers?.length));
+    if (cached?.customers?.length) hasLoadedRef.current = true;
+    return cached?.customers ?? [];
+  });
+  
+  const [prevCustomers, setPrevCustomers] = useState<CustomerStats[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return getCached<CustomersCacheData>(cacheKey)?.prevCustomers ?? [];
+  });
+  
+  const [loading, setLoading] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const cached = getCached<CustomersCacheData>(cacheKey);
+    const hasCache = !!(cached?.customers?.length);
+    console.log('[Customers] useState init loading, hasCache:', hasCache);
+    return !hasCache;
+  });
+  
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -732,24 +744,23 @@ function CustomersPageContent() {
     }
   }, [filters.dateRange]);
   
-  // Handle cacheKey CHANGES only (not initial mount)
+  // Handle cacheKey CHANGES only
   useEffect(() => {
-    if (prevCacheKeyRef.current === cacheKey && hasLoadedRef.current) {
+    if (prevCacheKeyRef.current === cacheKey) {
       return;
     }
+    console.log('[Customers] cacheKey changed:', prevCacheKeyRef.current, '->', cacheKey);
     prevCacheKeyRef.current = cacheKey;
     
     const cached = getCached<CustomersCacheData>(cacheKey);
     logCacheStatus('Customers', cacheKey, !!cached, !cached);
     
-    if (cached?.customers) {
+    if (cached?.customers?.length) {
       if (!mountedRef.current) return;
       setCustomers(cached.customers || []);
       setPrevCustomers(cached.prevCustomers || []);
-      if (cached.customers.length > 0) {
-        hasLoadedRef.current = true;
-        setLoading(false);
-      }
+      hasLoadedRef.current = true;
+      setLoading(false);
     }
     // NEVER clear state on cache miss
   }, [cacheKey]);
@@ -971,6 +982,9 @@ function CustomersPageContent() {
 
   // A) FIX: Data presence overrides all other states
   const hasData = customers.length > 0;
+  
+  // DEBUG: Log render state
+  console.log('[Customers] RENDER:', { hasData, loading, isRefreshing, customersLen: customers.length });
   
   // A) FIX: Loading skeleton ONLY if no data AND loading
   if (!hasData && loading) {

@@ -70,30 +70,66 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   
   const cacheKey = `dashboard-${dateRange}-${compareEnabled}`;
   
-  // SYNC CACHE INIT: Read cache BEFORE first paint (in useState initializers)
-  // This eliminates flicker on tab navigation
-  const initialCache = typeof window !== 'undefined' 
-    ? getCached<DashboardCacheData>(cacheKey) 
-    : null;
-  const hasValidCache = !!(initialCache?.providerStats?.length);
-  
   // Refs to track state across renders without causing re-renders
   const fetchInProgressRef = useRef(false);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
-  const hasLoadedRef = useRef(hasValidCache); // Init from cache
+  const hasLoadedRef = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const prevCacheKeyRef = useRef(cacheKey); // Track cache key changes
+  const prevCacheKeyRef = useRef(cacheKey);
   
-  // State - initialized from cache synchronously
-  const [runs, setRuns] = useState<Run[]>(() => initialCache?.runs ?? []);
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>(() => initialCache?.providerStats ?? []);
-  const [modelStats, setModelStats] = useState<ModelStats[]>(() => initialCache?.modelStats ?? []);
-  const [dailyStats, setDailyStats] = useState<DailyStats[]>(() => initialCache?.dailyStats ?? []);
-  const [dailyAggregates, setDailyAggregates] = useState<DailyStats[]>(() => initialCache?.dailyStats ?? []);
-  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>(() => initialCache?.prevProviderStats ?? []);
-  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>(() => initialCache?.prevDailyStats ?? []);
-  const [loading, setLoading] = useState(!hasValidCache); // False if cache exists
+  // SYNC CACHE INIT: Read cache INSIDE useState initializers
+  // This ensures cache is read at initial mount, not at render time
+  const [runs, setRuns] = useState<Run[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const cached = getCached<DashboardCacheData>(cacheKey);
+    console.log('[Dashboard] useState init runs, cached:', !!cached?.runs?.length);
+    return cached?.runs ?? [];
+  });
+  
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const cached = getCached<DashboardCacheData>(cacheKey);
+    const hasData = !!(cached?.providerStats?.length);
+    console.log('[Dashboard] useState init providerStats, hasData:', hasData);
+    if (hasData) hasLoadedRef.current = true;
+    return cached?.providerStats ?? [];
+  });
+  
+  const [modelStats, setModelStats] = useState<ModelStats[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return getCached<DashboardCacheData>(cacheKey)?.modelStats ?? [];
+  });
+  
+  const [dailyStats, setDailyStats] = useState<DailyStats[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return getCached<DashboardCacheData>(cacheKey)?.dailyStats ?? [];
+  });
+  
+  const [dailyAggregates, setDailyAggregates] = useState<DailyStats[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return getCached<DashboardCacheData>(cacheKey)?.dailyStats ?? [];
+  });
+  
+  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return getCached<DashboardCacheData>(cacheKey)?.prevProviderStats ?? [];
+  });
+  
+  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return getCached<DashboardCacheData>(cacheKey)?.prevDailyStats ?? [];
+  });
+  
+  // Loading starts false if we have cached data (checked in providerStats initializer)
+  const [loading, setLoading] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const cached = getCached<DashboardCacheData>(cacheKey);
+    const hasCache = !!(cached?.providerStats?.length);
+    console.log('[Dashboard] useState init loading, hasCache:', hasCache, '-> loading:', !hasCache);
+    return !hasCache;
+  });
+  
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
@@ -117,18 +153,20 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   
   const days = useMemo(() => Math.ceil(hours / 24), [hours]);
   
-  // Handle cacheKey CHANGES only (not initial mount - that's handled by useState)
+  // Handle cacheKey CHANGES only (when dateRange or compareEnabled changes)
   useEffect(() => {
-    // Skip on initial mount - already initialized via useState
-    if (prevCacheKeyRef.current === cacheKey && hasLoadedRef.current) {
+    // Skip if cacheKey hasn't changed
+    if (prevCacheKeyRef.current === cacheKey) {
       return;
     }
+    
+    console.log('[Dashboard] cacheKey changed:', prevCacheKeyRef.current, '->', cacheKey);
     prevCacheKeyRef.current = cacheKey;
     
     const cached = getCached<DashboardCacheData>(cacheKey);
     logCacheStatus('Dashboard', cacheKey, !!cached, !cached);
     
-    if (cached?.providerStats) {
+    if (cached?.providerStats?.length) {
       if (!mountedRef.current) return;
       setRuns(cached.runs || []);
       setProviderStats(cached.providerStats || []);
@@ -137,10 +175,12 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       setDailyAggregates(cached.dailyStats || []);
       setPrevProviderStats(cached.prevProviderStats || []);
       setPrevDailyStats(cached.prevDailyStats || []);
-      if (cached.providerStats.length > 0) {
-        hasLoadedRef.current = true;
-        setLoading(false);
-      }
+      hasLoadedRef.current = true;
+      setLoading(false);
+      console.log('[Dashboard] Hydrated from cache on key change');
+    } else {
+      // New cache key with no data - need to fetch
+      console.log('[Dashboard] No cache for new key, will fetch');
     }
     // NEVER clear state on cache miss - keep existing data
   }, [cacheKey]);
@@ -264,7 +304,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       if (!mountedRef.current) return false;
       // D) FIX: Background refresh failure keeps existing data
       if (!isBackground) {
-        setError(err instanceof Error ? err.message : "Failed to load data");
+      setError(err instanceof Error ? err.message : "Failed to load data");
       }
       fetchInProgressRef.current = false;
       setIsRefreshing(false);
@@ -541,6 +581,9 @@ function DashboardPageContent() {
   
   // A) FIX: Data presence overrides all other states
   const hasData = providerStats.length > 0;
+  
+  // DEBUG: Log render state
+  console.log('[Dashboard] RENDER:', { hasData, loading, isRefreshing, providerStatsLen: providerStats.length });
   
   // Error state - only show if NO data exists
   if (error && !hasData) {

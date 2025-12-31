@@ -594,34 +594,56 @@ export default function CapsPage() {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
   
-  // SYNC CACHE INIT: Read cache BEFORE first paint
-  // For caps, we check cache existence (caps can be empty legitimately)
-  const initialCache = typeof window !== 'undefined' 
-    ? getCached<CapsCacheData>(CAPS_CACHE_KEY) 
-    : null;
-  const hasValidCache = initialCache !== null;
-  
   // Refs for fetch management
   const fetchInProgressRef = useRef(false);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
-  const hasLoadedRef = useRef(hasValidCache); // Init from cache existence
+  const hasLoadedRef = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  // State - initialized from cache synchronously
-  const [caps, setCaps] = useState<Cap[]>(() => initialCache?.caps ?? []);
-  const [alerts, setAlerts] = useState<Alert[]>(() => initialCache?.alerts ?? []);
-  const [providers, setProviders] = useState<string[]>(() => initialCache?.providers ?? []);
-  const [models, setModels] = useState<string[]>(() => initialCache?.models ?? []);
-  const [features, setFeatures] = useState<string[]>(() => initialCache?.features ?? []);
-  const [loading, setLoading] = useState(!hasValidCache); // False if cache exists
+  // SYNC CACHE INIT: Read cache INSIDE useState initializers
+  // For caps, we check cache existence (caps can be empty legitimately)
+  const [caps, setCaps] = useState<Cap[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const cached = getCached<CapsCacheData>(CAPS_CACHE_KEY);
+    console.log('[Caps] useState init caps, cacheExists:', cached !== null);
+    if (cached !== null) hasLoadedRef.current = true;
+    return cached?.caps ?? [];
+  });
+  
+  const [alerts, setAlerts] = useState<Alert[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return getCached<CapsCacheData>(CAPS_CACHE_KEY)?.alerts ?? [];
+  });
+  
+  const [providers, setProviders] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return getCached<CapsCacheData>(CAPS_CACHE_KEY)?.providers ?? [];
+  });
+  
+  const [models, setModels] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return getCached<CapsCacheData>(CAPS_CACHE_KEY)?.models ?? [];
+  });
+  
+  const [features, setFeatures] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return getCached<CapsCacheData>(CAPS_CACHE_KEY)?.features ?? [];
+  });
+  
+  const [loading, setLoading] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const cached = getCached<CapsCacheData>(CAPS_CACHE_KEY);
+    const hasCache = cached !== null;
+    console.log('[Caps] useState init loading, hasCache:', hasCache);
+    return !hasCache;
+  });
+  
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"caps" | "alerts">("caps");
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-
-  // Cache hydration effect removed - using sync init instead
 
   const loadData = useCallback(async (forceRefresh = false): Promise<boolean> => {
     mark('caps-loadData');
@@ -816,9 +838,12 @@ export default function CapsPage() {
     new Date(a.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)
   ).length;
 
-    // A) FIX: Data presence overrides all other states
+  // A) FIX: Data presence overrides all other states
   // For caps, we check if we've ever loaded (caps can be empty intentionally)
   const hasLoadedCaps = hasLoadedRef.current;
+  
+  // DEBUG: Log render state
+  console.log('[Caps] RENDER:', { hasLoadedCaps, loading, isRefreshing, capsLen: caps.length });
   
   // Error state - only show if never loaded data
   if (error && !hasLoadedCaps) {

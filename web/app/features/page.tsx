@@ -61,48 +61,63 @@ function useFeaturesData(hours: number) {
   
   const cacheKey = `features-${hours}`;
   
-  // SYNC CACHE INIT: Read cache BEFORE first paint
-  const initialCache = typeof window !== 'undefined' 
-    ? getCached<FeaturesCacheData>(cacheKey) 
-    : null;
-  const hasValidCache = !!(initialCache?.sectionStats?.length);
-  
   // Refs to track state across renders
   const fetchInProgressRef = useRef(false);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
-  const hasLoadedRef = useRef(hasValidCache); // Init from cache
+  const hasLoadedRef = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const prevCacheKeyRef = useRef(cacheKey);
   
-  // State - initialized from cache synchronously
-  const [sectionStats, setSectionStats] = useState<SectionStats[]>(() => initialCache?.sectionStats ?? []);
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>(() => initialCache?.providerStats ?? []);
-  const [modelStats, setModelStats] = useState<ModelStats[]>(() => initialCache?.modelStats ?? []);
-  const [loading, setLoading] = useState(!hasValidCache); // False if cache exists
+  // SYNC CACHE INIT: Read cache INSIDE useState initializers
+  const [sectionStats, setSectionStats] = useState<SectionStats[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const cached = getCached<FeaturesCacheData>(cacheKey);
+    console.log('[Features] useState init sectionStats, hasData:', !!(cached?.sectionStats?.length));
+    if (cached?.sectionStats?.length) hasLoadedRef.current = true;
+    return cached?.sectionStats ?? [];
+  });
+  
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return getCached<FeaturesCacheData>(cacheKey)?.providerStats ?? [];
+  });
+  
+  const [modelStats, setModelStats] = useState<ModelStats[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return getCached<FeaturesCacheData>(cacheKey)?.modelStats ?? [];
+  });
+  
+  const [loading, setLoading] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const cached = getCached<FeaturesCacheData>(cacheKey);
+    const hasCache = !!(cached?.sectionStats?.length);
+    console.log('[Features] useState init loading, hasCache:', hasCache);
+    return !hasCache;
+  });
+  
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   
-  // Handle cacheKey CHANGES only (not initial mount)
+  // Handle cacheKey CHANGES only
   useEffect(() => {
-    if (prevCacheKeyRef.current === cacheKey && hasLoadedRef.current) {
+    if (prevCacheKeyRef.current === cacheKey) {
       return;
     }
+    console.log('[Features] cacheKey changed:', prevCacheKeyRef.current, '->', cacheKey);
     prevCacheKeyRef.current = cacheKey;
     
     const cached = getCached<FeaturesCacheData>(cacheKey);
     logCacheStatus('Features', cacheKey, !!cached, !cached);
     
-    if (cached?.sectionStats) {
+    if (cached?.sectionStats?.length) {
       if (!mountedRef.current) return;
       setSectionStats(cached.sectionStats || []);
       setProviderStats(cached.providerStats || []);
       setModelStats(cached.modelStats || []);
-      if (cached.sectionStats.length > 0) {
-        hasLoadedRef.current = true;
-        setLoading(false);
-      }
+      hasLoadedRef.current = true;
+      setLoading(false);
     }
     // NEVER clear state on cache miss
   }, [cacheKey]);
@@ -385,6 +400,9 @@ function FeaturesPageContent() {
   
   // A) FIX: Data presence overrides all other states
   const hasData = sectionStats.length > 0;
+  
+  // DEBUG: Log render state
+  console.log('[Features] RENDER:', { hasData, loading, isRefreshing, sectionStatsLen: sectionStats.length });
   
   // Error state - only show if NO data exists
   if (error && !hasData) {
