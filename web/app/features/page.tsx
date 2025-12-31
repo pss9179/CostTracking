@@ -32,6 +32,7 @@ import {
   getStableColor,
 } from "@/lib/format";
 import { getCached, setCached, getCachedWithMeta } from "@/lib/cache";
+import { waitForBackendWarm } from "@/components/BackendWarmer";
 import { mark, measure, logCacheStatus, logAuth } from "@/lib/perf";
 import type { DateRange } from "@/contexts/AnalyticsContext";
 
@@ -231,6 +232,9 @@ function useFeaturesData(hours: number) {
       }
       
       mark('features-fetch');
+      // Wait for backend to be warm (Railway cold start can take 30+ seconds)
+      await waitForBackendWarm();
+      
       console.log('[Features] Starting fetch with token:', token ? 'present' : 'MISSING');
       
       // Track whether each fetch succeeded (200) vs failed (error caught)
@@ -272,11 +276,11 @@ function useFeaturesData(hours: number) {
       
       // Cache successful responses (even if empty) to prevent refetching on navigation
       if (fetchSucceeded) {
-        setCached<FeaturesCacheData>(cacheKey, {
-          sectionStats: filteredStats,
-          providerStats: providers || [],
-          modelStats: models || [],
-        });
+      setCached<FeaturesCacheData>(cacheKey, {
+        sectionStats: filteredStats,
+        providerStats: providers || [],
+        modelStats: models || [],
+      });
         console.log('[Features] Cache written:', { sections: filteredStats.length, providers: providers?.length ?? 0 });
       } else {
         console.log('[Features] NOT caching - fetch failed');
@@ -288,7 +292,7 @@ function useFeaturesData(hours: number) {
       console.error("[Features] Error loading data:", err);
       if (!mountedRef.current) return false;
       if (!isBackground) {
-        setError(err instanceof Error ? err.message : "Failed to load feature data");
+      setError(err instanceof Error ? err.message : "Failed to load feature data");
       }
       fetchInProgressRef.current = false;
       setIsRefreshing(false);

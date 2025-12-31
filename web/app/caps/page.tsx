@@ -72,6 +72,7 @@ import {
 import { formatSmartCost } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { getCached, setCached, getCachedWithMeta } from "@/lib/cache";
+import { waitForBackendWarm } from "@/components/BackendWarmer";
 import { mark, measure, logCacheStatus, logAuth } from "@/lib/perf";
 
 // ============================================================================
@@ -754,6 +755,9 @@ export default function CapsPage() {
         retryTimeoutRef.current = null;
       }
 
+      // Wait for backend to be warm (Railway cold start can take 30+ seconds)
+      await waitForBackendWarm();
+      
       mark('caps-fetch');
       console.log('[Caps] Starting fetch with token:', token ? 'present' : 'MISSING');
       

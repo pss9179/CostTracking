@@ -63,6 +63,7 @@ import { CostTrendChart } from "@/components/dashboard/CostTrendChart";
 import { formatSmartCost, formatCompactNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { getCached, setCached, getCachedWithMeta } from "@/lib/cache";
+import { waitForBackendWarm } from "@/components/BackendWarmer";
 import { mark, measure, logCacheStatus, logAuth } from "@/lib/perf";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import type { DateRange } from "@/contexts/AnalyticsContext";
@@ -760,7 +761,7 @@ function CustomersPageContent() {
       default: return 7 * 24;
     }
   }, [filters.dateRange]);
-  
+
   // Handle cacheKey CHANGES only
   useEffect(() => {
     if (prevCacheKeyRef.current === cacheKey) {
@@ -874,6 +875,9 @@ function CustomersPageContent() {
         retryTimeoutRef.current = null;
       }
       
+      // Wait for backend to be warm (Railway cold start can take 30+ seconds)
+      await waitForBackendWarm();
+      
       mark('customers-fetch');
       console.log('[Customers] Starting fetch with token:', token ? 'present' : 'MISSING');
       const [current, previous] = await Promise.all([
@@ -911,7 +915,7 @@ function CustomersPageContent() {
       console.error("[Customers] Error:", err);
       if (!mountedRef.current) return false;
       if (!isBackground) {
-        setError(err instanceof Error ? err.message : "Failed to load customers");
+      setError(err instanceof Error ? err.message : "Failed to load customers");
       }
       fetchInProgressRef.current = false;
       setIsRefreshing(false);
@@ -919,7 +923,7 @@ function CustomersPageContent() {
       return false;
     }
   }, [isLoaded, isSignedIn, user, getToken, hours, cacheKey]);
-  
+
   // Effect: Trigger fetch immediately - loadData handles auth retry internally
   useEffect(() => {
     const mountTime = (performance.now() - CUSTOMERS_MOUNT_TIME).toFixed(0);

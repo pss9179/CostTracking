@@ -19,6 +19,7 @@ import {
 } from "@/lib/api";
 import { getCached, setCached, getCachedWithMeta } from "@/lib/cache";
 import { mark, measure, logCacheStatus, logAuth } from "@/lib/perf";
+import { waitForBackendWarm } from "@/components/BackendWarmer";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { CostTrendChart } from "@/components/dashboard/CostTrendChart";
 import { ProviderBreakdown } from "@/components/dashboard/ProviderBreakdown";
@@ -304,6 +305,15 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = null;
+      }
+      
+      // Wait for backend to be warm (Railway cold start can take 30+ seconds)
+      // The warmer starts before React hydrates, so this should usually return immediately
+      const warmStart = Date.now();
+      await waitForBackendWarm();
+      const warmWait = Date.now() - warmStart;
+      if (warmWait > 100) {
+        console.log(`[Dashboard] Waited ${warmWait}ms for backend warm`);
       }
       
       mark('dashboard-fetch');
