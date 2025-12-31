@@ -174,12 +174,15 @@ async def get_costs_by_provider(
     
     Requires Clerk authentication. Returns breakdown with total cost, call count, and percentage.
     """
+    start_time = time.time()
     user_id = current_user.id
+    logger.info(f"[by-provider] START user={user_id[:8]}... hours={hours}")
     
     # Check server-side cache first
     cache_key = make_cache_key("by-provider", str(user_id), hours=hours, tenant_id=tenant_id, customer_id=customer_id)
     cached = get_cached_response(cache_key)
     if cached is not None:
+        logger.info(f"[by-provider] CACHE HIT in {(time.time()-start_time)*1000:.0f}ms")
         return cached
     
     # Calculate time window
@@ -216,10 +219,13 @@ async def get_costs_by_provider(
     
     statement = statement.group_by(TraceEvent.provider).order_by(func.sum(TraceEvent.cost_usd).desc())
     
+    query_start = time.time()
     results = session.exec(statement).all()
+    query_time = (time.time() - query_start) * 1000
+    logger.info(f"[by-provider] QUERY took {query_time:.0f}ms, rows={len(results)}")
     
     # Calculate total for percentages (only non-internal providers)
-    total_cost = sum(r.total_cost for r in results)
+    total_cost = sum(r.total_cost or 0 for r in results)
     
     providers = [
         {
@@ -233,6 +239,8 @@ async def get_costs_by_provider(
     
     # Cache the response
     set_cached_response(cache_key, providers)
+    total_time = (time.time() - start_time) * 1000
+    logger.info(f"[by-provider] DONE in {total_time:.0f}ms")
     return providers
 
 

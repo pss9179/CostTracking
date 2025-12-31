@@ -1,6 +1,8 @@
 """
 Runs router - provides run-level aggregations and details.
 """
+import time
+import logging
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,6 +12,7 @@ from db import get_session, IS_POSTGRESQL
 from auth import get_current_user_id
 from clerk_auth import get_current_clerk_user
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/runs", tags=["runs"])
 
 
@@ -49,7 +52,9 @@ async def get_latest_runs(
     
     Returns: List of runs with total_cost, call_count, sections, etc.
     """
+    start_time = time.time()
     user_id = current_user.id
+    logger.info(f"[runs/latest] START user={user_id[:8]}... limit={limit}")
     # Group by run_id and aggregate
     # Use string_agg for PostgreSQL, group_concat for SQLite
     if IS_POSTGRESQL:
@@ -79,7 +84,10 @@ async def get_latest_runs(
     
     statement = statement.order_by(func.min(TraceEvent.created_at).desc()).limit(limit)
     
+    query_start = time.time()
     results = session.exec(statement).all()
+    query_time = (time.time() - query_start) * 1000
+    logger.info(f"[runs/latest] QUERY took {query_time:.0f}ms, rows={len(results)}")
     
     runs = []
     for result in results:
