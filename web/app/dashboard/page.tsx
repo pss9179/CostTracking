@@ -64,9 +64,23 @@ interface DashboardCacheData {
   prevDailyStats: DailyStats[];
 }
 
+// TIMING INSTRUMENTATION - measures where delays occur
+const PAGE_MOUNT_TIME = typeof window !== 'undefined' ? performance.now() : 0;
+if (typeof window !== 'undefined') {
+  console.log('[Dashboard] PAGE MOUNT at', PAGE_MOUNT_TIME.toFixed(0), 'ms');
+}
+
 function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false) {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
+  
+  // Log Clerk hydration timing
+  useEffect(() => {
+    if (isLoaded) {
+      const now = performance.now();
+      console.log('[Dashboard] CLERK HYDRATED at', now.toFixed(0), 'ms (took', (now - PAGE_MOUNT_TIME).toFixed(0), 'ms from mount)');
+    }
+  }, [isLoaded]);
   
   const cacheKey = `dashboard-${dateRange}-${compareEnabled}`;
   
@@ -190,11 +204,14 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   
   // The fetch function
   const loadData = useCallback(async (isBackground = false): Promise<boolean> => {
+    const loadStart = performance.now();
+    console.log('[Dashboard] loadData START at', loadStart.toFixed(0), 'ms (', (loadStart - PAGE_MOUNT_TIME).toFixed(0), 'ms since mount)');
     mark('dashboard-loadData');
     
     // CRITICAL: Never fetch without auth
     logAuth('Dashboard', isLoaded, isSignedIn, !!user);
     if (!isLoaded) {
+      console.log('[Dashboard] loadData ABORT: isLoaded=false at', (performance.now() - PAGE_MOUNT_TIME).toFixed(0), 'ms since mount');
       return false;
     }
     
@@ -243,7 +260,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
         console.error('[Dashboard] getToken failed or timed out:', e);
         token = null;
       }
-      console.log('[Dashboard] getToken took:', Date.now() - tokenStart, 'ms, token:', token ? 'present' : 'null');
+      console.log('[Dashboard] getToken took:', Date.now() - tokenStart, 'ms, token:', token ? 'present' : 'null', '(', (performance.now() - PAGE_MOUNT_TIME).toFixed(0), 'ms since mount)');
       measure('dashboard-getToken');
       
       // C) FIX: Token retry - don't touch loading in finally if retry scheduled
@@ -292,7 +309,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
         fetchTimeseries(hours, null, null, token).catch((e) => { console.error('[Dashboard] fetchTimeseries error:', e.message); fetchSucceeded = false; return []; }),
         fetchDailyStats(days, null, token).catch((e) => { console.error('[Dashboard] fetchDailyStats error:', e.message); fetchSucceeded = false; return []; }),
       ]);
-      console.log('[Dashboard] Fetch complete in', Date.now() - fetchStart, 'ms:', { 
+      console.log('[Dashboard] Fetch complete in', Date.now() - fetchStart, 'ms (', (performance.now() - PAGE_MOUNT_TIME).toFixed(0), 'ms since mount):', { 
         fetchSucceeded,
         runs: runsData?.length ?? 0, 
         providers: providersData?.length ?? 0, 
@@ -339,14 +356,14 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       // Cache successful responses (even if empty) to prevent refetching on navigation
       // Only skip caching if fetch actually failed (error was caught)
       if (fetchSucceeded) {
-        setCached<DashboardCacheData>(cacheKey, {
-          runs: runsData || [],
-          providerStats: providersData || [],
-          modelStats: modelsData || [],
+      setCached<DashboardCacheData>(cacheKey, {
+        runs: runsData || [],
+        providerStats: providersData || [],
+        modelStats: modelsData || [],
           dailyStats: timeseriesData || [],
-          prevProviderStats: prevProvidersData,
-          prevDailyStats: prevDailyOnly,
-        });
+        prevProviderStats: prevProvidersData,
+        prevDailyStats: prevDailyOnly,
+      });
         console.log('[Dashboard] Cache written:', { providers: providersData?.length ?? 0, runs: runsData?.length ?? 0 });
       } else {
         console.log('[Dashboard] NOT caching - fetch failed');
@@ -646,6 +663,12 @@ function DashboardPageContent() {
   
   // A) FIX: Data presence overrides all other states
   const hasData = providerStats.length > 0;
+  
+  // TIMING: Log first meaningful render
+  useEffect(() => {
+    const now = performance.now();
+    console.log('[Dashboard] FIRST RENDER at', now.toFixed(0), 'ms (', (now - PAGE_MOUNT_TIME).toFixed(0), 'ms from mount)', { hasData, loading });
+  }, []); // Only on mount
   
   // DEBUG: Log render state
   console.log('[Dashboard] RENDER:', { hasData, loading, isRefreshing, providerStatsLen: providerStats.length });

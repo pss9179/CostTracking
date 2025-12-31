@@ -673,6 +673,12 @@ function CustomerDetailPanel({
 // MAIN PAGE
 // ============================================================================
 
+// TIMING INSTRUMENTATION
+const CUSTOMERS_MOUNT_TIME = typeof window !== 'undefined' ? performance.now() : 0;
+if (typeof window !== 'undefined') {
+  console.log('[Customers] PAGE MOUNT at', CUSTOMERS_MOUNT_TIME.toFixed(0), 'ms');
+}
+
 interface CustomersCacheData {
   customers: CustomerStats[];
   prevCustomers: CustomerStats[];
@@ -682,6 +688,14 @@ function CustomersPageContent() {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
+  
+  // Log Clerk hydration timing
+  useEffect(() => {
+    if (isLoaded) {
+      const now = performance.now();
+      console.log('[Customers] CLERK HYDRATED at', now.toFixed(0), 'ms (took', (now - CUSTOMERS_MOUNT_TIME).toFixed(0), 'ms from mount)');
+    }
+  }, [isLoaded]);
   const { filters, setSelectedCustomer: setGlobalCustomer } = useGlobalFilters();
   
   const cacheKey = `customers-${filters.dateRange}`;
@@ -1023,6 +1037,12 @@ function CustomersPageContent() {
 
   // A) FIX: Data presence overrides all other states
   const hasData = customers.length > 0;
+  
+  // TIMING: Log first meaningful render
+  useEffect(() => {
+    const now = performance.now();
+    console.log('[Customers] FIRST RENDER at', now.toFixed(0), 'ms (', (now - CUSTOMERS_MOUNT_TIME).toFixed(0), 'ms from mount)', { hasData, loading });
+  }, []); // Only on mount
   
   // DEBUG: Log render state
   console.log('[Customers] RENDER:', { hasData, loading, isRefreshing, customersLen: customers.length });

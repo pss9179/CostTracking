@@ -590,9 +590,23 @@ interface CapsCacheData {
 
 const CAPS_CACHE_KEY = "caps-data";
 
+// TIMING INSTRUMENTATION
+const CAPS_MOUNT_TIME = typeof window !== 'undefined' ? performance.now() : 0;
+if (typeof window !== 'undefined') {
+  console.log('[Caps] PAGE MOUNT at', CAPS_MOUNT_TIME.toFixed(0), 'ms');
+}
+
 export default function CapsPage() {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
+  
+  // Log Clerk hydration timing
+  useEffect(() => {
+    if (isLoaded) {
+      const now = performance.now();
+      console.log('[Caps] CLERK HYDRATED at', now.toFixed(0), 'ms (took', (now - CAPS_MOUNT_TIME).toFixed(0), 'ms from mount)');
+    }
+  }, [isLoaded]);
   
   // Refs for fetch management
   const fetchInProgressRef = useRef(false);
@@ -888,6 +902,12 @@ export default function CapsPage() {
   // A) FIX: Data presence overrides all other states
   // For caps, we check if we've ever loaded (caps can be empty intentionally)
   const hasLoadedCaps = hasLoadedRef.current;
+  
+  // TIMING: Log first meaningful render
+  useEffect(() => {
+    const now = performance.now();
+    console.log('[Caps] FIRST RENDER at', now.toFixed(0), 'ms (', (now - CAPS_MOUNT_TIME).toFixed(0), 'ms from mount)', { hasLoadedCaps, loading });
+  }, []); // Only on mount
   
   // DEBUG: Log render state
   console.log('[Caps] RENDER:', { hasLoadedCaps, loading, isRefreshing, capsLen: caps.length });

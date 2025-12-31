@@ -55,9 +55,23 @@ interface FeaturesCacheData {
 // HOOKS
 // ============================================================================
 
+// TIMING INSTRUMENTATION
+const FEATURES_MOUNT_TIME = typeof window !== 'undefined' ? performance.now() : 0;
+if (typeof window !== 'undefined') {
+  console.log('[Features] PAGE MOUNT at', FEATURES_MOUNT_TIME.toFixed(0), 'ms');
+}
+
 function useFeaturesData(hours: number) {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
+  
+  // Log Clerk hydration timing
+  useEffect(() => {
+    if (isLoaded) {
+      const now = performance.now();
+      console.log('[Features] CLERK HYDRATED at', now.toFixed(0), 'ms (took', (now - FEATURES_MOUNT_TIME).toFixed(0), 'ms from mount)');
+    }
+  }, [isLoaded]);
   
   const cacheKey = `features-${hours}`;
   
@@ -451,6 +465,12 @@ function FeaturesPageContent() {
   
   // A) FIX: Data presence overrides all other states
   const hasData = sectionStats.length > 0;
+  
+  // TIMING: Log first meaningful render
+  useEffect(() => {
+    const now = performance.now();
+    console.log('[Features] FIRST RENDER at', now.toFixed(0), 'ms (', (now - FEATURES_MOUNT_TIME).toFixed(0), 'ms from mount)', { hasData, loading });
+  }, []); // Only on mount
   
   // DEBUG: Log render state
   console.log('[Features] RENDER:', { hasData, loading, isRefreshing, sectionStatsLen: sectionStats.length });
