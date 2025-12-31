@@ -54,7 +54,7 @@ async def get_latest_runs(
     """
     start_time = time.time()
     user_id = current_user.id
-    logger.info(f"[runs/latest] START user={str(user_id)[:8]}... limit={limit}")
+    print(f"[runs/latest] START user={str(user_id)[:8]}... limit={limit}", flush=True)
     # Group by run_id and aggregate
     # Use string_agg for PostgreSQL, group_concat for SQLite
     if IS_POSTGRESQL:
@@ -87,7 +87,7 @@ async def get_latest_runs(
     query_start = time.time()
     results = session.exec(statement).all()
     query_time = (time.time() - query_start) * 1000
-    logger.info(f"[runs/latest] QUERY took {query_time:.0f}ms, rows={len(results)}")
+    print(f"[runs/latest] QUERY took {query_time:.0f}ms, rows={len(results)}", flush=True)
     
     runs = []
     for result in results:

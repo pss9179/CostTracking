@@ -176,13 +176,13 @@ async def get_costs_by_provider(
     """
     start_time = time.time()
     user_id = current_user.id
-    logger.info(f"[by-provider] START user={str(user_id)[:8]}... hours={hours}")
+    print(f"[by-provider] START user={str(user_id)[:8]}... hours={hours}", flush=True)
     
     # Check server-side cache first
     cache_key = make_cache_key("by-provider", str(user_id), hours=hours, tenant_id=tenant_id, customer_id=customer_id)
     cached = get_cached_response(cache_key)
     if cached is not None:
-        logger.info(f"[by-provider] CACHE HIT in {(time.time()-start_time)*1000:.0f}ms")
+        print(f"[by-provider] CACHE HIT in {(time.time()-start_time)*1000:.0f}ms", flush=True)
         return cached
     
     # Calculate time window
@@ -222,7 +222,7 @@ async def get_costs_by_provider(
     query_start = time.time()
     results = session.exec(statement).all()
     query_time = (time.time() - query_start) * 1000
-    logger.info(f"[by-provider] QUERY took {query_time:.0f}ms, rows={len(results)}")
+    print(f"[by-provider] QUERY took {query_time:.0f}ms, rows={len(results)}", flush=True)
     
     # Calculate total for percentages (only non-internal providers)
     total_cost = sum(r.total_cost or 0 for r in results)
@@ -240,7 +240,7 @@ async def get_costs_by_provider(
     # Cache the response
     set_cached_response(cache_key, providers)
     total_time = (time.time() - start_time) * 1000
-    logger.info(f"[by-provider] DONE in {total_time:.0f}ms")
+    print(f"[by-provider] DONE in {total_time:.0f}ms", flush=True)
     return providers
 
 
