@@ -2,7 +2,8 @@
 Stats router - provides aggregated statistics.
 """
 import logging
-from typing import List, Dict, Any, Optional
+import time
+from typing import List, Dict, Any, Optional, Tuple
 from uuid import UUID
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Query
@@ -14,6 +15,41 @@ from auth import get_current_user_id
 from clerk_auth import get_current_clerk_user
 
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# SERVER-SIDE RESPONSE CACHE
+# Caches identical queries to avoid repeated slow DB calls
+# =============================================================================
+_response_cache: Dict[str, Tuple[Any, float]] = {}
+_cache_ttl_seconds = 60  # Cache for 60 seconds
+
+def get_cached_response(cache_key: str) -> Optional[Any]:
+    """Get cached response if it exists and is not expired."""
+    if cache_key in _response_cache:
+        data, timestamp = _response_cache[cache_key]
+        if time.time() - timestamp < _cache_ttl_seconds:
+            logger.debug(f"[CACHE HIT] {cache_key}")
+            return data
+        else:
+            # Expired - remove from cache
+            del _response_cache[cache_key]
+    return None
+
+def set_cached_response(cache_key: str, data: Any) -> None:
+    """Store response in cache."""
+    _response_cache[cache_key] = (data, time.time())
+    # Limit cache size to prevent memory issues
+    if len(_response_cache) > 1000:
+        # Remove oldest entries
+        sorted_keys = sorted(_response_cache.keys(), 
+                            key=lambda k: _response_cache[k][1])
+        for old_key in sorted_keys[:100]:
+            del _response_cache[old_key]
+
+def make_cache_key(endpoint: str, user_id: str, **params) -> str:
+    """Create a unique cache key for a query."""
+    param_str = "&".join(f"{k}={v}" for k, v in sorted(params.items()) if v is not None)
+    return f"{endpoint}:{user_id}:{param_str}"
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
@@ -139,6 +175,13 @@ async def get_costs_by_provider(
     Requires Clerk authentication. Returns breakdown with total cost, call count, and percentage.
     """
     user_id = current_user.id
+    
+    # Check server-side cache first
+    cache_key = make_cache_key("by-provider", str(user_id), hours=hours, tenant_id=tenant_id, customer_id=customer_id)
+    cached = get_cached_response(cache_key)
+    if cached is not None:
+        return cached
+    
     # Calculate time window
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
@@ -187,6 +230,9 @@ async def get_costs_by_provider(
         }
         for r in results
     ]
+    
+    # Cache the response
+    set_cached_response(cache_key, providers)
     return providers
 
 
@@ -207,6 +253,13 @@ async def get_costs_by_model(
     Requires Clerk authentication. Returns breakdown with total cost, call count, and percentage per model.
     """
     user_id = current_user.id
+    
+    # Check server-side cache first
+    cache_key = make_cache_key("by-model", str(user_id), hours=hours, tenant_id=tenant_id, customer_id=customer_id)
+    cached = get_cached_response(cache_key)
+    if cached is not None:
+        return cached
+    
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
     # Get model aggregations
@@ -268,6 +321,8 @@ async def get_costs_by_model(
         for r in results
     ]
     
+    # Cache the response
+    set_cached_response(cache_key, models)
     return models
 
 
@@ -283,6 +338,13 @@ async def get_daily_costs(
     Returns costs per day with provider breakdown.
     """
     user_id = current_user.id
+    
+    # Check server-side cache first
+    cache_key = make_cache_key("daily", str(user_id), days=days, tenant_id=tenant_id)
+    cached = get_cached_response(cache_key)
+    if cached is not None:
+        return cached
+    
     cutoff = datetime.utcnow() - timedelta(days=days)
     
     # Get daily aggregations with provider breakdown
@@ -342,6 +404,8 @@ async def get_daily_costs(
         else:
             result_list.append({"date": date_str, "total": 0, "providers": {}})
     
+    # Cache the response
+    set_cached_response(cache_key, result_list)
     return result_list
 
 
@@ -364,6 +428,13 @@ async def get_cost_timeseries(
     If customer_id is None, shows only non-customer data (for dashboard).
     """
     user_id = current_user.id
+    
+    # Check server-side cache first
+    cache_key = make_cache_key("timeseries", str(user_id), hours=hours, tenant_id=tenant_id, customer_id=customer_id)
+    cached = get_cached_response(cache_key)
+    if cached is not None:
+        return cached
+    
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
     # Determine bucket size based on time range
@@ -466,6 +537,9 @@ async def get_cost_timeseries(
     
     # Return sorted by timestamp
     result_list = sorted(buckets.values(), key=lambda x: x["timestamp"])
+    
+    # Cache the response
+    set_cached_response(cache_key, result_list)
     return result_list
 
 
@@ -487,6 +561,13 @@ async def get_costs_by_section(
     If customer_id is None, shows only non-customer data (for features page).
     """
     user_id = current_user.id
+    
+    # Check server-side cache first
+    cache_key = make_cache_key("by-section", str(user_id), hours=hours, tenant_id=tenant_id, customer_id=customer_id)
+    cached = get_cached_response(cache_key)
+    if cached is not None:
+        return cached
+    
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
     # Get section aggregations
@@ -545,6 +626,8 @@ async def get_costs_by_section(
         for r in results
     ]
     
+    # Cache the response
+    set_cached_response(cache_key, sections)
     return sections
 
 
@@ -562,6 +645,13 @@ async def get_costs_by_customer(
     """
     try:
         user_id = current_user.id
+        
+        # Check server-side cache first
+        cache_key = make_cache_key("by-customer", str(user_id), hours=hours, tenant_id=tenant_id)
+        cached = get_cached_response(cache_key)
+        if cached is not None:
+            return cached
+        
         # Calculate time window
         cutoff = datetime.utcnow() - timedelta(hours=hours)
         
@@ -607,6 +697,8 @@ async def get_costs_by_customer(
             for r in results
         ]
         
+        # Cache the response
+        set_cached_response(cache_key, customers)
         return customers
     except Exception as e:
         # Log error but return empty list instead of crashing
