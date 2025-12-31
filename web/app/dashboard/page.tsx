@@ -230,21 +230,49 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     try {
       mark('dashboard-getToken');
       const tokenStart = Date.now();
-      const token = await getToken();
-      console.log('[Dashboard] getToken took:', Date.now() - tokenStart, 'ms');
+      
+      // Add timeout to getToken - don't wait forever
+      let token: string | null = null;
+      try {
+        const tokenPromise = getToken();
+        const timeoutPromise = new Promise<null>((_, reject) => 
+          setTimeout(() => reject(new Error('getToken timeout')), 5000)
+        );
+        token = await Promise.race([tokenPromise, timeoutPromise]);
+      } catch (e) {
+        console.error('[Dashboard] getToken failed or timed out:', e);
+        token = null;
+      }
+      console.log('[Dashboard] getToken took:', Date.now() - tokenStart, 'ms, token:', token ? 'present' : 'null');
       measure('dashboard-getToken');
       
       // C) FIX: Token retry - don't touch loading in finally if retry scheduled
+      // Limit retries to prevent infinite loop
+      const retryCountKey = '__dashboard_retry_count__';
+      const retryCount = (window as any)[retryCountKey] || 0;
+      
       if (!token) {
-        console.log('[Dashboard] No token - scheduling retry in 500ms');
+        if (retryCount >= 5) {
+          console.error('[Dashboard] Max retries (5) reached - giving up on token fetch');
+          (window as any)[retryCountKey] = 0;
+          fetchInProgressRef.current = false;
+          if (!hasLoadedRef.current && mountedRef.current) setLoading(false);
+          return false;
+        }
+        
+        (window as any)[retryCountKey] = retryCount + 1;
+        console.log('[Dashboard] No token - scheduling retry', retryCount + 1, '/5 in 500ms');
         fetchInProgressRef.current = false;
         if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = setTimeout(() => {
-          console.log('[Dashboard] Token retry executing');
+          console.log('[Dashboard] Token retry', retryCount + 1, 'executing');
           if (mountedRef.current) loadData(isBackground);
         }, 500);
-        return false; // Return early - don't hit finally's loading reset
+        return false;
       }
+      
+      // Reset retry count on successful token
+      (window as any)[retryCountKey] = 0;
       
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
