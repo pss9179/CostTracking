@@ -680,20 +680,47 @@ export default function CapsPage() {
     
     try {
       mark('caps-getToken');
-      const token = await getToken();
+      const tokenStart = Date.now();
+      
+      // Add timeout to getToken - don't wait forever
+      let token: string | null = null;
+      try {
+        const tokenPromise = getToken();
+        const timeoutPromise = new Promise<null>((_, reject) => 
+          setTimeout(() => reject(new Error('getToken timeout')), 5000)
+        );
+        token = await Promise.race([tokenPromise, timeoutPromise]);
+      } catch (e) {
+        console.error('[Caps] getToken failed or timed out:', e);
+        token = null;
+      }
+      console.log('[Caps] getToken took:', Date.now() - tokenStart, 'ms');
       measure('caps-getToken');
       
-      // C) FIX: Token retry - return early, don't hit finally
+      // Limit retries to prevent infinite loop
+      const retryCountKey = '__caps_retry_count__';
+      const retryCount = (window as any)[retryCountKey] || 0;
+      
       if (!token) {
-        console.log('[Caps] No token - scheduling retry in 500ms');
+        if (retryCount >= 5) {
+          console.error('[Caps] Max retries (5) reached - giving up');
+          (window as any)[retryCountKey] = 0;
+          fetchInProgressRef.current = false;
+          if (!hasLoadedRef.current && mountedRef.current) setLoading(false);
+          return false;
+        }
+        
+        (window as any)[retryCountKey] = retryCount + 1;
+        console.log('[Caps] No token - scheduling retry', retryCount + 1, '/5');
         fetchInProgressRef.current = false;
         if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = setTimeout(() => {
-          console.log('[Caps] Token retry executing');
           if (mountedRef.current) loadData(forceRefresh);
         }, 500);
         return false;
       }
+      
+      (window as any)[retryCountKey] = 0;
       
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
