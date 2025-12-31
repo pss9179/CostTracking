@@ -229,7 +229,9 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     
     try {
       mark('dashboard-getToken');
+      const tokenStart = Date.now();
       const token = await getToken();
+      console.log('[Dashboard] getToken took:', Date.now() - tokenStart, 'ms');
       measure('dashboard-getToken');
       
       // C) FIX: Token retry - don't touch loading in finally if retry scheduled
@@ -250,6 +252,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       }
       
       mark('dashboard-fetch');
+      const fetchStart = Date.now();
       console.log('[Dashboard] Starting fetch with token:', token ? 'present' : 'MISSING');
       
       // Track whether each fetch succeeded (200) vs failed (error caught)
@@ -261,7 +264,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
         fetchTimeseries(hours, null, null, token).catch((e) => { console.error('[Dashboard] fetchTimeseries error:', e.message); fetchSucceeded = false; return []; }),
         fetchDailyStats(days, null, token).catch((e) => { console.error('[Dashboard] fetchDailyStats error:', e.message); fetchSucceeded = false; return []; }),
       ]);
-      console.log('[Dashboard] Fetch complete:', { 
+      console.log('[Dashboard] Fetch complete in', Date.now() - fetchStart, 'ms:', { 
         fetchSucceeded,
         runs: runsData?.length ?? 0, 
         providers: providersData?.length ?? 0, 
@@ -340,7 +343,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   
   // Effect: Trigger fetch when auth becomes ready or cache key changes
   useEffect(() => {
-    console.log('[Dashboard] Effect running:', { isLoaded, isSignedIn, hasUser: !!user });
+    console.log('[Dashboard] Effect running at', Date.now(), ':', { isLoaded, isSignedIn, hasUser: !!user });
     
     if (!isLoaded) {
       console.log('[Dashboard] Effect: waiting for auth to load');
