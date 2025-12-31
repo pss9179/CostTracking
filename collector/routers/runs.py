@@ -54,7 +54,7 @@ async def get_latest_runs(
     """
     start_time = time.time()
     user_id = current_user.id
-    logger.info(f"[runs/latest] START user={user_id[:8]}... limit={limit}")
+    logger.info(f"[runs/latest] START user={str(user_id)[:8]}... limit={limit}")
     # Group by run_id and aggregate
     # Use string_agg for PostgreSQL, group_concat for SQLite
     if IS_POSTGRESQL:

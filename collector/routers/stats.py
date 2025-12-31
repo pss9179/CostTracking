@@ -176,7 +176,7 @@ async def get_costs_by_provider(
     """
     start_time = time.time()
     user_id = current_user.id
-    logger.info(f"[by-provider] START user={user_id[:8]}... hours={hours}")
+    logger.info(f"[by-provider] START user={str(user_id)[:8]}... hours={hours}")
     
     # Check server-side cache first
     cache_key = make_cache_key("by-provider", str(user_id), hours=hours, tenant_id=tenant_id, customer_id=customer_id)
