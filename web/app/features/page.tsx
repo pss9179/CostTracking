@@ -235,8 +235,7 @@ function useFeaturesData(hours: number) {
       }
       
       mark('features-fetch');
-      // Wait for backend to be warm (Railway cold start can take 30+ seconds)
-      await waitForBackendWarm();
+      // Note: Not awaiting waitForBackendWarm() - API requests wake Railway directly
       
       console.log('[Features] Starting fetch with token:', token ? 'present' : 'MISSING');
       

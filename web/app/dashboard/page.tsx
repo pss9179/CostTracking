@@ -312,14 +312,9 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
         retryTimeoutRef.current = null;
       }
       
-      // Wait for backend to be warm (Railway cold start can take 30+ seconds)
-      // The warmer starts before React hydrates, so this should usually return immediately
-      const warmStart = Date.now();
-      await waitForBackendWarm();
-      const warmWait = Date.now() - warmStart;
-      if (warmWait > 100) {
-        console.log(`[Dashboard] Waited ${warmWait}ms for backend warm`);
-      }
+      // Note: Not awaiting waitForBackendWarm() because it adds unnecessary delay
+      // The API requests will wake Railway directly if it's cold
+      // The warmer runs in parallel and helps keep the container alive for future requests
       
       mark('dashboard-fetch');
       const fetchStart = Date.now();

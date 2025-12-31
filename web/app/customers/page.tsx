@@ -878,8 +878,7 @@ function CustomersPageContent() {
         retryTimeoutRef.current = null;
       }
       
-      // Wait for backend to be warm (Railway cold start can take 30+ seconds)
-      await waitForBackendWarm();
+      // Note: Not awaiting waitForBackendWarm() - API requests wake Railway directly
       
       mark('customers-fetch');
       console.log('[Customers] Starting fetch with token:', token ? 'present' : 'MISSING');
