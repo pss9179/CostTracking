@@ -97,9 +97,13 @@ class CacheControlMiddleware(BaseHTTPMiddleware):
         
         # Only cache successful responses
         if is_cacheable and 200 <= response.status_code < 300:
-            # Cache for 60 seconds at CDN edge, allow stale for 300s while revalidating
+            # Cache for 5 minutes at CDN edge, allow stale for 10 minutes while revalidating
+            # This means:
+            # - First 5 min: Serve from cache (instant)
+            # - Next 10 min: Serve stale cache while fetching fresh in background (still instant)
+            # - After 15 min: Next request fetches fresh (may be slow if Railway is cold)
             # s-maxage is for CDN (Cloudflare), max-age is for browser
-            response.headers["Cache-Control"] = "public, s-maxage=60, max-age=30, stale-while-revalidate=300"
+            response.headers["Cache-Control"] = "public, s-maxage=300, max-age=60, stale-while-revalidate=600"
             # Vary by Authorization to ensure different users get different cached responses
             response.headers["Vary"] = "Authorization"
         else:

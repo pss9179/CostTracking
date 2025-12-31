@@ -69,11 +69,25 @@ export function BackendWarmer() {
     if (hasSetupInterval.current) return;
     hasSetupInterval.current = true;
 
-    // Set up periodic ping every 4 minutes to keep container + DB warm
+    // Set up periodic ping every 3 minutes to keep container + DB warm
     // Railway typically sleeps containers after 5 minutes of inactivity
+    // More frequent pings ensure Railway stays warm even during active use
     const intervalId = setInterval(() => {
       fetch(`${COLLECTOR_URL}/warm`, { method: "GET" }).catch(() => {});
-    }, 4 * 60 * 1000); // 4 minutes
+    }, 3 * 60 * 1000); // 3 minutes - more aggressive to prevent cold starts
+    
+    // Also ping on page visibility change (user switches tabs back)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetch(`${COLLECTOR_URL}/warm`, { method: "GET" }).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
 
     return () => clearInterval(intervalId);
   }, []);
