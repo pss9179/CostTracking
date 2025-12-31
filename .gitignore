@@ -82,3 +82,4 @@ logs/
 *.temp
 .cache/
 
+.vercel

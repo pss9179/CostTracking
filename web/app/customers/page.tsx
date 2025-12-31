@@ -697,6 +697,9 @@ function CustomersPageContent() {
   // Refs for fetch management
   const fetchInProgressRef = useRef(false);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const mountedRef = useRef(true);
+  const hasLoadedRef = useRef(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // State
   const [customers, setCustomers] = useState<CustomerStats[]>([]);
@@ -730,62 +733,54 @@ function CustomersPageContent() {
     }
   }, [filters.dateRange]);
   
-  // Sync state with cache when cache key changes
+  // A) FIX: Cache hydration - NEVER clear state on cache miss
   useEffect(() => {
     const cached = getCached<CustomersCacheData>(cacheKey);
-    if (cached) {
+    if (cached?.customers) {
+      if (!mountedRef.current) return;
       setCustomers(cached.customers || []);
       setPrevCustomers(cached.prevCustomers || []);
-      if (cached.customers?.length > 0) {
+      if (cached.customers.length > 0) {
+        hasLoadedRef.current = true;
         setLoading(false);
       }
-    } else {
-      setCustomers([]);
-      setPrevCustomers([]);
-      setLoading(true);
     }
-    setError(null);
+    // NEVER clear state on cache miss
   }, [cacheKey]);
 
   const loadData = useCallback(async (isBackground = false): Promise<boolean> => {
-    if (!isLoaded) {
-      console.log("[Customers] Auth not loaded yet");
-      return false;
-    }
+    if (!isLoaded) return false;
     
     if (!isSignedIn || !user) {
-      console.log("[Customers] User not signed in");
-      setLoading(false);
+      if (!mountedRef.current) return false;
+      if (!hasLoadedRef.current) setLoading(false);
       return false;
     }
     
-    if (fetchInProgressRef.current) {
-      return false;
-    }
+    if (fetchInProgressRef.current) return false;
     
     const cache = getCachedWithMeta<CustomersCacheData>(cacheKey);
-    if (isBackground && cache.exists && !cache.isStale) {
-      return false;
-    }
+    if (isBackground && cache.exists && !cache.isStale) return false;
     
     fetchInProgressRef.current = true;
     
-    const hasData = cache.exists && cache.data?.customers?.length;
-    if (hasData) {
-      setIsRefreshing(true);
+    // B) FIX: Only set loading if we haven't loaded yet
+    if (!isBackground && !hasLoadedRef.current) {
+      if (mountedRef.current) setLoading(true);
     } else if (!isBackground) {
-      setLoading(true);
+      if (mountedRef.current) setIsRefreshing(true);
     }
-    setError(null);
     
     try {
       const token = await getToken();
       
+      // C) FIX: Token retry - return early, don't hit finally
       if (!token) {
-        console.warn("[Customers] getToken() returned null, will retry");
         fetchInProgressRef.current = false;
         if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
-        retryTimeoutRef.current = setTimeout(() => loadData(isBackground), 500);
+        retryTimeoutRef.current = setTimeout(() => {
+          if (mountedRef.current) loadData(isBackground);
+        }, 500);
         return false;
       }
       
@@ -802,21 +797,32 @@ function CustomersPageContent() {
       const prevCutoff = Math.floor(previous.length / 2);
       const prev = previous.slice(prevCutoff);
       
+      // E) FIX: Check mounted before setState
+      if (!mountedRef.current) return false;
+      
       setCustomers(current);
       setPrevCustomers(prev);
       setError(null);
       
+      // B) FIX: Lock loading after first success
+      hasLoadedRef.current = true;
+      setLoading(false);
+      setIsRefreshing(false);
+      
       setCached(cacheKey, { customers: current, prevCustomers: prev });
       
+      fetchInProgressRef.current = false;
       return true;
     } catch (err) {
       console.error("[Customers] Error:", err);
-      setError(err instanceof Error ? err.message : "Failed to load customers");
-      return false;
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+      if (!mountedRef.current) return false;
+      if (!isBackground) {
+        setError(err instanceof Error ? err.message : "Failed to load customers");
+      }
       fetchInProgressRef.current = false;
+      setIsRefreshing(false);
+      if (!hasLoadedRef.current) setLoading(false);
+      return false;
     }
   }, [isLoaded, isSignedIn, user, getToken, hours, cacheKey]);
   
@@ -825,23 +831,27 @@ function CustomersPageContent() {
     if (!isLoaded) return;
     
     if (!isSignedIn || !user) {
-      setLoading(false);
+      if (!hasLoadedRef.current && mountedRef.current) setLoading(false);
       return;
     }
     
     const cache = getCachedWithMeta<CustomersCacheData>(cacheKey);
     if (cache.exists && !cache.isStale && cache.data?.customers?.length) {
-      setLoading(false);
+      hasLoadedRef.current = true;
+      if (mountedRef.current) setLoading(false);
       return;
     }
     
     loadData(!!cache.exists);
   }, [isLoaded, isSignedIn, user, cacheKey, loadData]);
   
-  // Cleanup
+  // E) FIX: Cleanup on unmount
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
   
@@ -849,21 +859,19 @@ function CustomersPageContent() {
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user) return;
     
-    let interval: NodeJS.Timeout | null = null;
-    
     const startInterval = () => {
-      if (interval) clearInterval(interval);
-      interval = setInterval(() => {
-        if (!document.hidden) loadData(true);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = setInterval(() => {
+        if (!document.hidden && mountedRef.current) loadData(true);
       }, 120000);
     };
     
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        if (interval) { clearInterval(interval); interval = null; }
+        if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
       } else {
         const cache = getCachedWithMeta<CustomersCacheData>(cacheKey);
-        if (cache.isStale) loadData(true);
+        if (cache.isStale && mountedRef.current) loadData(true);
         startInterval();
       }
     };
@@ -871,7 +879,7 @@ function CustomersPageContent() {
     startInterval();
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
-      if (interval) clearInterval(interval);
+      if (intervalRef.current) clearInterval(intervalRef.current);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isLoaded, isSignedIn, user, cacheKey, loadData]);
