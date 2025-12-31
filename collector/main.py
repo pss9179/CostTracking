@@ -3,13 +3,11 @@ FastAPI main application for Skyline Collector.
 """
 import asyncio
 import logging
-import time
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.middleware.base import BaseHTTPMiddleware
 from db import init_db, run_migrations
 from routers import (
     events,
@@ -64,18 +62,8 @@ app.add_middleware(
     max_age=86400,  # Cache CORS preflight for 24 hours (reduces OPTIONS requests)
 )
 
-# Timing middleware to diagnose network delays
-class TimingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        start_time = time.time()
-        response = await call_next(request)
-        process_time = (time.time() - start_time) * 1000  # ms
-        # Add timing headers
-        response.headers["X-Server-Timing"] = f"{process_time:.0f}ms"
-        response.headers["X-Server-Timestamp"] = str(int(time.time() * 1000))
-        return response
-
-app.add_middleware(TimingMiddleware)
+# Timing middleware disabled - was adding overhead
+# Request timing is logged internally by route handlers
 
 # Add CORS headers to error responses
 def get_cors_headers(request: Request) -> dict:

@@ -407,16 +407,10 @@ export async function fetchDashboardAll(hours: number = 168, days: number = 7, t
   
   const fetchStart = Date.now();
   const response = await fetch(url, { headers });
-  const fetchEnd = Date.now();
+  const fetchTime = Date.now() - fetchStart;
   
-  // Log timing headers to diagnose network delay
-  const serverTiming = response.headers.get('X-Server-Timing');
-  const serverTimestamp = response.headers.get('X-Server-Timestamp');
-  console.warn(`[API] dashboard-all: browser fetch took ${fetchEnd - fetchStart}ms, server reported ${serverTiming || 'N/A'}, server timestamp: ${serverTimestamp || 'N/A'}`);
-  if (serverTimestamp) {
-    const serverTs = parseInt(serverTimestamp, 10);
-    const networkDelay = fetchEnd - serverTs;
-    console.warn(`[API] dashboard-all: network delay (server to browser): ${networkDelay}ms`);
+  if (fetchTime > 3000) {
+    console.warn(`[API] dashboard-all took ${fetchTime}ms - backend may be cold`);
   }
 
   if (!response.ok) {
