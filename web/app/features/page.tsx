@@ -359,8 +359,11 @@ function FeaturesPageContent() {
     }
   }, []);
   
-  // Error state
-  if (error) {
+  // A) FIX: Data presence overrides all other states
+  const hasData = sectionStats.length > 0;
+  
+  // Error state - only show if NO data exists
+  if (error && !hasData) {
     return (
       <ProtectedLayout>
         <div className="p-8">
@@ -387,8 +390,8 @@ function FeaturesPageContent() {
     );
   }
   
-  // Loading state
-  if (loading) {
+  // A) FIX: Loading skeleton ONLY if no data AND loading
+  if (!hasData && loading) {
     return (
       <ProtectedLayout>
         <div className="space-y-6 p-6">
@@ -404,8 +407,8 @@ function FeaturesPageContent() {
     );
   }
   
-  // Empty state
-  if (sectionStats.length === 0) {
+  // I) FIX: Empty state for new users - show immediately if not loading
+  if (!hasData && !loading) {
     return (
       <ProtectedLayout>
         <div className="space-y-6 p-6">

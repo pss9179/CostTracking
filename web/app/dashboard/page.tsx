@@ -513,8 +513,11 @@ function DashboardPageContent() {
   // Has active filters
   const hasActiveFilters = selectedProviders.length > 0 || selectedModels.length > 0;
   
-  // Error state
-  if (error) {
+  // A) FIX: Data presence overrides all other states
+  const hasData = providerStats.length > 0;
+  
+  // Error state - only show if NO data exists
+  if (error && !hasData) {
     return (
       <ProtectedLayout>
         <div className="p-8">
@@ -541,8 +544,9 @@ function DashboardPageContent() {
     );
   }
   
-  // Loading state
-  if (loading) {
+  // A) FIX: Loading skeleton ONLY if no data AND loading
+  // If hasData, ALWAYS render main UI regardless of loading state
+  if (!hasData && loading) {
     return (
       <ProtectedLayout>
         <div className="space-y-6">

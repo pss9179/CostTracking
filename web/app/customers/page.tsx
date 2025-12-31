@@ -952,7 +952,11 @@ function CustomersPageContent() {
     router.push("/dashboard");
   };
 
-  if (loading && customers.length === 0) {
+  // A) FIX: Data presence overrides all other states
+  const hasData = customers.length > 0;
+  
+  // A) FIX: Loading skeleton ONLY if no data AND loading
+  if (!hasData && loading) {
     return (
       <ProtectedLayout>
         <div className="space-y-6 p-6">
@@ -966,7 +970,8 @@ function CustomersPageContent() {
     );
   }
 
-  if (error) {
+  // Error state - only show if NO data exists
+  if (error && !hasData) {
     return (
       <ProtectedLayout>
         <div className="p-8">
@@ -984,7 +989,8 @@ function CustomersPageContent() {
     );
   }
 
-  if (customers.length === 0) {
+  // I) FIX: Empty state for new users - show immediately if not loading
+  if (!hasData && !loading) {
     return (
       <ProtectedLayout>
         <div className="space-y-6 p-6">
