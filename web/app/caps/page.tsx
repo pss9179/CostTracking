@@ -685,9 +685,11 @@ export default function CapsPage() {
       
       // C) FIX: Token retry - return early, don't hit finally
       if (!token) {
+        console.log('[Caps] No token - scheduling retry in 500ms');
         fetchInProgressRef.current = false;
         if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = setTimeout(() => {
+          console.log('[Caps] Token retry executing');
           if (mountedRef.current) loadData(forceRefresh);
         }, 500);
         return false;
@@ -699,13 +701,25 @@ export default function CapsPage() {
       }
 
       mark('caps-fetch');
+      console.log('[Caps] Starting fetch with token:', token ? 'present' : 'MISSING');
+      
+      // Track whether each fetch succeeded (200) vs failed (error caught)
+      let fetchSucceeded = true;
       const [capsData, alertsData, providersData, modelsData, sectionsData] = await Promise.all([
-        fetchCaps(token).catch((err) => { console.error("Fetch caps error:", err); return []; }),
-        fetchAlerts(100, token).catch((err) => { console.error("Fetch alerts error:", err); return []; }),
-        fetchProviderStats(24 * 30, null, null, token).catch(() => []),
-        fetchModelStats(24 * 30, null, null, token).catch(() => []),
-        fetchSectionStats(24 * 30, null, null, token).catch(() => []),
+        fetchCaps(token).catch((err) => { console.error("[Caps] fetchCaps error:", err.message); fetchSucceeded = false; return []; }),
+        fetchAlerts(100, token).catch((err) => { console.error("[Caps] fetchAlerts error:", err.message); fetchSucceeded = false; return []; }),
+        fetchProviderStats(24 * 30, null, null, token).catch((e) => { console.error('[Caps] fetchProviderStats error:', e.message); return []; }), // Stats failures are OK
+        fetchModelStats(24 * 30, null, null, token).catch((e) => { console.error('[Caps] fetchModelStats error:', e.message); return []; }),
+        fetchSectionStats(24 * 30, null, null, token).catch((e) => { console.error('[Caps] fetchSectionStats error:', e.message); return []; }),
       ]);
+      console.log('[Caps] Fetch complete:', { 
+        fetchSucceeded,
+        caps: capsData?.length ?? 0, 
+        alerts: alertsData?.length ?? 0,
+        providers: providersData?.length ?? 0,
+        models: modelsData?.length ?? 0,
+        sections: sectionsData?.length ?? 0 
+      });
       measure('caps-fetch');
       
       const providersList = [...new Set(providersData.map(p => p.provider))]
@@ -730,16 +744,19 @@ export default function CapsPage() {
       setLoading(false);
       setIsRefreshing(false);
       
-      // For caps, we cache even if empty (legitimate for new users)
-      // But we need to check that the API actually responded (not just caught errors)
-      setCached<CapsCacheData>(CAPS_CACHE_KEY, {
-        caps: capsData,
-        alerts: alertsData,
-        providers: providersList,
-        models: modelsList,
-        features: featuresList,
-      });
-      console.log('[Caps] Cache written with', capsData.length, 'caps,', alertsData.length, 'alerts');
+      // Cache successful responses (even if empty) to prevent refetching on navigation
+      if (fetchSucceeded) {
+        setCached<CapsCacheData>(CAPS_CACHE_KEY, {
+          caps: capsData,
+          alerts: alertsData,
+          providers: providersList,
+          models: modelsList,
+          features: featuresList,
+        });
+        console.log('[Caps] Cache written:', { caps: capsData.length, alerts: alertsData.length });
+      } else {
+        console.log('[Caps] NOT caching - fetch failed');
+      }
       
       fetchInProgressRef.current = false;
       return true;

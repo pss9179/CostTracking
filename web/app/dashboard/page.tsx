@@ -231,9 +231,11 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       
       // C) FIX: Token retry - don't touch loading in finally if retry scheduled
       if (!token) {
+        console.log('[Dashboard] No token - scheduling retry in 500ms');
         fetchInProgressRef.current = false;
         if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = setTimeout(() => {
+          console.log('[Dashboard] Token retry executing');
           if (mountedRef.current) loadData(isBackground);
         }, 500);
         return false; // Return early - don't hit finally's loading reset
@@ -245,13 +247,25 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       }
       
       mark('dashboard-fetch');
+      console.log('[Dashboard] Starting fetch with token:', token ? 'present' : 'MISSING');
+      
+      // Track whether each fetch succeeded (200) vs failed (error caught)
+      let fetchSucceeded = true;
       const [runsData, providersData, modelsData, timeseriesData, dailyData] = await Promise.all([
-        fetchRuns(50, null, token).catch(() => []),
-        fetchProviderStats(hours, null, null, token).catch(() => []),
-        fetchModelStats(hours, null, null, token).catch(() => []),
-        fetchTimeseries(hours, null, null, token).catch(() => []),
-        fetchDailyStats(days, null, token).catch(() => []),
+        fetchRuns(50, null, token).catch((e) => { console.error('[Dashboard] fetchRuns error:', e.message); fetchSucceeded = false; return []; }),
+        fetchProviderStats(hours, null, null, token).catch((e) => { console.error('[Dashboard] fetchProviderStats error:', e.message); fetchSucceeded = false; return []; }),
+        fetchModelStats(hours, null, null, token).catch((e) => { console.error('[Dashboard] fetchModelStats error:', e.message); fetchSucceeded = false; return []; }),
+        fetchTimeseries(hours, null, null, token).catch((e) => { console.error('[Dashboard] fetchTimeseries error:', e.message); fetchSucceeded = false; return []; }),
+        fetchDailyStats(days, null, token).catch((e) => { console.error('[Dashboard] fetchDailyStats error:', e.message); fetchSucceeded = false; return []; }),
       ]);
+      console.log('[Dashboard] Fetch complete:', { 
+        fetchSucceeded,
+        runs: runsData?.length ?? 0, 
+        providers: providersData?.length ?? 0, 
+        models: modelsData?.length ?? 0,
+        timeseries: timeseriesData?.length ?? 0,
+        daily: dailyData?.length ?? 0 
+      });
       measure('dashboard-fetch');
       
       let prevProvidersData: ProviderStats[] = [];
@@ -288,8 +302,9 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       setLoading(false);
       setIsRefreshing(false);
       
-      // ONLY cache if we actually got data (don't cache empty results from failed requests)
-      if (providersData && providersData.length > 0) {
+      // Cache successful responses (even if empty) to prevent refetching on navigation
+      // Only skip caching if fetch actually failed (error was caught)
+      if (fetchSucceeded) {
         setCached<DashboardCacheData>(cacheKey, {
           runs: runsData || [],
           providerStats: providersData || [],
@@ -298,9 +313,9 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
           prevProviderStats: prevProvidersData,
           prevDailyStats: prevDailyOnly,
         });
-        console.log('[Dashboard] Cache written with', providersData.length, 'providers');
+        console.log('[Dashboard] Cache written:', { providers: providersData?.length ?? 0, runs: runsData?.length ?? 0 });
       } else {
-        console.log('[Dashboard] NOT caching - no data received');
+        console.log('[Dashboard] NOT caching - fetch failed');
       }
       
       fetchInProgressRef.current = false;
@@ -322,22 +337,31 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   
   // Effect: Trigger fetch when auth becomes ready or cache key changes
   useEffect(() => {
-    if (!isLoaded) return;
+    console.log('[Dashboard] Effect running:', { isLoaded, isSignedIn, hasUser: !!user });
+    
+    if (!isLoaded) {
+      console.log('[Dashboard] Effect: waiting for auth to load');
+      return;
+    }
     
     if (!isSignedIn || !user) {
+      console.log('[Dashboard] Effect: not signed in or no user');
       if (!hasLoadedRef.current && mountedRef.current) setLoading(false);
       return;
     }
     
     const cache = getCachedWithMeta<DashboardCacheData>(cacheKey);
     const hasFreshCache = cache.exists && !cache.isStale && cache.data?.providerStats?.length;
+    console.log('[Dashboard] Effect: cache status', { exists: cache.exists, isStale: cache.isStale, hasData: !!cache.data?.providerStats?.length, hasFreshCache });
     
     if (hasFreshCache) {
+      console.log('[Dashboard] Effect: using fresh cache, skipping fetch');
       hasLoadedRef.current = true;
       if (mountedRef.current) setLoading(false);
       return;
     }
     
+    console.log('[Dashboard] Effect: calling loadData');
     loadData(!!cache.exists);
   }, [isLoaded, isSignedIn, user, cacheKey, loadData]);
   

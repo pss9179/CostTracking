@@ -157,9 +157,11 @@ function useFeaturesData(hours: number) {
       
       // C) FIX: Token retry - return early, don't hit finally
       if (!token) {
+        console.log('[Features] No token - scheduling retry in 500ms');
         fetchInProgressRef.current = false;
         if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = setTimeout(() => {
+          console.log('[Features] Token retry executing');
           if (mountedRef.current) loadData(isBackground);
         }, 500);
         return false;
@@ -171,11 +173,21 @@ function useFeaturesData(hours: number) {
       }
       
       mark('features-fetch');
+      console.log('[Features] Starting fetch with token:', token ? 'present' : 'MISSING');
+      
+      // Track whether each fetch succeeded (200) vs failed (error caught)
+      let fetchSucceeded = true;
       const [sections, providers, models] = await Promise.all([
-        fetchSectionStats(hours, null, null, token).catch(() => []),
-        fetchProviderStats(hours, null, null, token).catch(() => []),
-        fetchModelStats(hours, null, null, token).catch(() => []),
+        fetchSectionStats(hours, null, null, token).catch((e) => { console.error('[Features] fetchSectionStats error:', e.message); fetchSucceeded = false; return []; }),
+        fetchProviderStats(hours, null, null, token).catch((e) => { console.error('[Features] fetchProviderStats error:', e.message); fetchSucceeded = false; return []; }),
+        fetchModelStats(hours, null, null, token).catch((e) => { console.error('[Features] fetchModelStats error:', e.message); fetchSucceeded = false; return []; }),
       ]);
+      console.log('[Features] Fetch complete:', { 
+        fetchSucceeded,
+        sections: sections?.length ?? 0, 
+        providers: providers?.length ?? 0, 
+        models: models?.length ?? 0 
+      });
       measure('features-fetch');
       
       const filteredStats = (sections || []).filter(s => {
@@ -200,16 +212,16 @@ function useFeaturesData(hours: number) {
       setLoading(false);
       setIsRefreshing(false);
       
-      // ONLY cache if we actually got data (don't cache empty results from failed requests)
-      if (filteredStats.length > 0 || providers.length > 0) {
+      // Cache successful responses (even if empty) to prevent refetching on navigation
+      if (fetchSucceeded) {
         setCached<FeaturesCacheData>(cacheKey, {
           sectionStats: filteredStats,
           providerStats: providers || [],
           modelStats: models || [],
         });
-        console.log('[Features] Cache written with', filteredStats.length, 'sections');
+        console.log('[Features] Cache written:', { sections: filteredStats.length, providers: providers?.length ?? 0 });
       } else {
-        console.log('[Features] NOT caching - no data received');
+        console.log('[Features] NOT caching - fetch failed');
       }
       
       fetchInProgressRef.current = false;

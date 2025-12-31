@@ -800,9 +800,11 @@ function CustomersPageContent() {
       
       // C) FIX: Token retry - return early, don't hit finally
       if (!token) {
+        console.log('[Customers] No token - scheduling retry in 500ms');
         fetchInProgressRef.current = false;
         if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = setTimeout(() => {
+          console.log('[Customers] Token retry executing');
           if (mountedRef.current) loadData(isBackground);
         }, 500);
         return false;
@@ -814,10 +816,12 @@ function CustomersPageContent() {
       }
       
       mark('customers-fetch');
+      console.log('[Customers] Starting fetch with token:', token ? 'present' : 'MISSING');
       const [current, previous] = await Promise.all([
         fetchCustomerStats(hours, null, token),
         fetchCustomerStats(hours * 2, null, token),
       ]);
+      console.log('[Customers] Fetch complete:', { current: current?.length ?? 0, previous: previous?.length ?? 0 });
       measure('customers-fetch');
       
       // Previous period = first half of doubled-timerange data (older records)
@@ -837,13 +841,10 @@ function CustomersPageContent() {
       setLoading(false);
       setIsRefreshing(false);
       
-      // ONLY cache if we actually got data
-      if (current && current.length > 0) {
-        setCached(cacheKey, { customers: current, prevCustomers: prev });
-        console.log('[Customers] Cache written with', current.length, 'customers');
-      } else {
-        console.log('[Customers] NOT caching - no data received');
-      }
+      // Cache successful responses (even if empty) to prevent refetching on navigation
+      // If we got here without throwing, the fetch succeeded
+      setCached(cacheKey, { customers: current, prevCustomers: prev });
+      console.log('[Customers] Cache written:', { customers: current?.length ?? 0, prev: prev?.length ?? 0 });
       
       fetchInProgressRef.current = false;
       return true;
