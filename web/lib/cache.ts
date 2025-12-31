@@ -47,5 +47,49 @@ export function clearCache(): void {
   }
 }
 
+/**
+ * Get cached data with metadata for synchronous state initialization.
+ * Returns data, whether it exists, and whether it's stale in a single call.
+ * This avoids SSR/hydration issues by returning null data on server.
+ */
+export interface CacheMeta<T> {
+  data: T | null;
+  exists: boolean;
+  isStale: boolean;
+  timestamp: number | null;
+}
+
+export function getCachedWithMeta<T>(key: string, staleTime: number = STALE_TIME): CacheMeta<T> {
+  // Return empty on server to avoid hydration mismatch
+  if (typeof window === 'undefined') {
+    return { data: null, exists: false, isStale: true, timestamp: null };
+  }
+  
+  const cache = getGlobalCache();
+  const entry = cache[key] as CacheEntry<T> | undefined;
+  
+  if (!entry) {
+    return { data: null, exists: false, isStale: true, timestamp: null };
+  }
+  
+  const isStale = Date.now() - entry.timestamp > staleTime;
+  return {
+    data: entry.data,
+    exists: true,
+    isStale,
+    timestamp: entry.timestamp,
+  };
+}
+
+/**
+ * Helper to initialize state from cache synchronously.
+ * Safe for SSR - returns defaultValue on server.
+ */
+export function getInitialFromCache<T>(key: string, defaultValue: T): T {
+  if (typeof window === 'undefined') return defaultValue;
+  const cached = getCached<T>(key);
+  return cached ?? defaultValue;
+}
+
 
 

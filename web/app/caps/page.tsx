@@ -71,7 +71,7 @@ import {
 } from "@/lib/api";
 import { formatSmartCost } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { getCached, setCached, isCacheStale } from "@/lib/cache";
+import { getCached, setCached, getCachedWithMeta } from "@/lib/cache";
 
 // ============================================================================
 // TYPES
@@ -593,15 +593,32 @@ export default function CapsPage() {
   const { getToken } = useAuth();
   const { isLoaded, user } = useUser();
   
-  const [initialCache] = useState(() => getCached<CapsCacheData>(CAPS_CACHE_KEY));
-  const hasCachedData = initialCache && initialCache.caps.length >= 0;
-  
-  const [caps, setCaps] = useState<Cap[]>(initialCache?.caps || []);
-  const [alerts, setAlerts] = useState<Alert[]>(initialCache?.alerts || []);
-  const [providers, setProviders] = useState<string[]>(initialCache?.providers || []);
-  const [models, setModels] = useState<string[]>(initialCache?.models || []);
-  const [features, setFeatures] = useState<string[]>(initialCache?.features || []);
-  const [loading, setLoading] = useState(!hasCachedData);
+  // Initialize state synchronously from cache - no hydration effect needed
+  const [caps, setCaps] = useState<Cap[]>(() => {
+    const cached = getCached<CapsCacheData>(CAPS_CACHE_KEY);
+    return cached?.caps || [];
+  });
+  const [alerts, setAlerts] = useState<Alert[]>(() => {
+    const cached = getCached<CapsCacheData>(CAPS_CACHE_KEY);
+    return cached?.alerts || [];
+  });
+  const [providers, setProviders] = useState<string[]>(() => {
+    const cached = getCached<CapsCacheData>(CAPS_CACHE_KEY);
+    return cached?.providers || [];
+  });
+  const [models, setModels] = useState<string[]>(() => {
+    const cached = getCached<CapsCacheData>(CAPS_CACHE_KEY);
+    return cached?.models || [];
+  });
+  const [features, setFeatures] = useState<string[]>(() => {
+    const cached = getCached<CapsCacheData>(CAPS_CACHE_KEY);
+    return cached?.features || [];
+  });
+  // Only show loading if no cached data exists (caps can be empty, so check exists flag)
+  const [loading, setLoading] = useState<boolean>(() => {
+    const cached = getCachedWithMeta<CapsCacheData>(CAPS_CACHE_KEY);
+    return !cached.exists;
+  });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -612,13 +629,13 @@ export default function CapsPage() {
     if (!isLoaded || !user) return;
     
     // Skip if cache is fresh (unless force refresh)
-    if (!forceRefresh && !isCacheStale(CAPS_CACHE_KEY)) {
+    const cache = getCachedWithMeta<CapsCacheData>(CAPS_CACHE_KEY);
+    if (!forceRefresh && !cache.isStale) {
       return;
     }
     
-    // Show refreshing indicator if we have data
-    const hasData = caps.length > 0 || hasCachedData;
-    if (hasData) {
+    // Show refreshing indicator if we have cached data
+    if (cache.exists) {
       setIsRefreshing(true);
     } else {
       setLoading(true);
@@ -665,14 +682,17 @@ export default function CapsPage() {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [isLoaded, user, getToken, caps.length, hasCachedData]);
+  }, [isLoaded, user, getToken]);
 
   useEffect(() => {
-    if (isLoaded && user) {
-      if (isCacheStale(CAPS_CACHE_KEY)) {
-        loadData();
-      }
+    if (!isLoaded || !user) return;
+    
+    const cache = getCachedWithMeta<CapsCacheData>(CAPS_CACHE_KEY);
+    if (cache.exists && !cache.isStale) {
+      return; // Cache is fresh
     }
+    
+    loadData(false);
   }, [isLoaded, user, loadData]);
 
   // Auto-refresh every 2 minutes (paused when tab is hidden)

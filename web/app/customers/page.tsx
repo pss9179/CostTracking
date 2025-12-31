@@ -62,7 +62,7 @@ import {
 import { CostTrendChart } from "@/components/dashboard/CostTrendChart";
 import { formatSmartCost, formatCompactNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { getCached, setCached, isCacheStale } from "@/lib/cache";
+import { getCached, setCached, getCachedWithMeta } from "@/lib/cache";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import type { DateRange } from "@/contexts/AnalyticsContext";
 
@@ -681,6 +681,11 @@ function CustomerDetailPanel({
 // MAIN PAGE
 // ============================================================================
 
+interface CustomersCacheData {
+  customers: CustomerStats[];
+  prevCustomers: CustomerStats[];
+}
+
 function CustomersPageContent() {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
@@ -689,25 +694,22 @@ function CustomersPageContent() {
   
   const cacheKey = `customers-${filters.dateRange}`;
   
-  // Track hydration state
-  const [isHydrated, setIsHydrated] = useState(false);
-  
-  const [customers, setCustomers] = useState<CustomerStats[]>([]);
-  const [prevCustomers, setPrevCustomers] = useState<CustomerStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Initialize state synchronously from cache - no hydration effect needed
+  const [customers, setCustomers] = useState<CustomerStats[]>(() => {
+    const cached = getCached<CustomersCacheData>(cacheKey);
+    return cached?.customers || [];
+  });
+  const [prevCustomers, setPrevCustomers] = useState<CustomerStats[]>(() => {
+    const cached = getCached<CustomersCacheData>(cacheKey);
+    return cached?.prevCustomers || [];
+  });
+  // Only show loading if no cached data exists
+  const [loading, setLoading] = useState<boolean>(() => {
+    const cached = getCachedWithMeta<CustomersCacheData>(cacheKey);
+    return !cached.exists || !cached.data?.customers?.length;
+  });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Hydration effect - sync cache to state
-  useEffect(() => {
-    const cachedData = getCached<{ customers: CustomerStats[], prevCustomers: CustomerStats[] }>(cacheKey);
-    if (cachedData && cachedData.customers.length > 0) {
-      setCustomers(cachedData.customers);
-      setPrevCustomers(cachedData.prevCustomers || []);
-      setLoading(false);
-    }
-    setIsHydrated(true);
-  }, []); // Run once on mount
   
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerWithDelta | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -738,12 +740,13 @@ function CustomersPageContent() {
     if (!isLoaded || !isSignedIn || !user) return;
     
     // Skip if cache is fresh
-    if (isBackground && !isCacheStale(cacheKey)) {
+    const cache = getCachedWithMeta<CustomersCacheData>(cacheKey);
+    if (isBackground && !cache.isStale) {
       return;
     }
     
     // Show refreshing indicator if we have data, loading only if empty
-    const hasData = customers.length > 0;
+    const hasData = cache.exists && cache.data?.customers?.length;
     if (hasData) {
       setIsRefreshing(true);
     } else if (!isBackground) {
@@ -780,18 +783,17 @@ function CustomersPageContent() {
   }, [isLoaded, isSignedIn, user, getToken, hours, cacheKey]);
 
   useEffect(() => {
-    if (!isHydrated) return;
     if (!isLoaded || !isSignedIn || !user) return;
     
-    const cachedData = getCached<{ customers: CustomerStats[], prevCustomers: CustomerStats[] }>(cacheKey);
-    const hasCachedData = cachedData && cachedData.customers.length > 0;
+    const cache = getCachedWithMeta<CustomersCacheData>(cacheKey);
+    const hasCachedData = cache.exists && cache.data?.customers?.length;
     
-    if (hasCachedData && !isCacheStale(cacheKey)) {
+    if (hasCachedData && !cache.isStale) {
       return; // Cache is fresh
     }
     
     loadData(!!hasCachedData);
-  }, [isHydrated, isLoaded, isSignedIn, user, cacheKey, hours]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn, user, cacheKey, hours]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Auto-refresh every 2 minutes (paused when tab is hidden)
   useEffect(() => {

@@ -31,7 +31,7 @@ import {
   formatDuration,
   getStableColor,
 } from "@/lib/format";
-import { getCached, setCached, isCacheStale } from "@/lib/cache";
+import { getCached, setCached, getCachedWithMeta } from "@/lib/cache";
 import type { DateRange } from "@/contexts/AnalyticsContext";
 
 // ============================================================================
@@ -60,38 +60,38 @@ function useFeaturesData(hours: number) {
   
   const cacheKey = `features-${hours}`;
   
-  // Track hydration state
-  const [isHydrated, setIsHydrated] = useState(false);
-  
-  const [sectionStats, setSectionStats] = useState<SectionStats[]>([]);
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
-  const [modelStats, setModelStats] = useState<ModelStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Initialize state synchronously from cache - no hydration effect needed
+  const [sectionStats, setSectionStats] = useState<SectionStats[]>(() => {
+    const cached = getCached<FeaturesCacheData>(cacheKey);
+    return cached?.sectionStats || [];
+  });
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>(() => {
+    const cached = getCached<FeaturesCacheData>(cacheKey);
+    return cached?.providerStats || [];
+  });
+  const [modelStats, setModelStats] = useState<ModelStats[]>(() => {
+    const cached = getCached<FeaturesCacheData>(cacheKey);
+    return cached?.modelStats || [];
+  });
+  // Only show loading if no cached data exists
+  const [loading, setLoading] = useState<boolean>(() => {
+    const cached = getCachedWithMeta<FeaturesCacheData>(cacheKey);
+    return !cached.exists || !cached.data?.sectionStats?.length;
+  });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  
-  // Hydration effect - sync cache to state
-  useEffect(() => {
-    const cachedData = getCached<FeaturesCacheData>(cacheKey);
-    if (cachedData && cachedData.sectionStats.length > 0) {
-      setSectionStats(cachedData.sectionStats || []);
-      setProviderStats(cachedData.providerStats || []);
-      setModelStats(cachedData.modelStats || []);
-      setLoading(false);
-    }
-    setIsHydrated(true);
-  }, []); // Run once on mount
   
   const loadData = useCallback(async (isBackground = false) => {
     if (!isLoaded || !user) return;
     
     // Check if cache is still fresh
-    if (isBackground && !isCacheStale(cacheKey)) {
+    const cache = getCachedWithMeta<FeaturesCacheData>(cacheKey);
+    if (isBackground && !cache.isStale) {
       return;
     }
     
-    const hasData = sectionStats.length > 0;
+    const hasData = cache.exists && cache.data?.sectionStats?.length;
     if (hasData) {
       setIsRefreshing(true);
     } else if (!isBackground) {
@@ -139,18 +139,17 @@ function useFeaturesData(hours: number) {
   }, [isLoaded, user, getToken, hours, cacheKey]);
   
   useEffect(() => {
-    if (!isHydrated) return;
     if (!isLoaded || !user) return;
     
-    const cachedData = getCached<FeaturesCacheData>(cacheKey);
-    const hasCachedData = cachedData && cachedData.sectionStats.length > 0;
+    const cache = getCachedWithMeta<FeaturesCacheData>(cacheKey);
+    const hasCachedData = cache.exists && cache.data?.sectionStats?.length;
     
-    if (hasCachedData && !isCacheStale(cacheKey)) {
+    if (hasCachedData && !cache.isStale) {
       return; // Cache is fresh
     }
     
     loadData(!!hasCachedData);
-  }, [isHydrated, isLoaded, user, cacheKey, hours]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoaded, user, cacheKey, hours]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Auto-refresh every 2 minutes (paused when tab is hidden)
   useEffect(() => {
