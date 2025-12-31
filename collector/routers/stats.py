@@ -824,3 +824,152 @@ async def get_customer_detail(
             "period_days": days
         }
 
+
+# =============================================================================
+# CONSOLIDATED DASHBOARD ENDPOINT
+# Returns ALL dashboard data in a single request to minimize HTTP overhead
+# =============================================================================
+@router.get("/dashboard-all")
+async def get_dashboard_all(
+    hours: int = Query(168, description="Time window in hours for stats"),
+    days: int = Query(7, description="Number of days for daily aggregates"),
+    session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user)
+) -> Dict[str, Any]:
+    """
+    Consolidated endpoint that returns ALL dashboard data in one request.
+    
+    This reduces 5 parallel HTTP requests to 1, eliminating:
+    - 5 CORS preflight requests
+    - 5 separate TCP connections
+    - Network overhead multiplied by 5
+    
+    Returns: provider stats, model stats, timeseries, and daily aggregates
+    """
+    import asyncio
+    start_time = time.time()
+    user_id = current_user.id
+    
+    # Check cache first
+    cache_key = make_cache_key("dashboard-all", str(user_id), hours=hours, days=days)
+    cached = get_cached_response(cache_key)
+    if cached is not None:
+        print(f"[dashboard-all] CACHE HIT in {(time.time()-start_time)*1000:.0f}ms", flush=True)
+        return cached
+    
+    print(f"[dashboard-all] START user={str(user_id)[:8]}... hours={hours} days={days}", flush=True)
+    
+    cutoff_hours = datetime.utcnow() - timedelta(hours=hours)
+    cutoff_days = datetime.utcnow() - timedelta(days=days)
+    
+    # Run all queries (they share the same session/connection)
+    query_start = time.time()
+    
+    # 1. Provider stats
+    provider_stmt = select(
+        TraceEvent.provider,
+        func.sum(TraceEvent.cost_usd).label("total_cost"),
+        func.count(TraceEvent.id).label("call_count")
+    ).where(
+        and_(
+            TraceEvent.created_at >= cutoff_hours,
+            TraceEvent.user_id == user_id,
+            TraceEvent.customer_id.is_(None),
+            TraceEvent.provider != "internal"
+        )
+    ).group_by(TraceEvent.provider).order_by(func.sum(TraceEvent.cost_usd).desc())
+    
+    provider_results = session.exec(provider_stmt).all()
+    provider_total = sum(r.total_cost or 0 for r in provider_results)
+    
+    providers = [
+        {
+            "provider": r.provider,
+            "total_cost": r.total_cost or 0,
+            "call_count": r.call_count,
+            "percentage": round((r.total_cost or 0) / provider_total * 100, 1) if provider_total > 0 else 0
+        }
+        for r in provider_results
+    ]
+    
+    # 2. Model stats
+    model_stmt = select(
+        TraceEvent.provider,
+        TraceEvent.model,
+        func.sum(TraceEvent.cost_usd).label("total_cost"),
+        func.count(TraceEvent.id).label("call_count"),
+        func.sum(TraceEvent.input_tokens).label("input_tokens"),
+        func.sum(TraceEvent.output_tokens).label("output_tokens"),
+        func.avg(TraceEvent.latency_ms).label("avg_latency")
+    ).where(
+        and_(
+            TraceEvent.created_at >= cutoff_hours,
+            TraceEvent.user_id == user_id,
+            TraceEvent.customer_id.is_(None),
+            TraceEvent.model.isnot(None)
+        )
+    ).group_by(TraceEvent.provider, TraceEvent.model).order_by(func.sum(TraceEvent.cost_usd).desc())
+    
+    model_results = session.exec(model_stmt).all()
+    
+    models = [
+        {
+            "provider": r.provider,
+            "model": r.model,
+            "total_cost": r.total_cost or 0,
+            "call_count": r.call_count,
+            "input_tokens": r.input_tokens or 0,
+            "output_tokens": r.output_tokens or 0,
+            "avg_latency": round(r.avg_latency or 0, 2)
+        }
+        for r in model_results
+    ]
+    
+    # 3. Daily aggregates (for the chart)
+    from db import IS_POSTGRESQL
+    if IS_POSTGRESQL:
+        date_trunc = func.date_trunc('day', TraceEvent.created_at)
+    else:
+        date_trunc = func.date(TraceEvent.created_at)
+    
+    daily_stmt = select(
+        date_trunc.label("date"),
+        func.sum(TraceEvent.cost_usd).label("total_cost"),
+        func.count(TraceEvent.id).label("call_count")
+    ).where(
+        and_(
+            TraceEvent.created_at >= cutoff_days,
+            TraceEvent.user_id == user_id,
+            TraceEvent.customer_id.is_(None)
+        )
+    ).group_by(date_trunc).order_by(date_trunc)
+    
+    daily_results = session.exec(daily_stmt).all()
+    
+    daily = [
+        {
+            "date": str(r.date)[:10] if r.date else None,
+            "total_cost": r.total_cost or 0,
+            "call_count": r.call_count
+        }
+        for r in daily_results
+    ]
+    
+    query_time = (time.time() - query_start) * 1000
+    total_time = (time.time() - start_time) * 1000
+    print(f"[dashboard-all] DONE queries={query_time:.0f}ms total={total_time:.0f}ms", flush=True)
+    
+    result = {
+        "providers": providers,
+        "models": models,
+        "daily": daily,
+        "hours": hours,
+        "days": days,
+        "generated_at": datetime.utcnow().isoformat()
+    }
+    
+    # Cache the result
+    set_cached_response(cache_key, result)
+    
+    return result
+

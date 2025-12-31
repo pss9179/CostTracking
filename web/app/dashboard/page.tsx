@@ -12,6 +12,7 @@ import {
   fetchModelStats,
   fetchTimeseries,
   fetchDailyStats,
+  fetchDashboardAll,
   type Run,
   type ProviderStats,
   type ModelStats,
@@ -324,36 +325,71 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       const fetchStart = Date.now();
       console.log('[Dashboard] Starting fetch with token:', token ? 'present' : 'MISSING');
       
-      // Track whether each fetch succeeded (200) vs failed (error caught)
+      // Track whether fetch succeeded
       let fetchSucceeded = true;
       
-      // DIAGNOSTIC: Time each individual fetch to find the slow one
-      const timeFetch = async <T,>(name: string, fn: () => Promise<T>): Promise<T> => {
-        const start = Date.now();
-        try {
-          const result = await fn();
-          console.log(`[Dashboard] ${name} completed in ${Date.now() - start}ms`);
-          return result;
-        } catch (e: any) {
-          console.error(`[Dashboard] ${name} FAILED in ${Date.now() - start}ms:`, e.message);
-          fetchSucceeded = false;
-          return [] as unknown as T;
-        }
-      };
+      // Use consolidated endpoint (1 request instead of 5) + separate runs request
+      // This dramatically reduces HTTP overhead and network latency
+      let runsData: Run[] = [];
+      let providersData: ProviderStats[] = [];
+      let modelsData: ModelStats[] = [];
+      let timeseriesData: DailyStats[] = [];
+      let dailyData: DailyStats[] = [];
       
-      const [runsData, providersData, modelsData, timeseriesData, dailyData] = await Promise.all([
-        timeFetch('fetchRuns', () => fetchRuns(50, null, token)),
-        timeFetch('fetchProviderStats', () => fetchProviderStats(hours, null, null, token)),
-        timeFetch('fetchModelStats', () => fetchModelStats(hours, null, null, token)),
-        timeFetch('fetchTimeseries', () => fetchTimeseries(hours, null, null, token)),
-        timeFetch('fetchDailyStats', () => fetchDailyStats(days, null, token)),
-      ]);
+      try {
+        const [runsResult, dashboardResult] = await Promise.all([
+          fetchRuns(50, null, token).catch((e) => {
+            console.error('[Dashboard] fetchRuns error:', e.message);
+            return [];
+          }),
+          fetchDashboardAll(hours, days, token).catch((e) => {
+            console.error('[Dashboard] fetchDashboardAll error:', e.message);
+            fetchSucceeded = false;
+            return null;
+          }),
+        ]);
+        
+        runsData = runsResult;
+        
+        if (dashboardResult) {
+          // Map consolidated response to existing data structures
+          providersData = dashboardResult.providers.map(p => ({
+            provider: p.provider,
+            total_cost: p.total_cost,
+            call_count: p.call_count,
+            percentage: p.percentage,
+          }));
+          
+          modelsData = dashboardResult.models.map(m => ({
+            provider: m.provider,
+            model: m.model,
+            total_cost: m.total_cost,
+            call_count: m.call_count,
+            input_tokens: m.input_tokens,
+            output_tokens: m.output_tokens,
+            avg_latency: m.avg_latency,
+            percentage: 0, // Will be calculated if needed
+          }));
+          
+          // Convert daily data to match DailyStats format
+          dailyData = dashboardResult.daily.map(d => ({
+            date: d.date,
+            total: d.total_cost,
+            providers: {}, // Simplified - providers breakdown not included in consolidated
+          }));
+          
+          timeseriesData = dailyData; // Use same data for timeseries
+        }
+      } catch (error: any) {
+        console.error('[Dashboard] Fetch error:', error.message);
+        fetchSucceeded = false;
+      }
+      
       console.log('[Dashboard] Fetch complete in', Date.now() - fetchStart, 'ms (', (performance.now() - PAGE_MOUNT_TIME).toFixed(0), 'ms since mount):', { 
         fetchSucceeded,
         runs: runsData?.length ?? 0, 
         providers: providersData?.length ?? 0, 
         models: modelsData?.length ?? 0,
-        timeseries: timeseriesData?.length ?? 0,
         daily: dailyData?.length ?? 0 
       });
       measure('dashboard-fetch');

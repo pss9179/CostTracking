@@ -372,6 +372,49 @@ export async function fetchTimeseries(hours: number = 24, tenantId?: string | nu
   return response.json();
 }
 
+// =============================================================================
+// CONSOLIDATED DASHBOARD ENDPOINT - Single request for all dashboard data
+// =============================================================================
+export interface DashboardAllResponse {
+  providers: Array<{
+    provider: string;
+    total_cost: number;
+    call_count: number;
+    percentage: number;
+  }>;
+  models: Array<{
+    provider: string;
+    model: string;
+    total_cost: number;
+    call_count: number;
+    input_tokens: number;
+    output_tokens: number;
+    avg_latency: number;
+  }>;
+  daily: Array<{
+    date: string;
+    total_cost: number;
+    call_count: number;
+  }>;
+  hours: number;
+  days: number;
+  generated_at: string;
+}
+
+export async function fetchDashboardAll(hours: number = 168, days: number = 7, token?: string): Promise<DashboardAllResponse> {
+  const headers = await getDashboardAuthHeaders(token);
+  const url = `${COLLECTOR_URL}/stats/dashboard-all?hours=${hours}&days=${days}`;
+  
+  const response = await fetch(url, { headers });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => response.statusText);
+    throw new Error(`Failed to fetch dashboard data (${response.status}): ${errorText}`);
+  }
+
+  return response.json();
+}
+
 // Section/Feature Stats
 export interface SectionStats {
   section: string;
