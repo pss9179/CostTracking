@@ -59,6 +59,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
+    max_age=86400,  # Cache CORS preflight for 24 hours (reduces OPTIONS requests)
 )
 
 # Add CORS headers to error responses
