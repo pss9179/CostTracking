@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback, Suspense } from "react";
+import { useEffect, useState, useMemo, useCallback, Suspense, useRef } from "react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
@@ -694,20 +694,14 @@ function CustomersPageContent() {
   
   const cacheKey = `customers-${filters.dateRange}`;
   
-  // Initialize state synchronously from cache - no hydration effect needed
-  const [customers, setCustomers] = useState<CustomerStats[]>(() => {
-    const cached = getCached<CustomersCacheData>(cacheKey);
-    return cached?.customers || [];
-  });
-  const [prevCustomers, setPrevCustomers] = useState<CustomerStats[]>(() => {
-    const cached = getCached<CustomersCacheData>(cacheKey);
-    return cached?.prevCustomers || [];
-  });
-  // Only show loading if no cached data exists
-  const [loading, setLoading] = useState<boolean>(() => {
-    const cached = getCachedWithMeta<CustomersCacheData>(cacheKey);
-    return !cached.exists || !cached.data?.customers?.length;
-  });
+  // Refs for fetch management
+  const fetchInProgressRef = useRef(false);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // State
+  const [customers, setCustomers] = useState<CustomerStats[]>([]);
+  const [prevCustomers, setPrevCustomers] = useState<CustomerStats[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -735,17 +729,47 @@ function CustomersPageContent() {
       default: return 7 * 24;
     }
   }, [filters.dateRange]);
+  
+  // Sync state with cache when cache key changes
+  useEffect(() => {
+    const cached = getCached<CustomersCacheData>(cacheKey);
+    if (cached) {
+      setCustomers(cached.customers || []);
+      setPrevCustomers(cached.prevCustomers || []);
+      if (cached.customers?.length > 0) {
+        setLoading(false);
+      }
+    } else {
+      setCustomers([]);
+      setPrevCustomers([]);
+      setLoading(true);
+    }
+    setError(null);
+  }, [cacheKey]);
 
-  const loadData = useCallback(async (isBackground = false) => {
-    if (!isLoaded || !isSignedIn || !user) return;
-    
-    // Skip if cache is fresh
-    const cache = getCachedWithMeta<CustomersCacheData>(cacheKey);
-    if (isBackground && !cache.isStale) {
-      return;
+  const loadData = useCallback(async (isBackground = false): Promise<boolean> => {
+    if (!isLoaded) {
+      console.log("[Customers] Auth not loaded yet");
+      return false;
     }
     
-    // Show refreshing indicator if we have data, loading only if empty
+    if (!isSignedIn || !user) {
+      console.log("[Customers] User not signed in");
+      setLoading(false);
+      return false;
+    }
+    
+    if (fetchInProgressRef.current) {
+      return false;
+    }
+    
+    const cache = getCachedWithMeta<CustomersCacheData>(cacheKey);
+    if (isBackground && cache.exists && !cache.isStale) {
+      return false;
+    }
+    
+    fetchInProgressRef.current = true;
+    
     const hasData = cache.exists && cache.data?.customers?.length;
     if (hasData) {
       setIsRefreshing(true);
@@ -756,46 +780,72 @@ function CustomersPageContent() {
     
     try {
       const token = await getToken();
-      if (!token) throw new Error("Not authenticated");
       
-      // Fetch current and previous period
+      if (!token) {
+        console.warn("[Customers] getToken() returned null, will retry");
+        fetchInProgressRef.current = false;
+        if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = setTimeout(() => loadData(isBackground), 500);
+        return false;
+      }
+      
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+      
       const [current, previous] = await Promise.all([
         fetchCustomerStats(hours, null, token),
-        fetchCustomerStats(hours * 2, null, token), // Previous period
+        fetchCustomerStats(hours * 2, null, token),
       ]);
       
-      // Calculate previous period subset
       const prevCutoff = Math.floor(previous.length / 2);
       const prev = previous.slice(prevCutoff);
       
       setCustomers(current);
       setPrevCustomers(prev);
+      setError(null);
       
-      // Update cache
       setCached(cacheKey, { customers: current, prevCustomers: prev });
+      
+      return true;
     } catch (err) {
       console.error("[Customers] Error:", err);
       setError(err instanceof Error ? err.message : "Failed to load customers");
+      return false;
     } finally {
       setLoading(false);
       setIsRefreshing(false);
+      fetchInProgressRef.current = false;
     }
   }, [isLoaded, isSignedIn, user, getToken, hours, cacheKey]);
-
+  
+  // Trigger fetch when auth ready
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !user) return;
+    if (!isLoaded) return;
     
-    const cache = getCachedWithMeta<CustomersCacheData>(cacheKey);
-    const hasCachedData = cache.exists && cache.data?.customers?.length;
-    
-    if (hasCachedData && !cache.isStale) {
-      return; // Cache is fresh
+    if (!isSignedIn || !user) {
+      setLoading(false);
+      return;
     }
     
-    loadData(!!hasCachedData);
-  }, [isLoaded, isSignedIn, user, cacheKey, hours]); // eslint-disable-line react-hooks/exhaustive-deps
+    const cache = getCachedWithMeta<CustomersCacheData>(cacheKey);
+    if (cache.exists && !cache.isStale && cache.data?.customers?.length) {
+      setLoading(false);
+      return;
+    }
+    
+    loadData(!!cache.exists);
+  }, [isLoaded, isSignedIn, user, cacheKey, loadData]);
   
-  // Auto-refresh every 2 minutes (paused when tab is hidden)
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+    };
+  }, []);
+  
+  // Auto-refresh
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user) return;
     
@@ -804,31 +854,27 @@ function CustomersPageContent() {
     const startInterval = () => {
       if (interval) clearInterval(interval);
       interval = setInterval(() => {
-        if (!document.hidden) {
-          loadData(true);
-        }
-      }, 120000); // 2 minutes
+        if (!document.hidden) loadData(true);
+      }, 120000);
     };
     
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        if (interval) {
-          clearInterval(interval);
-          interval = null;
-        }
+        if (interval) { clearInterval(interval); interval = null; }
       } else {
+        const cache = getCachedWithMeta<CustomersCacheData>(cacheKey);
+        if (cache.isStale) loadData(true);
         startInterval();
       }
     };
     
     startInterval();
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
     return () => {
       if (interval) clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isLoaded, isSignedIn, user, loadData]);
+  }, [isLoaded, isSignedIn, user, cacheKey, loadData]);
 
 
   // Enrich customers with delta and primary provider/model

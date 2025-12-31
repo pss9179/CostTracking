@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -591,50 +591,63 @@ const CAPS_CACHE_KEY = "caps-data";
 
 export default function CapsPage() {
   const { getToken } = useAuth();
-  const { isLoaded, user } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   
-  // Initialize state synchronously from cache - no hydration effect needed
-  const [caps, setCaps] = useState<Cap[]>(() => {
-    const cached = getCached<CapsCacheData>(CAPS_CACHE_KEY);
-    return cached?.caps || [];
-  });
-  const [alerts, setAlerts] = useState<Alert[]>(() => {
-    const cached = getCached<CapsCacheData>(CAPS_CACHE_KEY);
-    return cached?.alerts || [];
-  });
-  const [providers, setProviders] = useState<string[]>(() => {
-    const cached = getCached<CapsCacheData>(CAPS_CACHE_KEY);
-    return cached?.providers || [];
-  });
-  const [models, setModels] = useState<string[]>(() => {
-    const cached = getCached<CapsCacheData>(CAPS_CACHE_KEY);
-    return cached?.models || [];
-  });
-  const [features, setFeatures] = useState<string[]>(() => {
-    const cached = getCached<CapsCacheData>(CAPS_CACHE_KEY);
-    return cached?.features || [];
-  });
-  // Only show loading if no cached data exists (caps can be empty, so check exists flag)
-  const [loading, setLoading] = useState<boolean>(() => {
-    const cached = getCachedWithMeta<CapsCacheData>(CAPS_CACHE_KEY);
-    return !cached.exists;
-  });
+  // Refs for fetch management
+  const fetchInProgressRef = useRef(false);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // State
+  const [caps, setCaps] = useState<Cap[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [providers, setProviders] = useState<string[]>([]);
+  const [models, setModels] = useState<string[]>([]);
+  const [features, setFeatures] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"caps" | "alerts">("caps");
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  
+  // Sync state with cache on mount
+  useEffect(() => {
+    const cached = getCached<CapsCacheData>(CAPS_CACHE_KEY);
+    if (cached) {
+      setCaps(cached.caps || []);
+      setAlerts(cached.alerts || []);
+      setProviders(cached.providers || []);
+      setModels(cached.models || []);
+      setFeatures(cached.features || []);
+      // Caps can be empty intentionally, so just check exists
+      setLoading(false);
+    }
+  }, []);
 
-  const loadData = useCallback(async (forceRefresh = false) => {
-    if (!isLoaded || !user) return;
-    
-    // Skip if cache is fresh (unless force refresh)
-    const cache = getCachedWithMeta<CapsCacheData>(CAPS_CACHE_KEY);
-    if (!forceRefresh && !cache.isStale) {
-      return;
+  const loadData = useCallback(async (forceRefresh = false): Promise<boolean> => {
+    if (!isLoaded) {
+      console.log("[Caps] Auth not loaded yet");
+      return false;
     }
     
-    // Show refreshing indicator if we have cached data
+    if (!isSignedIn || !user) {
+      console.log("[Caps] User not signed in");
+      setLoading(false);
+      return false;
+    }
+    
+    if (fetchInProgressRef.current) {
+      return false;
+    }
+    
+    const cache = getCachedWithMeta<CapsCacheData>(CAPS_CACHE_KEY);
+    if (!forceRefresh && cache.exists && !cache.isStale) {
+      setLoading(false);
+      return false;
+    }
+    
+    fetchInProgressRef.current = true;
+    
     if (cache.exists) {
       setIsRefreshing(true);
     } else {
@@ -643,7 +656,19 @@ export default function CapsPage() {
     
     try {
       const token = await getToken();
-      if (!token) throw new Error("Not authenticated");
+      
+      if (!token) {
+        console.warn("[Caps] getToken() returned null, will retry");
+        fetchInProgressRef.current = false;
+        if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = setTimeout(() => loadData(forceRefresh), 500);
+        return false;
+      }
+      
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
 
       const [capsData, alertsData, providersData, modelsData, sectionsData] = await Promise.all([
         fetchCaps(token).catch((err) => { console.error("Fetch caps error:", err); return []; }),
@@ -667,7 +692,6 @@ export default function CapsPage() {
       setLastRefresh(new Date());
       setError(null);
       
-      // Update cache
       setCached<CapsCacheData>(CAPS_CACHE_KEY, {
         caps: capsData,
         alerts: alertsData,
@@ -675,60 +699,74 @@ export default function CapsPage() {
         models: modelsList,
         features: featuresList,
       });
+      
+      return true;
     } catch (err) {
       console.error("[CapsPage] Error loading data:", err);
       setError(err instanceof Error ? err.message : "Failed to load data");
+      return false;
     } finally {
       setLoading(false);
       setIsRefreshing(false);
+      fetchInProgressRef.current = false;
     }
-  }, [isLoaded, user, getToken]);
-
+  }, [isLoaded, isSignedIn, user, getToken]);
+  
+  // Trigger fetch when auth ready
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    if (!isLoaded) return;
+    
+    if (!isSignedIn || !user) {
+      setLoading(false);
+      return;
+    }
     
     const cache = getCachedWithMeta<CapsCacheData>(CAPS_CACHE_KEY);
     if (cache.exists && !cache.isStale) {
-      return; // Cache is fresh
+      setLoading(false);
+      return;
     }
     
     loadData(false);
-  }, [isLoaded, user, loadData]);
-
-  // Auto-refresh every 2 minutes (paused when tab is hidden)
+  }, [isLoaded, isSignedIn, user, loadData]);
+  
+  // Cleanup
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    return () => {
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+    };
+  }, []);
+
+  // Auto-refresh
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user) return;
     
     let interval: NodeJS.Timeout | null = null;
     
     const startInterval = () => {
       if (interval) clearInterval(interval);
       interval = setInterval(() => {
-        if (!document.hidden) {
-          loadData();
-        }
-      }, 120000); // 2 minutes instead of 30 seconds
+        if (!document.hidden) loadData();
+      }, 120000);
     };
     
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        if (interval) {
-          clearInterval(interval);
-          interval = null;
-        }
+        if (interval) { clearInterval(interval); interval = null; }
       } else {
+        const cache = getCachedWithMeta<CapsCacheData>(CAPS_CACHE_KEY);
+        if (cache.isStale) loadData();
         startInterval();
       }
     };
     
     startInterval();
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
     return () => {
       if (interval) clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isLoaded, user, loadData]);
+  }, [isLoaded, isSignedIn, user, loadData]);
 
   const handleCreateCap = async (capData: CapCreate) => {
     const token = await getToken();

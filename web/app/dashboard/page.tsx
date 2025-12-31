@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback, Suspense } from "react";
+import { useEffect, useState, useMemo, useCallback, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,7 +17,7 @@ import {
   type ModelStats,
   type DailyStats,
 } from "@/lib/api";
-import { getCached, setCached, isCacheStale, getCachedWithMeta } from "@/lib/cache";
+import { getCached, setCached, getCachedWithMeta } from "@/lib/cache";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { CostTrendChart } from "@/components/dashboard/CostTrendChart";
 import { ProviderBreakdown } from "@/components/dashboard/ProviderBreakdown";
@@ -69,41 +69,20 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   
   const cacheKey = `dashboard-${dateRange}-${compareEnabled}`;
   
-  // Initialize state synchronously from cache - no hydration effect needed
-  // This eliminates the render delay caused by useEffect-based hydration
-  const [runs, setRuns] = useState<Run[]>(() => {
-    const cached = getCached<DashboardCacheData>(cacheKey);
-    return cached?.runs || [];
-  });
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>(() => {
-    const cached = getCached<DashboardCacheData>(cacheKey);
-    return cached?.providerStats || [];
-  });
-  const [modelStats, setModelStats] = useState<ModelStats[]>(() => {
-    const cached = getCached<DashboardCacheData>(cacheKey);
-    return cached?.modelStats || [];
-  });
-  const [dailyStats, setDailyStats] = useState<DailyStats[]>(() => {
-    const cached = getCached<DashboardCacheData>(cacheKey);
-    return cached?.dailyStats || [];
-  });
-  const [dailyAggregates, setDailyAggregates] = useState<DailyStats[]>(() => {
-    const cached = getCached<DashboardCacheData>(cacheKey);
-    return cached?.dailyStats || [];
-  });
-  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>(() => {
-    const cached = getCached<DashboardCacheData>(cacheKey);
-    return cached?.prevProviderStats || [];
-  });
-  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>(() => {
-    const cached = getCached<DashboardCacheData>(cacheKey);
-    return cached?.prevDailyStats || [];
-  });
-  // Only show loading if no cached data exists
-  const [loading, setLoading] = useState<boolean>(() => {
-    const cached = getCachedWithMeta<DashboardCacheData>(cacheKey);
-    return !cached.exists || !cached.data?.providerStats?.length;
-  });
+  // Refs to track state across renders without causing re-renders
+  const fetchInProgressRef = useRef(false);
+  const lastCacheKeyRef = useRef(cacheKey);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // State
+  const [runs, setRuns] = useState<Run[]>([]);
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
+  const [modelStats, setModelStats] = useState<ModelStats[]>([]);
+  const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
+  const [dailyAggregates, setDailyAggregates] = useState<DailyStats[]>([]);
+  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>([]);
+  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
@@ -127,16 +106,65 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   
   const days = useMemo(() => Math.ceil(hours / 24), [hours]);
   
-  const loadData = useCallback(async (isBackground = false) => {
-    if (!isLoaded || !user) return;
-    
-    // Check if cache is still fresh for background refreshes
-    const cache = getCachedWithMeta<DashboardCacheData>(cacheKey);
-    if (isBackground && !cache.isStale) {
-      return; // Skip refresh, cache is still fresh
+  // Sync state with cache when cache key changes or on mount
+  useEffect(() => {
+    const cached = getCached<DashboardCacheData>(cacheKey);
+    if (cached) {
+      setRuns(cached.runs || []);
+      setProviderStats(cached.providerStats || []);
+      setModelStats(cached.modelStats || []);
+      setDailyStats(cached.dailyStats || []);
+      setDailyAggregates(cached.dailyStats || []);
+      setPrevProviderStats(cached.prevProviderStats || []);
+      setPrevDailyStats(cached.prevDailyStats || []);
+      // Only set loading to false if we have actual data
+      if (cached.providerStats?.length > 0) {
+        setLoading(false);
+      }
+    } else {
+      // No cache - reset state
+      setRuns([]);
+      setProviderStats([]);
+      setModelStats([]);
+      setDailyStats([]);
+      setDailyAggregates([]);
+      setPrevProviderStats([]);
+      setPrevDailyStats([]);
+      setLoading(true);
+    }
+    setError(null);
+    lastCacheKeyRef.current = cacheKey;
+  }, [cacheKey]);
+  
+  // The fetch function
+  const loadData = useCallback(async (isBackground = false): Promise<boolean> => {
+    // CRITICAL: Never fetch without auth
+    if (!isLoaded) {
+      console.log("[Dashboard] Auth not loaded yet, skipping fetch");
+      return false;
     }
     
-    // Show subtle refreshing indicator if we have data, full loading only if empty
+    if (!isSignedIn || !user) {
+      console.log("[Dashboard] User not signed in, skipping fetch");
+      setLoading(false); // Don't show loading for unauthenticated state
+      return false;
+    }
+    
+    // Prevent duplicate fetches
+    if (fetchInProgressRef.current) {
+      console.log("[Dashboard] Fetch already in progress");
+      return false;
+    }
+    
+    // Check if cache is fresh for background refreshes
+    const cache = getCachedWithMeta<DashboardCacheData>(cacheKey);
+    if (isBackground && cache.exists && !cache.isStale) {
+      return false;
+    }
+    
+    fetchInProgressRef.current = true;
+    
+    // Set loading states
     const hasData = cache.exists && cache.data?.providerStats?.length;
     if (hasData) {
       setIsRefreshing(true);
@@ -146,27 +174,43 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     setError(null);
     
     try {
+      // CRITICAL: Get token - may return null even when isLoaded is true
       const token = await getToken();
-      if (!token) throw new Error("Not authenticated. Please sign in again.");
       
-      // Fetch current period data
-      // Use fetchDailyStats for week/month calculations (returns daily aggregates)
-      // Use fetchTimeseries for chart (returns time-bucketed data)
+      if (!token) {
+        console.warn("[Dashboard] getToken() returned null, will retry in 500ms");
+        fetchInProgressRef.current = false;
+        
+        // Schedule retry - don't set loading to false yet
+        if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = setTimeout(() => {
+          loadData(isBackground);
+        }, 500);
+        
+        return false;
+      }
+      
+      // Clear any pending retry
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+      
+      // Fetch all data in parallel
       const [runsData, providersData, modelsData, timeseriesData, dailyData] = await Promise.all([
         fetchRuns(50, null, token).catch(() => []),
         fetchProviderStats(hours, null, null, token).catch(() => []),
         fetchModelStats(hours, null, null, token).catch(() => []),
         fetchTimeseries(hours, null, null, token).catch(() => []),
-        fetchDailyStats(days, null, token).catch(() => []), // For week/month calculations
+        fetchDailyStats(days, null, token).catch(() => []),
       ]);
       
       let prevProvidersData: ProviderStats[] = [];
       let prevDailyOnly: DailyStats[] = [];
       
-      // If compare enabled, fetch previous period data
       if (compareEnabled) {
         const prevHours = hours * 2;
-        const [prevProviders, prevModels, prevDaily] = await Promise.all([
+        const [prevProviders, , prevDaily] = await Promise.all([
           fetchProviderStats(prevHours, null, null, token).catch(() => []),
           fetchModelStats(prevHours, null, null, token).catch(() => []),
           fetchTimeseries(prevHours, null, null, token).catch(() => []),
@@ -177,53 +221,74 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
         prevDailyOnly = (prevDaily || []).slice(0, halfwayPoint);
       }
       
-      // Store dailyData for week/month calculations (separate from timeseries)
-      const dailyStatsForCalc = dailyData || [];
-      
       // Update state
       setRuns(runsData || []);
       setProviderStats(providersData || []);
       setModelStats(modelsData || []);
-      setDailyStats(timeseriesData || []); // Use timeseries for chart
-      setDailyAggregates(dailyData || []); // Use daily aggregates for week/month calculations
+      setDailyStats(timeseriesData || []);
+      setDailyAggregates(dailyData || []);
       setPrevProviderStats(prevProvidersData);
       setPrevDailyStats(prevDailyOnly);
       setLastRefresh(new Date());
+      setError(null);
       
-      // Update cache
+      // Cache on success only
       setCached<DashboardCacheData>(cacheKey, {
         runs: runsData || [],
         providerStats: providersData || [],
         modelStats: modelsData || [],
-        dailyStats: timeseriesData || [], // Cache timeseries for chart
+        dailyStats: timeseriesData || [],
         prevProviderStats: prevProvidersData,
         prevDailyStats: prevDailyOnly,
       });
+      
+      return true;
     } catch (err) {
       console.error("[Dashboard] Error loading data:", err);
       setError(err instanceof Error ? err.message : "Failed to load data");
+      return false;
     } finally {
+      // ALWAYS set loading states to false
       setLoading(false);
       setIsRefreshing(false);
+      fetchInProgressRef.current = false;
     }
-  }, [isLoaded, user, getToken, hours, days, compareEnabled, cacheKey]);
+  }, [isLoaded, isSignedIn, user, getToken, hours, days, compareEnabled, cacheKey]);
   
-  // Load data when dateRange or compareEnabled changes
+  // Effect: Trigger fetch when auth becomes ready or cache key changes
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !user) return; // Wait for Clerk and ensure signed in
-    
-    // Check if we need to fetch
-    const cache = getCachedWithMeta<DashboardCacheData>(cacheKey);
-    const hasCachedData = cache.exists && cache.data?.providerStats?.length;
-    
-    if (hasCachedData && !cache.isStale) {
-      // Cache is fresh, no need to fetch
+    // If auth not loaded yet, wait for it
+    if (!isLoaded) {
       return;
     }
     
-    // Fetch data (background if we have cached data, foreground if not)
-    loadData(!!hasCachedData);
-  }, [isLoaded, isSignedIn, user, cacheKey, hours, days, compareEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+    // If not signed in, clear loading state (will show sign-in prompt)
+    if (!isSignedIn || !user) {
+      setLoading(false);
+      return;
+    }
+    
+    // Auth is ready - check cache and fetch if needed
+    const cache = getCachedWithMeta<DashboardCacheData>(cacheKey);
+    const hasFreshCache = cache.exists && !cache.isStale && cache.data?.providerStats?.length;
+    
+    if (hasFreshCache) {
+      setLoading(false);
+      return;
+    }
+    
+    // Need to fetch
+    loadData(!!cache.exists);
+  }, [isLoaded, isSignedIn, user, cacheKey, loadData]);
+  
+  // Cleanup retry timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+    };
+  }, []);
   
   // Auto-refresh every 2 minutes (background only, paused when tab is hidden)
   useEffect(() => {
@@ -234,22 +299,24 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     const startInterval = () => {
       if (interval) clearInterval(interval);
       interval = setInterval(() => {
-        // Only refresh if tab is visible
         if (!document.hidden) {
           loadData(true);
         }
-      }, 120000); // 2 minutes instead of 30 seconds
+      }, 120000);
     };
     
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        // Pause when tab is hidden
         if (interval) {
           clearInterval(interval);
           interval = null;
         }
       } else {
-        // Resume when tab becomes visible
+        // Refresh on tab focus if cache is stale
+        const cache = getCachedWithMeta<DashboardCacheData>(cacheKey);
+        if (cache.isStale) {
+          loadData(true);
+        }
         startInterval();
       }
     };
@@ -261,14 +328,14 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       if (interval) clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isLoaded, isSignedIn, user, loadData]);
+  }, [isLoaded, isSignedIn, user, cacheKey, loadData]);
   
   return {
     runs,
     providerStats,
     modelStats,
     dailyStats,
-    dailyAggregates, // Expose daily aggregates for week/month calculations
+    dailyAggregates,
     prevProviderStats,
     prevDailyStats,
     loading,

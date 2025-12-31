@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback, Suspense } from "react";
+import { useEffect, useState, useMemo, useCallback, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
@@ -56,40 +56,64 @@ interface FeaturesCacheData {
 
 function useFeaturesData(hours: number) {
   const { getToken } = useAuth();
-  const { isLoaded, user } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
   
   const cacheKey = `features-${hours}`;
   
-  // Initialize state synchronously from cache - no hydration effect needed
-  const [sectionStats, setSectionStats] = useState<SectionStats[]>(() => {
-    const cached = getCached<FeaturesCacheData>(cacheKey);
-    return cached?.sectionStats || [];
-  });
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>(() => {
-    const cached = getCached<FeaturesCacheData>(cacheKey);
-    return cached?.providerStats || [];
-  });
-  const [modelStats, setModelStats] = useState<ModelStats[]>(() => {
-    const cached = getCached<FeaturesCacheData>(cacheKey);
-    return cached?.modelStats || [];
-  });
-  // Only show loading if no cached data exists
-  const [loading, setLoading] = useState<boolean>(() => {
-    const cached = getCachedWithMeta<FeaturesCacheData>(cacheKey);
-    return !cached.exists || !cached.data?.sectionStats?.length;
-  });
+  // Refs to track state across renders
+  const fetchInProgressRef = useRef(false);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // State
+  const [sectionStats, setSectionStats] = useState<SectionStats[]>([]);
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
+  const [modelStats, setModelStats] = useState<ModelStats[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   
-  const loadData = useCallback(async (isBackground = false) => {
-    if (!isLoaded || !user) return;
-    
-    // Check if cache is still fresh
-    const cache = getCachedWithMeta<FeaturesCacheData>(cacheKey);
-    if (isBackground && !cache.isStale) {
-      return;
+  // Sync state with cache when cache key changes
+  useEffect(() => {
+    const cached = getCached<FeaturesCacheData>(cacheKey);
+    if (cached) {
+      setSectionStats(cached.sectionStats || []);
+      setProviderStats(cached.providerStats || []);
+      setModelStats(cached.modelStats || []);
+      if (cached.sectionStats?.length > 0) {
+        setLoading(false);
+      }
+    } else {
+      setSectionStats([]);
+      setProviderStats([]);
+      setModelStats([]);
+      setLoading(true);
     }
+    setError(null);
+  }, [cacheKey]);
+  
+  const loadData = useCallback(async (isBackground = false): Promise<boolean> => {
+    if (!isLoaded) {
+      console.log("[Features] Auth not loaded yet");
+      return false;
+    }
+    
+    if (!isSignedIn || !user) {
+      console.log("[Features] User not signed in");
+      setLoading(false);
+      return false;
+    }
+    
+    if (fetchInProgressRef.current) {
+      return false;
+    }
+    
+    const cache = getCachedWithMeta<FeaturesCacheData>(cacheKey);
+    if (isBackground && cache.exists && !cache.isStale) {
+      return false;
+    }
+    
+    fetchInProgressRef.current = true;
     
     const hasData = cache.exists && cache.data?.sectionStats?.length;
     if (hasData) {
@@ -101,7 +125,19 @@ function useFeaturesData(hours: number) {
     
     try {
       const token = await getToken();
-      if (!token) throw new Error("Not authenticated. Please sign in again.");
+      
+      if (!token) {
+        console.warn("[Features] getToken() returned null, will retry");
+        fetchInProgressRef.current = false;
+        if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = setTimeout(() => loadData(isBackground), 500);
+        return false;
+      }
+      
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
       
       const [sections, providers, models] = await Promise.all([
         fetchSectionStats(hours, null, token).catch(() => []),
@@ -109,7 +145,6 @@ function useFeaturesData(hours: number) {
         fetchModelStats(hours, null, token).catch(() => []),
       ]);
       
-      // Filter out internal sections - only keep "feature:" prefixed items
       const filteredStats = (sections || []).filter(s => {
         if (!s.section) return false;
         const lower = s.section.toLowerCase();
@@ -122,69 +157,81 @@ function useFeaturesData(hours: number) {
       setProviderStats(providers || []);
       setModelStats(models || []);
       setLastRefresh(new Date());
+      setError(null);
       
-      // Update cache
       setCached<FeaturesCacheData>(cacheKey, {
         sectionStats: filteredStats,
         providerStats: providers || [],
         modelStats: models || [],
       });
+      
+      return true;
     } catch (err) {
       console.error("[Features] Error loading data:", err);
       setError(err instanceof Error ? err.message : "Failed to load feature data");
+      return false;
     } finally {
       setLoading(false);
       setIsRefreshing(false);
+      fetchInProgressRef.current = false;
     }
-  }, [isLoaded, user, getToken, hours, cacheKey]);
+  }, [isLoaded, isSignedIn, user, getToken, hours, cacheKey]);
   
+  // Trigger fetch when auth ready
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    if (!isLoaded) return;
+    
+    if (!isSignedIn || !user) {
+      setLoading(false);
+      return;
+    }
     
     const cache = getCachedWithMeta<FeaturesCacheData>(cacheKey);
-    const hasCachedData = cache.exists && cache.data?.sectionStats?.length;
-    
-    if (hasCachedData && !cache.isStale) {
-      return; // Cache is fresh
+    if (cache.exists && !cache.isStale && cache.data?.sectionStats?.length) {
+      setLoading(false);
+      return;
     }
     
-    loadData(!!hasCachedData);
-  }, [isLoaded, user, cacheKey, hours]); // eslint-disable-line react-hooks/exhaustive-deps
+    loadData(!!cache.exists);
+  }, [isLoaded, isSignedIn, user, cacheKey, loadData]);
   
-  // Auto-refresh every 2 minutes (paused when tab is hidden)
+  // Cleanup
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    return () => {
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+    };
+  }, []);
+  
+  // Auto-refresh
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user) return;
     
     let interval: NodeJS.Timeout | null = null;
     
     const startInterval = () => {
       if (interval) clearInterval(interval);
       interval = setInterval(() => {
-        if (!document.hidden) {
-          loadData(true);
-        }
-      }, 120000); // 2 minutes
+        if (!document.hidden) loadData(true);
+      }, 120000);
     };
     
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        if (interval) {
-          clearInterval(interval);
-          interval = null;
-        }
+        if (interval) { clearInterval(interval); interval = null; }
       } else {
+        const cache = getCachedWithMeta<FeaturesCacheData>(cacheKey);
+        if (cache.isStale) loadData(true);
         startInterval();
       }
     };
     
     startInterval();
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
     return () => {
       if (interval) clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isLoaded, user, loadData]);
+  }, [isLoaded, isSignedIn, user, cacheKey, loadData]);
   
   return {
     sectionStats,
