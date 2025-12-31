@@ -788,9 +788,20 @@ function CustomersPageContent() {
     mark('customers-loadData');
     logAuth('Customers', isLoaded, isSignedIn, !!user);
     
-    if (!isLoaded) return false;
+    if (!isLoaded) {
+      console.log('[Customers] loadData DEFER: isLoaded=false - scheduling retry');
+      // Schedule a retry when auth becomes ready - don't block UI
+      if (!retryTimeoutRef.current && mountedRef.current) {
+        retryTimeoutRef.current = setTimeout(() => {
+          retryTimeoutRef.current = null;
+          if (mountedRef.current) loadData(isBackground);
+        }, 100); // Short retry - Clerk should hydrate quickly
+      }
+      return false;
+    }
     
     if (!isSignedIn || !user) {
+      console.log('[Customers] loadData ABORT: not signed in');
       if (!mountedRef.current) return false;
       if (!hasLoadedRef.current) setLoading(false);
       return false;
@@ -816,19 +827,21 @@ function CustomersPageContent() {
       mark('customers-getToken');
       const tokenStart = Date.now();
       
-      // Add timeout to getToken - don't wait forever
+      // Add timeout to getToken - 2s max (Clerk should be fast when hydrated)
       let token: string | null = null;
       try {
         const tokenPromise = getToken();
         const timeoutPromise = new Promise<null>((_, reject) => 
-          setTimeout(() => reject(new Error('getToken timeout')), 5000)
+          setTimeout(() => reject(new Error('getToken timeout after 2s')), 2000)
         );
         token = await Promise.race([tokenPromise, timeoutPromise]);
       } catch (e) {
-        console.error('[Customers] getToken failed or timed out:', e);
+        console.warn('[Customers] getToken timed out after 2s - will retry');
         token = null;
       }
-      console.log('[Customers] getToken took:', Date.now() - tokenStart, 'ms');
+      const tokenDuration = Date.now() - tokenStart;
+      const sinceMount = (performance.now() - CUSTOMERS_MOUNT_TIME).toFixed(0);
+      console.log('[Customers] getToken took:', tokenDuration, 'ms, token:', token ? 'present' : 'null', '(', sinceMount, 'ms since mount)');
       measure('customers-getToken');
       
       // Limit retries to prevent infinite loop
@@ -836,8 +849,8 @@ function CustomersPageContent() {
       const retryCount = (window as any)[retryCountKey] || 0;
       
       if (!token) {
-        if (retryCount >= 5) {
-          console.error('[Customers] Max retries (5) reached - giving up');
+        if (retryCount >= 3) {
+          console.error('[Customers] Max retries (3) reached - giving up');
           (window as any)[retryCountKey] = 0;
           fetchInProgressRef.current = false;
           if (!hasLoadedRef.current && mountedRef.current) setLoading(false);
@@ -845,12 +858,12 @@ function CustomersPageContent() {
         }
         
         (window as any)[retryCountKey] = retryCount + 1;
-        console.log('[Customers] No token - scheduling retry', retryCount + 1, '/5');
+        console.log('[Customers] No token - scheduling retry', retryCount + 1, '/3 in 300ms');
         fetchInProgressRef.current = false;
         if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = setTimeout(() => {
           if (mountedRef.current) loadData(isBackground);
-        }, 500);
+        }, 300);
         return false;
       }
       

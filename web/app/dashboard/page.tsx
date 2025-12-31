@@ -208,14 +208,22 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     console.log('[Dashboard] loadData START at', loadStart.toFixed(0), 'ms (', (loadStart - PAGE_MOUNT_TIME).toFixed(0), 'ms since mount)');
     mark('dashboard-loadData');
     
-    // CRITICAL: Never fetch without auth
+    // CRITICAL: Auth must be ready but should NOT block UI
     logAuth('Dashboard', isLoaded, isSignedIn, !!user);
     if (!isLoaded) {
-      console.log('[Dashboard] loadData ABORT: isLoaded=false at', (performance.now() - PAGE_MOUNT_TIME).toFixed(0), 'ms since mount');
+      console.log('[Dashboard] loadData DEFER: isLoaded=false at', (performance.now() - PAGE_MOUNT_TIME).toFixed(0), 'ms since mount - scheduling retry');
+      // Schedule a retry when auth becomes ready - don't block UI
+      if (!retryTimeoutRef.current && mountedRef.current) {
+        retryTimeoutRef.current = setTimeout(() => {
+          retryTimeoutRef.current = null;
+          if (mountedRef.current) loadData(isBackground);
+        }, 100); // Short retry - Clerk should hydrate quickly
+      }
       return false;
     }
     
     if (!isSignedIn || !user) {
+      console.log('[Dashboard] loadData ABORT: not signed in');
       if (!mountedRef.current) return false;
       if (!hasLoadedRef.current) setLoading(false);
       return false;
@@ -248,19 +256,21 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       mark('dashboard-getToken');
       const tokenStart = Date.now();
       
-      // Add timeout to getToken - don't wait forever
+      // Add timeout to getToken - 2s max (Clerk should be fast when hydrated)
       let token: string | null = null;
       try {
         const tokenPromise = getToken();
         const timeoutPromise = new Promise<null>((_, reject) => 
-          setTimeout(() => reject(new Error('getToken timeout')), 5000)
+          setTimeout(() => reject(new Error('getToken timeout after 2s')), 2000)
         );
         token = await Promise.race([tokenPromise, timeoutPromise]);
       } catch (e) {
-        console.error('[Dashboard] getToken failed or timed out:', e);
+        console.warn('[Dashboard] getToken timed out after 2s - will retry');
         token = null;
       }
-      console.log('[Dashboard] getToken took:', Date.now() - tokenStart, 'ms, token:', token ? 'present' : 'null', '(', (performance.now() - PAGE_MOUNT_TIME).toFixed(0), 'ms since mount)');
+      const tokenDuration = Date.now() - tokenStart;
+      const sinceMount = (performance.now() - PAGE_MOUNT_TIME).toFixed(0);
+      console.log('[Dashboard] getToken took:', tokenDuration, 'ms, token:', token ? 'present' : 'null', '(', sinceMount, 'ms since mount)');
       measure('dashboard-getToken');
       
       // C) FIX: Token retry - don't touch loading in finally if retry scheduled
@@ -269,8 +279,8 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       const retryCount = (window as any)[retryCountKey] || 0;
       
       if (!token) {
-        if (retryCount >= 5) {
-          console.error('[Dashboard] Max retries (5) reached - giving up on token fetch');
+        if (retryCount >= 3) {
+          console.error('[Dashboard] Max retries (3) reached - giving up on token fetch');
           (window as any)[retryCountKey] = 0;
           fetchInProgressRef.current = false;
           if (!hasLoadedRef.current && mountedRef.current) setLoading(false);
@@ -278,13 +288,13 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
         }
         
         (window as any)[retryCountKey] = retryCount + 1;
-        console.log('[Dashboard] No token - scheduling retry', retryCount + 1, '/5 in 500ms');
+        console.log('[Dashboard] No token - scheduling retry', retryCount + 1, '/3 in 300ms');
         fetchInProgressRef.current = false;
         if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = setTimeout(() => {
           console.log('[Dashboard] Token retry', retryCount + 1, 'executing');
           if (mountedRef.current) loadData(isBackground);
-        }, 500);
+        }, 300);
         return false;
       }
       
