@@ -232,3 +232,56 @@ def migrate_voice_platform(session: Session = Depends(get_session)):
         logger.error(f"Migration failed: {e}")
         raise HTTPException(status_code=500, detail=f"Migration failed: {str(e)}")
 
+
+@router.post("/performance-indexes")
+def migrate_performance_indexes(session: Session = Depends(get_session)):
+    """
+    Add performance indexes for fast dashboard queries.
+    These composite indexes dramatically speed up queries that filter by user_id and created_at.
+    Safe to run multiple times (uses IF NOT EXISTS).
+    """
+    try:
+        logger.info("Starting performance indexes migration...")
+        
+        indexes = [
+            ("idx_trace_user_created", "CREATE INDEX IF NOT EXISTS idx_trace_user_created ON trace_events(user_id, created_at DESC)"),
+            ("idx_trace_user_provider_created", "CREATE INDEX IF NOT EXISTS idx_trace_user_provider_created ON trace_events(user_id, provider, created_at DESC)"),
+            ("idx_trace_user_section_created", "CREATE INDEX IF NOT EXISTS idx_trace_user_section_created ON trace_events(user_id, section, created_at DESC)"),
+            ("idx_trace_user_customer_created", "CREATE INDEX IF NOT EXISTS idx_trace_user_customer_created ON trace_events(user_id, customer_id, created_at DESC)"),
+        ]
+        
+        results = []
+        with engine.connect() as conn:
+            for idx_name, idx_sql in indexes:
+                try:
+                    logger.info(f"Creating index: {idx_name}")
+                    conn.execute(text(idx_sql))
+                    conn.commit()
+                    results.append({"index": idx_name, "status": "created"})
+                    logger.info(f"  ✓ {idx_name} created")
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    if "already exists" in error_msg:
+                        results.append({"index": idx_name, "status": "already_exists"})
+                        logger.info(f"  ✓ {idx_name} already exists")
+                    else:
+                        results.append({"index": idx_name, "status": "error", "error": str(e)})
+                        logger.error(f"  ✗ {idx_name} error: {e}")
+            
+            # Run ANALYZE to update query planner statistics
+            try:
+                logger.info("Running ANALYZE trace_events...")
+                conn.execute(text("ANALYZE trace_events"))
+                conn.commit()
+                results.append({"index": "ANALYZE", "status": "completed"})
+                logger.info("  ✓ ANALYZE complete")
+            except Exception as e:
+                results.append({"index": "ANALYZE", "status": "error", "error": str(e)})
+                logger.error(f"  ✗ ANALYZE error: {e}")
+        
+        logger.info("✅ Performance indexes migration completed")
+        return {"status": "success", "message": "Performance indexes created", "details": results}
+    
+    except Exception as e:
+        logger.error(f"Performance indexes migration failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Migration failed: {str(e)}")
