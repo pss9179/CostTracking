@@ -58,12 +58,57 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*", "X-Server-Timing", "X-Server-Timestamp"],
+    expose_headers=["*"],
     max_age=86400,  # Cache CORS preflight for 24 hours (reduces OPTIONS requests)
 )
 
-# Timing middleware disabled - was adding overhead
-# Request timing is logged internally by route handlers
+# =============================================================================
+# CDN CACHING HEADERS
+# Add Cache-Control headers to enable Cloudflare edge caching
+# This allows Cloudflare to cache API responses and serve them instantly
+# =============================================================================
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class CacheControlMiddleware(BaseHTTPMiddleware):
+    """Add cache control headers for CDN caching."""
+    
+    # Endpoints that can be cached (read-only, non-personalized)
+    CACHEABLE_PATTERNS = [
+        "/stats/dashboard-all",
+        "/stats/by-provider",
+        "/stats/by-model",
+        "/stats/by-section",
+        "/stats/daily",
+        "/stats/timeseries",
+        "/stats/by-customer",
+        "/runs/latest",
+    ]
+    
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        
+        # Only cache GET requests
+        if request.method != "GET":
+            return response
+        
+        # Check if this endpoint is cacheable
+        path = request.url.path
+        is_cacheable = any(pattern in path for pattern in self.CACHEABLE_PATTERNS)
+        
+        # Only cache successful responses
+        if is_cacheable and 200 <= response.status_code < 300:
+            # Cache for 60 seconds at CDN edge, allow stale for 300s while revalidating
+            # s-maxage is for CDN (Cloudflare), max-age is for browser
+            response.headers["Cache-Control"] = "public, s-maxage=60, max-age=30, stale-while-revalidate=300"
+            # Vary by Authorization to ensure different users get different cached responses
+            response.headers["Vary"] = "Authorization"
+        else:
+            # Don't cache errors or non-cacheable endpoints
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        
+        return response
+
+app.add_middleware(CacheControlMiddleware)
 
 # Add CORS headers to error responses
 def get_cors_headers(request: Request) -> dict:
