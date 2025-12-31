@@ -24,27 +24,27 @@ export function BackendWarmer() {
 
     const warmBackend = async () => {
       const start = performance.now();
-      console.log("[BackendWarmer] Warming backend...");
+      console.log("[BackendWarmer] Warming backend + database...");
       
       try {
-        // Use a simple fetch with minimal timeout - we don't care about the response,
-        // just need to trigger Railway to start the container
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for cold start
         
-        const response = await fetch(`${COLLECTOR_URL}/health`, {
+        // Warm BOTH the container AND the database connection
+        // /warm endpoint touches the database with a simple SELECT 1
+        const response = await fetch(`${COLLECTOR_URL}/warm`, {
           method: "GET",
           signal: controller.signal,
-          // No auth needed for health check
         });
         
         clearTimeout(timeoutId);
         const elapsed = performance.now() - start;
         
         if (response.ok) {
-          console.log(`[BackendWarmer] Backend warm! Took ${elapsed.toFixed(0)}ms`);
+          const data = await response.json().catch(() => ({}));
+          console.log(`[BackendWarmer] Warm complete! Took ${elapsed.toFixed(0)}ms, db_time: ${data.db_time_ms || 'unknown'}ms`);
         } else {
-          console.log(`[BackendWarmer] Backend responded with ${response.status} in ${elapsed.toFixed(0)}ms`);
+          console.log(`[BackendWarmer] Warm responded ${response.status} in ${elapsed.toFixed(0)}ms`);
         }
       } catch (error) {
         const elapsed = performance.now() - start;
@@ -59,10 +59,11 @@ export function BackendWarmer() {
     // Start warming immediately - don't wait for anything
     warmBackend();
 
-    // Also set up a periodic ping every 5 minutes to keep container warm
+    // Also set up a periodic ping every 4 minutes to keep container + DB warm
+    // Railway typically sleeps containers after 5 minutes of inactivity
     const intervalId = setInterval(() => {
-      fetch(`${COLLECTOR_URL}/health`, { method: "GET" }).catch(() => {});
-    }, 5 * 60 * 1000); // 5 minutes
+      fetch(`${COLLECTOR_URL}/warm`, { method: "GET" }).catch(() => {});
+    }, 4 * 60 * 1000); // 4 minutes
 
     return () => clearInterval(intervalId);
   }, []);

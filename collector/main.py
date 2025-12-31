@@ -145,6 +145,27 @@ def health_check():
     return {"status": "ok", "service": "llmobserve-collector", "version": "0.2.0"}
 
 
+# Warm endpoint - wakes up container AND database connection
+@app.get("/warm", tags=["health"])
+def warm_check():
+    """
+    Warm endpoint that touches the database.
+    Use this to wake up both the Railway container AND the PostgreSQL connection pool.
+    """
+    from db import engine
+    from sqlalchemy import text
+    import time
+    
+    start = time.time()
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_time = (time.time() - start) * 1000
+        return {"status": "ok", "db_warm": True, "db_time_ms": round(db_time, 1)}
+    except Exception as e:
+        return {"status": "ok", "db_warm": False, "error": str(e)}
+
+
 # Include routers
 app.include_router(clerk_webhook.router)  # Clerk webhook (no auth required)
 app.include_router(clerk_api_keys.router)  # Clerk-authenticated API keys
