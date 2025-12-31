@@ -32,6 +32,7 @@ import {
   getStableColor,
 } from "@/lib/format";
 import { getCached, setCached, getCachedWithMeta } from "@/lib/cache";
+import { mark, measure, logCacheStatus, logAuth } from "@/lib/perf";
 import type { DateRange } from "@/contexts/AnalyticsContext";
 
 // ============================================================================
@@ -60,25 +61,39 @@ function useFeaturesData(hours: number) {
   
   const cacheKey = `features-${hours}`;
   
+  // SYNC CACHE INIT: Read cache BEFORE first paint
+  const initialCache = typeof window !== 'undefined' 
+    ? getCached<FeaturesCacheData>(cacheKey) 
+    : null;
+  const hasValidCache = !!(initialCache?.sectionStats?.length);
+  
   // Refs to track state across renders
   const fetchInProgressRef = useRef(false);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
-  const hasLoadedRef = useRef(false);
+  const hasLoadedRef = useRef(hasValidCache); // Init from cache
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const prevCacheKeyRef = useRef(cacheKey);
   
-  // State
-  const [sectionStats, setSectionStats] = useState<SectionStats[]>([]);
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
-  const [modelStats, setModelStats] = useState<ModelStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  // State - initialized from cache synchronously
+  const [sectionStats, setSectionStats] = useState<SectionStats[]>(() => initialCache?.sectionStats ?? []);
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>(() => initialCache?.providerStats ?? []);
+  const [modelStats, setModelStats] = useState<ModelStats[]>(() => initialCache?.modelStats ?? []);
+  const [loading, setLoading] = useState(!hasValidCache); // False if cache exists
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   
-  // A) FIX: Cache hydration - NEVER clear state on cache miss
+  // Handle cacheKey CHANGES only (not initial mount)
   useEffect(() => {
+    if (prevCacheKeyRef.current === cacheKey && hasLoadedRef.current) {
+      return;
+    }
+    prevCacheKeyRef.current = cacheKey;
+    
     const cached = getCached<FeaturesCacheData>(cacheKey);
+    logCacheStatus('Features', cacheKey, !!cached, !cached);
+    
     if (cached?.sectionStats) {
       if (!mountedRef.current) return;
       setSectionStats(cached.sectionStats || []);
@@ -93,6 +108,9 @@ function useFeaturesData(hours: number) {
   }, [cacheKey]);
   
   const loadData = useCallback(async (isBackground = false): Promise<boolean> => {
+    mark('features-loadData');
+    logAuth('Features', isLoaded, isSignedIn, !!user);
+    
     if (!isLoaded) return false;
     
     if (!isSignedIn || !user) {
@@ -100,10 +118,12 @@ function useFeaturesData(hours: number) {
       if (!hasLoadedRef.current) setLoading(false);
       return false;
     }
+    measure('features-auth-ready', 'features-loadData');
     
     if (fetchInProgressRef.current) return false;
     
     const cache = getCachedWithMeta<FeaturesCacheData>(cacheKey);
+    logCacheStatus('Features', cacheKey, cache.exists, cache.isStale);
     if (isBackground && cache.exists && !cache.isStale) return false;
     
     fetchInProgressRef.current = true;
@@ -116,7 +136,9 @@ function useFeaturesData(hours: number) {
     }
     
     try {
+      mark('features-getToken');
       const token = await getToken();
+      measure('features-getToken');
       
       // C) FIX: Token retry - return early, don't hit finally
       if (!token) {
@@ -133,11 +155,13 @@ function useFeaturesData(hours: number) {
         retryTimeoutRef.current = null;
       }
       
+      mark('features-fetch');
       const [sections, providers, models] = await Promise.all([
         fetchSectionStats(hours, null, token).catch(() => []),
         fetchProviderStats(hours, null, token).catch(() => []),
         fetchModelStats(hours, null, token).catch(() => []),
       ]);
+      measure('features-fetch');
       
       const filteredStats = (sections || []).filter(s => {
         if (!s.section) return false;

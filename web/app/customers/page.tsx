@@ -63,6 +63,7 @@ import { CostTrendChart } from "@/components/dashboard/CostTrendChart";
 import { formatSmartCost, formatCompactNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { getCached, setCached, getCachedWithMeta } from "@/lib/cache";
+import { mark, measure, logCacheStatus, logAuth } from "@/lib/perf";
 import { useGlobalFilters } from "@/contexts/GlobalFiltersContext";
 import type { DateRange } from "@/contexts/AnalyticsContext";
 
@@ -79,15 +80,6 @@ interface CustomerWithDelta extends CustomerStats {
 }
 type SortDir = "asc" | "desc";
 type QuickFilter = "all" | "spiking" | "top_spenders" | "high_cost_per_call" | "long_tail";
-
-interface CustomerWithDelta extends CustomerStats {
-  prevCost?: number;
-  costDelta?: number;
-  costDeltaPercent?: number;
-  primaryProvider?: string;
-  primaryModel?: string;
-  trend?: "up" | "down" | "stable";
-}
 
 // ============================================================================
 // CUSTOMER HEALTH STRIP
@@ -694,17 +686,24 @@ function CustomersPageContent() {
   
   const cacheKey = `customers-${filters.dateRange}`;
   
+  // SYNC CACHE INIT: Read cache BEFORE first paint
+  const initialCache = typeof window !== 'undefined' 
+    ? getCached<CustomersCacheData>(cacheKey) 
+    : null;
+  const hasValidCache = !!(initialCache?.customers?.length);
+  
   // Refs for fetch management
   const fetchInProgressRef = useRef(false);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
-  const hasLoadedRef = useRef(false);
+  const hasLoadedRef = useRef(hasValidCache); // Init from cache
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const prevCacheKeyRef = useRef(cacheKey);
   
-  // State
-  const [customers, setCustomers] = useState<CustomerStats[]>([]);
-  const [prevCustomers, setPrevCustomers] = useState<CustomerStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  // State - initialized from cache synchronously
+  const [customers, setCustomers] = useState<CustomerStats[]>(() => initialCache?.customers ?? []);
+  const [prevCustomers, setPrevCustomers] = useState<CustomerStats[]>(() => initialCache?.prevCustomers ?? []);
+  const [loading, setLoading] = useState(!hasValidCache); // False if cache exists
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -733,9 +732,16 @@ function CustomersPageContent() {
     }
   }, [filters.dateRange]);
   
-  // A) FIX: Cache hydration - NEVER clear state on cache miss
+  // Handle cacheKey CHANGES only (not initial mount)
   useEffect(() => {
+    if (prevCacheKeyRef.current === cacheKey && hasLoadedRef.current) {
+      return;
+    }
+    prevCacheKeyRef.current = cacheKey;
+    
     const cached = getCached<CustomersCacheData>(cacheKey);
+    logCacheStatus('Customers', cacheKey, !!cached, !cached);
+    
     if (cached?.customers) {
       if (!mountedRef.current) return;
       setCustomers(cached.customers || []);
@@ -749,6 +755,9 @@ function CustomersPageContent() {
   }, [cacheKey]);
 
   const loadData = useCallback(async (isBackground = false): Promise<boolean> => {
+    mark('customers-loadData');
+    logAuth('Customers', isLoaded, isSignedIn, !!user);
+    
     if (!isLoaded) return false;
     
     if (!isSignedIn || !user) {
@@ -756,10 +765,12 @@ function CustomersPageContent() {
       if (!hasLoadedRef.current) setLoading(false);
       return false;
     }
+    measure('customers-auth-ready', 'customers-loadData');
     
     if (fetchInProgressRef.current) return false;
     
     const cache = getCachedWithMeta<CustomersCacheData>(cacheKey);
+    logCacheStatus('Customers', cacheKey, cache.exists, cache.isStale);
     if (isBackground && cache.exists && !cache.isStale) return false;
     
     fetchInProgressRef.current = true;
@@ -772,7 +783,9 @@ function CustomersPageContent() {
     }
     
     try {
+      mark('customers-getToken');
       const token = await getToken();
+      measure('customers-getToken');
       
       // C) FIX: Token retry - return early, don't hit finally
       if (!token) {
@@ -789,13 +802,17 @@ function CustomersPageContent() {
         retryTimeoutRef.current = null;
       }
       
+      mark('customers-fetch');
       const [current, previous] = await Promise.all([
         fetchCustomerStats(hours, null, token),
         fetchCustomerStats(hours * 2, null, token),
       ]);
+      measure('customers-fetch');
       
-      const prevCutoff = Math.floor(previous.length / 2);
-      const prev = previous.slice(prevCutoff);
+      // Previous period = first half of doubled-timerange data (older records)
+      // API returns data sorted newest-first, so first half is the previous period
+      const half = Math.floor(previous.length / 2);
+      const prev = previous.slice(0, half);
       
       // E) FIX: Check mounted before setState
       if (!mountedRef.current) return false;

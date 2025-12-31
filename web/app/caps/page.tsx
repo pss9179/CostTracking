@@ -71,7 +71,8 @@ import {
 } from "@/lib/api";
 import { formatSmartCost } from "@/lib/format";
 import { cn } from "@/lib/utils";
-  import { getCached, setCached, getCachedWithMeta } from "@/lib/cache";
+import { getCached, setCached, getCachedWithMeta } from "@/lib/cache";
+import { mark, measure, logCacheStatus, logAuth } from "@/lib/perf";
 
 // ============================================================================
 // TYPES
@@ -593,44 +594,39 @@ export default function CapsPage() {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
   
+  // SYNC CACHE INIT: Read cache BEFORE first paint
+  // For caps, we check cache existence (caps can be empty legitimately)
+  const initialCache = typeof window !== 'undefined' 
+    ? getCached<CapsCacheData>(CAPS_CACHE_KEY) 
+    : null;
+  const hasValidCache = initialCache !== null;
+  
   // Refs for fetch management
   const fetchInProgressRef = useRef(false);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
-  const hasLoadedRef = useRef(false);
+  const hasLoadedRef = useRef(hasValidCache); // Init from cache existence
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  // State
-  const [caps, setCaps] = useState<Cap[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [providers, setProviders] = useState<string[]>([]);
-  const [models, setModels] = useState<string[]>([]);
-  const [features, setFeatures] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  // State - initialized from cache synchronously
+  const [caps, setCaps] = useState<Cap[]>(() => initialCache?.caps ?? []);
+  const [alerts, setAlerts] = useState<Alert[]>(() => initialCache?.alerts ?? []);
+  const [providers, setProviders] = useState<string[]>(() => initialCache?.providers ?? []);
+  const [models, setModels] = useState<string[]>(() => initialCache?.models ?? []);
+  const [features, setFeatures] = useState<string[]>(() => initialCache?.features ?? []);
+  const [loading, setLoading] = useState(!hasValidCache); // False if cache exists
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"caps" | "alerts">("caps");
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-  // A) FIX: Cache hydration - NEVER clear state on cache miss
-  useEffect(() => {
-    const cached = getCached<CapsCacheData>(CAPS_CACHE_KEY);
-    if (cached) {
-      if (!mountedRef.current) return;
-      setCaps(cached.caps || []);
-      setAlerts(cached.alerts || []);
-      setProviders(cached.providers || []);
-      setModels(cached.models || []);
-      setFeatures(cached.features || []);
-      // Caps can be empty intentionally, so just check exists
-      hasLoadedRef.current = true;
-      setLoading(false);
-    }
-    // NEVER clear state on cache miss
-  }, []);
+  // Cache hydration effect removed - using sync init instead
 
   const loadData = useCallback(async (forceRefresh = false): Promise<boolean> => {
+    mark('caps-loadData');
+    logAuth('Caps', isLoaded, isSignedIn, !!user);
+    
     if (!isLoaded) return false;
     
     if (!isSignedIn || !user) {
@@ -638,10 +634,12 @@ export default function CapsPage() {
       if (!hasLoadedRef.current) setLoading(false);
       return false;
     }
+    measure('caps-auth-ready', 'caps-loadData');
     
     if (fetchInProgressRef.current) return false;
     
     const cache = getCachedWithMeta<CapsCacheData>(CAPS_CACHE_KEY);
+    logCacheStatus('Caps', CAPS_CACHE_KEY, cache.exists, cache.isStale);
     if (!forceRefresh && cache.exists && !cache.isStale) {
       hasLoadedRef.current = true;
       if (mountedRef.current) setLoading(false);
@@ -659,7 +657,9 @@ export default function CapsPage() {
     }
     
     try {
+      mark('caps-getToken');
       const token = await getToken();
+      measure('caps-getToken');
       
       // C) FIX: Token retry - return early, don't hit finally
       if (!token) {
@@ -676,6 +676,7 @@ export default function CapsPage() {
         retryTimeoutRef.current = null;
       }
 
+      mark('caps-fetch');
       const [capsData, alertsData, providersData, modelsData, sectionsData] = await Promise.all([
         fetchCaps(token).catch((err) => { console.error("Fetch caps error:", err); return []; }),
         fetchAlerts(100, token).catch((err) => { console.error("Fetch alerts error:", err); return []; }),
@@ -683,6 +684,7 @@ export default function CapsPage() {
         fetchModelStats(24 * 30, null, token).catch(() => []),
         fetchSectionStats(24 * 30, null, token).catch(() => []),
       ]);
+      measure('caps-fetch');
       
       const providersList = [...new Set(providersData.map(p => p.provider))]
         .filter(p => p !== "internal" && p !== "unknown");

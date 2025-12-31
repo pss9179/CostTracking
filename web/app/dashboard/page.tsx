@@ -18,6 +18,7 @@ import {
   type DailyStats,
 } from "@/lib/api";
 import { getCached, setCached, getCachedWithMeta } from "@/lib/cache";
+import { mark, measure, logCacheStatus, logAuth } from "@/lib/perf";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
 import { CostTrendChart } from "@/components/dashboard/CostTrendChart";
 import { ProviderBreakdown } from "@/components/dashboard/ProviderBreakdown";
@@ -69,22 +70,30 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   
   const cacheKey = `dashboard-${dateRange}-${compareEnabled}`;
   
+  // SYNC CACHE INIT: Read cache BEFORE first paint (in useState initializers)
+  // This eliminates flicker on tab navigation
+  const initialCache = typeof window !== 'undefined' 
+    ? getCached<DashboardCacheData>(cacheKey) 
+    : null;
+  const hasValidCache = !!(initialCache?.providerStats?.length);
+  
   // Refs to track state across renders without causing re-renders
   const fetchInProgressRef = useRef(false);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
-  const hasLoadedRef = useRef(false); // Lock loading after first success
+  const hasLoadedRef = useRef(hasValidCache); // Init from cache
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const prevCacheKeyRef = useRef(cacheKey); // Track cache key changes
   
-  // State
-  const [runs, setRuns] = useState<Run[]>([]);
-  const [providerStats, setProviderStats] = useState<ProviderStats[]>([]);
-  const [modelStats, setModelStats] = useState<ModelStats[]>([]);
-  const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
-  const [dailyAggregates, setDailyAggregates] = useState<DailyStats[]>([]);
-  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>([]);
-  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  // State - initialized from cache synchronously
+  const [runs, setRuns] = useState<Run[]>(() => initialCache?.runs ?? []);
+  const [providerStats, setProviderStats] = useState<ProviderStats[]>(() => initialCache?.providerStats ?? []);
+  const [modelStats, setModelStats] = useState<ModelStats[]>(() => initialCache?.modelStats ?? []);
+  const [dailyStats, setDailyStats] = useState<DailyStats[]>(() => initialCache?.dailyStats ?? []);
+  const [dailyAggregates, setDailyAggregates] = useState<DailyStats[]>(() => initialCache?.dailyStats ?? []);
+  const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>(() => initialCache?.prevProviderStats ?? []);
+  const [prevDailyStats, setPrevDailyStats] = useState<DailyStats[]>(() => initialCache?.prevDailyStats ?? []);
+  const [loading, setLoading] = useState(!hasValidCache); // False if cache exists
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
@@ -108,9 +117,17 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   
   const days = useMemo(() => Math.ceil(hours / 24), [hours]);
   
-  // A) FIX: Cache hydration - NEVER clear state on cache miss
+  // Handle cacheKey CHANGES only (not initial mount - that's handled by useState)
   useEffect(() => {
+    // Skip on initial mount - already initialized via useState
+    if (prevCacheKeyRef.current === cacheKey && hasLoadedRef.current) {
+      return;
+    }
+    prevCacheKeyRef.current = cacheKey;
+    
     const cached = getCached<DashboardCacheData>(cacheKey);
+    logCacheStatus('Dashboard', cacheKey, !!cached, !cached);
+    
     if (cached?.providerStats) {
       if (!mountedRef.current) return;
       setRuns(cached.runs || []);
@@ -130,7 +147,10 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   
   // The fetch function
   const loadData = useCallback(async (isBackground = false): Promise<boolean> => {
+    mark('dashboard-loadData');
+    
     // CRITICAL: Never fetch without auth
+    logAuth('Dashboard', isLoaded, isSignedIn, !!user);
     if (!isLoaded) {
       return false;
     }
@@ -140,6 +160,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       if (!hasLoadedRef.current) setLoading(false);
       return false;
     }
+    measure('dashboard-auth-ready', 'dashboard-loadData');
     
     // Prevent duplicate fetches
     if (fetchInProgressRef.current) {
@@ -148,6 +169,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     
     // Check if cache is fresh for background refreshes
     const cache = getCachedWithMeta<DashboardCacheData>(cacheKey);
+    logCacheStatus('Dashboard', cacheKey, cache.exists, cache.isStale);
     if (isBackground && cache.exists && !cache.isStale) {
       return false;
     }
@@ -163,7 +185,9 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     }
     
     try {
+      mark('dashboard-getToken');
       const token = await getToken();
+      measure('dashboard-getToken');
       
       // C) FIX: Token retry - don't touch loading in finally if retry scheduled
       if (!token) {
@@ -180,6 +204,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
         retryTimeoutRef.current = null;
       }
       
+      mark('dashboard-fetch');
       const [runsData, providersData, modelsData, timeseriesData, dailyData] = await Promise.all([
         fetchRuns(50, null, token).catch(() => []),
         fetchProviderStats(hours, null, null, token).catch(() => []),
@@ -187,6 +212,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
         fetchTimeseries(hours, null, null, token).catch(() => []),
         fetchDailyStats(days, null, token).catch(() => []),
       ]);
+      measure('dashboard-fetch');
       
       let prevProvidersData: ProviderStats[] = [];
       let prevDailyOnly: DailyStats[] = [];
