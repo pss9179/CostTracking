@@ -702,9 +702,9 @@ export default function CapsPage() {
       const [capsData, alertsData, providersData, modelsData, sectionsData] = await Promise.all([
         fetchCaps(token).catch((err) => { console.error("Fetch caps error:", err); return []; }),
         fetchAlerts(100, token).catch((err) => { console.error("Fetch alerts error:", err); return []; }),
-        fetchProviderStats(24 * 30, null, token).catch(() => []),
-        fetchModelStats(24 * 30, null, token).catch(() => []),
-        fetchSectionStats(24 * 30, null, token).catch(() => []),
+        fetchProviderStats(24 * 30, null, null, token).catch(() => []),
+        fetchModelStats(24 * 30, null, null, token).catch(() => []),
+        fetchSectionStats(24 * 30, null, null, token).catch(() => []),
       ]);
       measure('caps-fetch');
       
@@ -730,6 +730,8 @@ export default function CapsPage() {
       setLoading(false);
       setIsRefreshing(false);
       
+      // For caps, we cache even if empty (legitimate for new users)
+      // But we need to check that the API actually responded (not just caught errors)
       setCached<CapsCacheData>(CAPS_CACHE_KEY, {
         caps: capsData,
         alerts: alertsData,
@@ -737,6 +739,7 @@ export default function CapsPage() {
         models: modelsList,
         features: featuresList,
       });
+      console.log('[Caps] Cache written with', capsData.length, 'caps,', alertsData.length, 'alerts');
       
       fetchInProgressRef.current = false;
       return true;

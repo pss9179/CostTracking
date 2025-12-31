@@ -288,14 +288,20 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       setLoading(false);
       setIsRefreshing(false);
       
-      setCached<DashboardCacheData>(cacheKey, {
-        runs: runsData || [],
-        providerStats: providersData || [],
-        modelStats: modelsData || [],
-        dailyStats: timeseriesData || [],
-        prevProviderStats: prevProvidersData,
-        prevDailyStats: prevDailyOnly,
-      });
+      // ONLY cache if we actually got data (don't cache empty results from failed requests)
+      if (providersData && providersData.length > 0) {
+        setCached<DashboardCacheData>(cacheKey, {
+          runs: runsData || [],
+          providerStats: providersData || [],
+          modelStats: modelsData || [],
+          dailyStats: timeseriesData || [],
+          prevProviderStats: prevProvidersData,
+          prevDailyStats: prevDailyOnly,
+        });
+        console.log('[Dashboard] Cache written with', providersData.length, 'providers');
+      } else {
+        console.log('[Dashboard] NOT caching - no data received');
+      }
       
       fetchInProgressRef.current = false;
       return true;

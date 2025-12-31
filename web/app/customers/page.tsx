@@ -837,7 +837,13 @@ function CustomersPageContent() {
       setLoading(false);
       setIsRefreshing(false);
       
-      setCached(cacheKey, { customers: current, prevCustomers: prev });
+      // ONLY cache if we actually got data
+      if (current && current.length > 0) {
+        setCached(cacheKey, { customers: current, prevCustomers: prev });
+        console.log('[Customers] Cache written with', current.length, 'customers');
+      } else {
+        console.log('[Customers] NOT caching - no data received');
+      }
       
       fetchInProgressRef.current = false;
       return true;

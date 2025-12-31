@@ -172,9 +172,9 @@ function useFeaturesData(hours: number) {
       
       mark('features-fetch');
       const [sections, providers, models] = await Promise.all([
-        fetchSectionStats(hours, null, token).catch(() => []),
-        fetchProviderStats(hours, null, token).catch(() => []),
-        fetchModelStats(hours, null, token).catch(() => []),
+        fetchSectionStats(hours, null, null, token).catch(() => []),
+        fetchProviderStats(hours, null, null, token).catch(() => []),
+        fetchModelStats(hours, null, null, token).catch(() => []),
       ]);
       measure('features-fetch');
       
@@ -200,11 +200,17 @@ function useFeaturesData(hours: number) {
       setLoading(false);
       setIsRefreshing(false);
       
-      setCached<FeaturesCacheData>(cacheKey, {
-        sectionStats: filteredStats,
-        providerStats: providers || [],
-        modelStats: models || [],
-      });
+      // ONLY cache if we actually got data (don't cache empty results from failed requests)
+      if (filteredStats.length > 0 || providers.length > 0) {
+        setCached<FeaturesCacheData>(cacheKey, {
+          sectionStats: filteredStats,
+          providerStats: providers || [],
+          modelStats: models || [],
+        });
+        console.log('[Features] Cache written with', filteredStats.length, 'sections');
+      } else {
+        console.log('[Features] NOT caching - no data received');
+      }
       
       fetchInProgressRef.current = false;
       return true;
