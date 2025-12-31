@@ -66,6 +66,9 @@ function useFeaturesData(hours: number) {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
   
+  // STABLE USER ID: Use user.id instead of user object to prevent effect re-runs
+  const userId = user?.id;
+  
   // Log Clerk hydration timing
   useEffect(() => {
     if (isLoaded) {
@@ -299,7 +302,7 @@ function useFeaturesData(hours: number) {
       if (!hasLoadedRef.current) setLoading(false);
       return false;
     }
-  }, [isLoaded, isSignedIn, user, getToken, hours, cacheKey]);
+  }, [isLoaded, isSignedIn, userId, getToken, hours, cacheKey]);
   
   // Effect: Trigger fetch immediately - loadData handles auth retry internally
   useEffect(() => {
@@ -319,7 +322,7 @@ function useFeaturesData(hours: number) {
     console.log('[Features] Effect: calling loadData immediately (', mountTime, 'ms since mount)');
     loadData(!!cache.exists);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isSignedIn, user, cacheKey]);
+  }, [isLoaded, isSignedIn, userId, cacheKey]);
   
   // E) FIX: Cleanup on unmount
   useEffect(() => {
@@ -333,7 +336,7 @@ function useFeaturesData(hours: number) {
   
   // Auto-refresh
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !user) return;
+    if (!isLoaded || !isSignedIn || !userId) return;
     
     const startInterval = () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -359,7 +362,7 @@ function useFeaturesData(hours: number) {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isSignedIn, user, cacheKey]);
+  }, [isLoaded, isSignedIn, userId, cacheKey]);
   
   return {
     sectionStats,

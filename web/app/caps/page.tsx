@@ -601,6 +601,9 @@ export default function CapsPage() {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
   
+  // STABLE USER ID: Use user.id instead of user object to prevent effect re-runs
+  const userId = user?.id;
+  
   // Log Clerk hydration timing
   useEffect(() => {
     if (isLoaded) {
@@ -827,7 +830,7 @@ export default function CapsPage() {
       if (!hasLoadedRef.current) setLoading(false);
       return false;
     }
-  }, [isLoaded, isSignedIn, user, getToken]);
+  }, [isLoaded, isSignedIn, userId, getToken]);
 
   // Effect: Trigger fetch immediately - loadData handles auth retry internally
   useEffect(() => {
@@ -846,7 +849,7 @@ export default function CapsPage() {
     console.log('[Caps] Effect: calling loadData immediately (', mountTime, 'ms since mount)');
     loadData(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isSignedIn, user]);
+  }, [isLoaded, isSignedIn, userId]);
   
   // E) FIX: Cleanup on unmount
   useEffect(() => {
@@ -860,7 +863,7 @@ export default function CapsPage() {
 
   // Auto-refresh
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !user) return;
+    if (!isLoaded || !isSignedIn || !userId) return;
     
     const startInterval = () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -886,7 +889,7 @@ export default function CapsPage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isSignedIn, user]);
+  }, [isLoaded, isSignedIn, userId]);
 
   const handleCreateCap = async (capData: CapCreate) => {
     const token = await getToken();

@@ -690,6 +690,9 @@ function CustomersPageContent() {
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
   
+  // STABLE USER ID: Use user.id instead of user object to prevent effect re-runs
+  const userId = user?.id;
+  
   // Log Clerk hydration timing
   useEffect(() => {
     if (isLoaded) {
@@ -922,7 +925,7 @@ function CustomersPageContent() {
       if (!hasLoadedRef.current) setLoading(false);
       return false;
     }
-  }, [isLoaded, isSignedIn, user, getToken, hours, cacheKey]);
+  }, [isLoaded, isSignedIn, userId, getToken, hours, cacheKey]);
 
   // Effect: Trigger fetch immediately - loadData handles auth retry internally
   useEffect(() => {
@@ -942,7 +945,7 @@ function CustomersPageContent() {
     console.log('[Customers] Effect: calling loadData immediately (', mountTime, 'ms since mount)');
     loadData(!!cache.exists);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isSignedIn, user, cacheKey]);
+  }, [isLoaded, isSignedIn, userId, cacheKey]);
   
   // E) FIX: Cleanup on unmount
   useEffect(() => {
@@ -956,7 +959,7 @@ function CustomersPageContent() {
   
   // Auto-refresh
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !user) return;
+    if (!isLoaded || !isSignedIn || !userId) return;
     
     const startInterval = () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -982,7 +985,7 @@ function CustomersPageContent() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isSignedIn, user, cacheKey]);
+  }, [isLoaded, isSignedIn, userId, cacheKey]);
 
 
   // Enrich customers with delta and primary provider/model

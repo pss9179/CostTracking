@@ -75,6 +75,10 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
   
+  // STABLE USER ID: Use user.id instead of user object to prevent effect re-runs
+  // when Clerk refreshes the user object reference
+  const userId = user?.id;
+  
   // Log Clerk hydration timing
   useEffect(() => {
     if (isLoaded) {
@@ -419,13 +423,13 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       if (!hasLoadedRef.current) setLoading(false);
       return false;
     }
-  }, [isLoaded, isSignedIn, user, getToken, hours, days, compareEnabled, cacheKey]);
+  }, [isLoaded, isSignedIn, userId, getToken, hours, days, compareEnabled, cacheKey]);
   
   // Effect: Trigger fetch immediately on mount and when deps change
   // loadData now handles auth retry internally - don't wait for isLoaded here
   useEffect(() => {
     const mountTime = (performance.now() - PAGE_MOUNT_TIME).toFixed(0);
-    console.log('[Dashboard] Effect running at', mountTime, 'ms since mount:', { isLoaded, isSignedIn, hasUser: !!user });
+    console.log('[Dashboard] Effect running at', mountTime, 'ms since mount:', { isLoaded, isSignedIn, hasUser: !!userId });
     
     const cache = getCachedWithMeta<DashboardCacheData>(cacheKey);
     // FIX: Check cache.exists, NOT data length (empty [] is valid cached data)
@@ -443,9 +447,9 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     console.log('[Dashboard] Effect: calling loadData immediately (', mountTime, 'ms since mount)');
     loadData(!!cache.exists);
     // NOTE: Intentionally NOT including loadData in deps - it's stable via useCallback
-    // and we don't want to re-trigger when the function reference changes
+    // Using userId (string) instead of user (object) to prevent re-runs on Clerk refresh
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isSignedIn, user, cacheKey]);
+  }, [isLoaded, isSignedIn, userId, cacheKey]);
   
   // E) FIX: Cleanup on unmount - prevent setState after unmount
   useEffect(() => {
@@ -459,7 +463,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
   
   // Auto-refresh every 2 minutes (background only, paused when tab is hidden)
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !user) return;
+    if (!isLoaded || !isSignedIn || !userId) return;
     
     const startInterval = () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -493,7 +497,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isSignedIn, user, cacheKey]);
+  }, [isLoaded, isSignedIn, userId, cacheKey]);
   
   return {
     runs,
