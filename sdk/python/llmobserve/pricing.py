@@ -1005,13 +1005,39 @@ def compute_cost(
     Returns:
         Cost in USD
     """
-    # Build key
+    # Build key with fallback for model name variations
+    pricing = {}
     if model:
+        # Try exact match first
         key = f"{provider}:{model}"
+        pricing = PRICING_REGISTRY.get(key, {})
+        
+        # If not found and model has date suffix (e.g., "claude-3-haiku-20240307"),
+        # try without the date suffix (e.g., "claude-3-haiku")
+        if not pricing and "-" in model:
+            # Try stripping date suffix (format: model-YYYYMMDD)
+            import re
+            # Match pattern like -20240307 at the end
+            base_model = re.sub(r'-\d{8}$', '', model)
+            if base_model != model:
+                fallback_key = f"{provider}:{base_model}"
+                pricing = PRICING_REGISTRY.get(fallback_key, {})
+        
+        # If still not found, try matching by model family
+        if not pricing:
+            # Extract model family (e.g., "claude-3-haiku" from "claude-3-haiku-20240307")
+            parts = model.split("-")
+            if len(parts) >= 3:
+                # Try progressively shorter model names
+                for i in range(len(parts), 2, -1):  # Start from full name, go down to first 3 parts
+                    test_model = "-".join(parts[:i])
+                    test_key = f"{provider}:{test_model}"
+                    if test_key in PRICING_REGISTRY:
+                        pricing = PRICING_REGISTRY[test_key]
+                        break
     else:
         key = provider
-    
-    pricing = PRICING_REGISTRY.get(key, {})
+        pricing = PRICING_REGISTRY.get(key, {})
     
     # Check for per_call pricing
     if "per_call" in pricing:
