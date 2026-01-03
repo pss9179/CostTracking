@@ -258,40 +258,88 @@ def instrument_anthropic() -> bool:
         return False
     
     try:
-        # Patch messages.create() - main chat endpoint
-        if hasattr(anthropic, "Anthropic"):
-            client_class = anthropic.Anthropic
+        import inspect
+        
+        # In newer Anthropic SDK versions (0.75+), messages is a cached_property
+        # We need to patch the Messages class directly instead of accessing it through the client class
+        
+        # Try to get the Messages class from the resources module
+        messages_class = None
+        try:
+            from anthropic.resources import Messages
+            messages_class = Messages
+        except ImportError:
+            try:
+                from anthropic.resources.messages import Messages
+                messages_class = Messages
+            except ImportError:
+                pass
+        
+        if messages_class:
+            # Check if already instrumented
+            if hasattr(messages_class, "_llmobserve_instrumented"):
+                logger.debug("[llmobserve] Anthropic Messages already instrumented")
+                return True
             
-            if hasattr(client_class, "messages"):
-                # Check if already instrumented
-                if hasattr(client_class.messages.create, "_llmobserve_instrumented"):
-                    logger.debug("[llmobserve] Anthropic already instrumented")
-                    return True
-                
-                # Wrap messages.create()
-                original_create = client_class.messages.create
-                import inspect
+            # Patch messages.create()
+            if hasattr(messages_class, "create"):
+                original_create = messages_class.create
                 is_async = inspect.iscoroutinefunction(original_create)
                 wrapped_create = create_safe_wrapper(original_create, "messages.create", is_async=is_async)
                 
-                client_class.messages.create = wrapped_create
+                messages_class.create = wrapped_create
                 wrapped_create._llmobserve_instrumented = True
                 wrapped_create._llmobserve_original = original_create
                 
-                logger.debug("[llmobserve] Instrumented anthropic.Anthropic.messages.create")
+                logger.debug("[llmobserve] Instrumented anthropic.resources.Messages.create")
+            
+            # Mark the class as instrumented
+            messages_class._llmobserve_instrumented = True
+        else:
+            # Fallback: Try to patch on client class (older SDK versions)
+            if hasattr(anthropic, "Anthropic"):
+                client_class = anthropic.Anthropic
+                
+                # Check if messages is directly accessible (older SDK)
+                try:
+                    if hasattr(client_class, "messages") and not isinstance(
+                        getattr(type(client_class), 'messages', None), property
+                    ):
+                        if hasattr(client_class.messages, "create"):
+                            original_create = client_class.messages.create
+                            is_async = inspect.iscoroutinefunction(original_create)
+                            wrapped_create = create_safe_wrapper(original_create, "messages.create", is_async=is_async)
+                            
+                            client_class.messages.create = wrapped_create
+                            wrapped_create._llmobserve_instrumented = True
+                            wrapped_create._llmobserve_original = original_create
+                            
+                            logger.debug("[llmobserve] Instrumented anthropic.Anthropic.messages.create (fallback)")
+                except (AttributeError, TypeError):
+                    logger.debug("[llmobserve] Could not patch Anthropic via client class fallback")
         
-        # Patch completions.create() - legacy endpoint
-        if hasattr(anthropic, "Anthropic") and hasattr(anthropic.Anthropic, "completions"):
-            original_completions = anthropic.Anthropic.completions.create
-            import inspect
+        # Patch completions.create() - legacy endpoint (try both approaches)
+        completions_class = None
+        try:
+            from anthropic.resources import Completions
+            completions_class = Completions
+        except ImportError:
+            try:
+                from anthropic.resources.completions import Completions
+                completions_class = Completions
+            except ImportError:
+                pass
+        
+        if completions_class and hasattr(completions_class, "create"):
+            original_completions = completions_class.create
             is_async = inspect.iscoroutinefunction(original_completions)
             wrapped_completions = create_safe_wrapper(original_completions, "completions.create", is_async=is_async)
             
-            anthropic.Anthropic.completions.create = wrapped_completions
+            completions_class.create = wrapped_completions
             wrapped_completions._llmobserve_instrumented = True
             wrapped_completions._llmobserve_original = original_completions
             
-            logger.debug("[llmobserve] Instrumented anthropic.Anthropic.completions.create")
+            logger.debug("[llmobserve] Instrumented anthropic.resources.Completions.create")
         
         logger.info(f"[llmobserve] Successfully instrumented Anthropic SDK (version {version})")
         return True
