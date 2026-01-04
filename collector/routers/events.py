@@ -111,34 +111,54 @@ def ingest_events(
                     skipped_count += 1
                     continue  # Skip duplicate event (likely retry)
             
-            # Compute cost if not already set and we have token data
-            if event_data.cost_usd == 0.0 and (event_data.input_tokens > 0 or event_data.output_tokens > 0):
-                base_cost = compute_cost(
-                    provider=event_data.provider,
-                    model=event_data.model,
-                    input_tokens=event_data.input_tokens,
-                    output_tokens=event_data.output_tokens
-                )
-                
-                # Apply batch API discount
-                event_data.cost_usd = base_cost * discount_multiplier
-                
-                if discount_multiplier < 1.0:
+            # CRITICAL: Always compute cost if we have token data, even if SDK sent 0
+            # This ensures costs are never $0 for valid API calls
+            if event_data.input_tokens > 0 or event_data.output_tokens > 0:
+                if event_data.cost_usd == 0.0:
+                    # SDK didn't calculate cost, compute it server-side
+                    base_cost = compute_cost(
+                        provider=event_data.provider,
+                        model=event_data.model,
+                        input_tokens=event_data.input_tokens,
+                        output_tokens=event_data.output_tokens
+                    )
+                    
+                    # Apply batch API discount
+                    event_data.cost_usd = base_cost * discount_multiplier
+                    
+                    if base_cost > 0:
+                        logger.info(
+                            f"[events] Computed cost server-side: "
+                            f"{event_data.provider}/{event_data.model}: "
+                            f"${base_cost:.6f} → ${event_data.cost_usd:.6f}"
+                        )
+                elif discount_multiplier < 1.0:
+                    # SDK sent cost, but apply batch API discount
+                    original_cost = event_data.cost_usd
+                    event_data.cost_usd = original_cost * discount_multiplier
                     logger.debug(
                         f"[events] Applied {discount_multiplier}x discount: "
-                        f"${base_cost:.6f} → ${event_data.cost_usd:.6f}"
+                        f"${original_cost:.6f} → ${event_data.cost_usd:.6f}"
                     )
             
             # Create TraceEvent from TraceEventCreate
             event_dict = event_data.model_dump()
             
-            # Handle tenant_id: use from event or default
-            if not event_dict.get("tenant_id"):
-                event_dict["tenant_id"] = "default_tenant"
-            
-            # Optionally inject user_id from auth (if provided)
+            # Handle tenant_id: CRITICAL for dashboard filtering
+            # Dashboard filters by Clerk user ID, so tenant_id must match clerk_user_id
             if user_id:
+                # Look up User to get clerk_user_id for tenant_id
+                from models import User
+                user = session.get(User, user_id)
+                if user and user.clerk_user_id:
+                    # Use Clerk user ID as tenant_id so dashboard can filter correctly
+                    event_dict["tenant_id"] = user.clerk_user_id
+                else:
+                    # Fallback: use user_id as string if no clerk_user_id
+                    event_dict["tenant_id"] = str(user_id)
                 event_dict["user_id"] = user_id
+            elif not event_dict.get("tenant_id"):
+                event_dict["tenant_id"] = "default_tenant"
             
             try:
                 event = TraceEvent(**event_dict)

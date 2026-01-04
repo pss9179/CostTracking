@@ -849,6 +849,7 @@ async def get_dashboard_all(
     import asyncio
     start_time = time.time()
     user_id = current_user.id
+    clerk_user_id = current_user.clerk_user_id  # Use Clerk user ID for tenant filtering
     
     # Check cache first
     cache_key = make_cache_key("dashboard-all", str(user_id), hours=hours, days=days)
@@ -857,7 +858,7 @@ async def get_dashboard_all(
         print(f"[dashboard-all] CACHE HIT in {(time.time()-start_time)*1000:.0f}ms", flush=True)
         return cached
     
-    print(f"[dashboard-all] START user={str(user_id)[:8]}... hours={hours} days={days}", flush=True)
+    print(f"[dashboard-all] START user={str(user_id)[:8]}... clerk_id={clerk_user_id[:20] if clerk_user_id else 'None'}... hours={hours} days={days}", flush=True)
     
     cutoff_hours = datetime.utcnow() - timedelta(hours=hours)
     cutoff_days = datetime.utcnow() - timedelta(days=days)
@@ -866,18 +867,24 @@ async def get_dashboard_all(
     query_start = time.time()
     
     # 1. Provider stats
+    # CRITICAL: Filter by tenant_id using Clerk user ID (events from API keys have tenant_id = clerk_user_id)
+    provider_conditions = [
+        TraceEvent.created_at >= cutoff_hours,
+        TraceEvent.customer_id.is_(None),
+        TraceEvent.provider != "internal"
+    ]
+    # Filter by tenant_id (Clerk user ID) - this matches API key events
+    if clerk_user_id:
+        provider_conditions.append(TraceEvent.tenant_id == clerk_user_id)
+    else:
+        # Fallback: filter by user_id if no clerk_user_id
+        provider_conditions.append(TraceEvent.user_id == user_id)
+    
     provider_stmt = select(
         TraceEvent.provider,
         func.sum(TraceEvent.cost_usd).label("total_cost"),
         func.count(TraceEvent.id).label("call_count")
-    ).where(
-        and_(
-            TraceEvent.created_at >= cutoff_hours,
-            TraceEvent.user_id == user_id,
-            TraceEvent.customer_id.is_(None),
-            TraceEvent.provider != "internal"
-        )
-    ).group_by(TraceEvent.provider).order_by(func.sum(TraceEvent.cost_usd).desc())
+    ).where(and_(*provider_conditions)).group_by(TraceEvent.provider).order_by(func.sum(TraceEvent.cost_usd).desc())
     
     provider_results = session.exec(provider_stmt).all()
     provider_total = sum(r.total_cost or 0 for r in provider_results)
@@ -893,6 +900,19 @@ async def get_dashboard_all(
     ]
     
     # 2. Model stats
+    # CRITICAL: Filter by tenant_id using Clerk user ID (events from API keys have tenant_id = clerk_user_id)
+    model_conditions = [
+        TraceEvent.created_at >= cutoff_hours,
+        TraceEvent.customer_id.is_(None),
+        TraceEvent.model.isnot(None)
+    ]
+    # Filter by tenant_id (Clerk user ID) - this matches API key events
+    if clerk_user_id:
+        model_conditions.append(TraceEvent.tenant_id == clerk_user_id)
+    else:
+        # Fallback: filter by user_id if no clerk_user_id
+        model_conditions.append(TraceEvent.user_id == user_id)
+    
     model_stmt = select(
         TraceEvent.provider,
         TraceEvent.model,
@@ -901,14 +921,7 @@ async def get_dashboard_all(
         func.sum(TraceEvent.input_tokens).label("input_tokens"),
         func.sum(TraceEvent.output_tokens).label("output_tokens"),
         func.avg(TraceEvent.latency_ms).label("avg_latency")
-    ).where(
-        and_(
-            TraceEvent.created_at >= cutoff_hours,
-            TraceEvent.user_id == user_id,
-            TraceEvent.customer_id.is_(None),
-            TraceEvent.model.isnot(None)
-        )
-    ).group_by(TraceEvent.provider, TraceEvent.model).order_by(func.sum(TraceEvent.cost_usd).desc())
+    ).where(and_(*model_conditions)).group_by(TraceEvent.provider, TraceEvent.model).order_by(func.sum(TraceEvent.cost_usd).desc())
     
     model_results = session.exec(model_stmt).all()
     
@@ -932,17 +945,23 @@ async def get_dashboard_all(
     else:
         date_trunc = func.date(TraceEvent.created_at)
     
+    # 3. Daily aggregates - filter by tenant_id using Clerk user ID
+    daily_conditions = [
+        TraceEvent.created_at >= cutoff_days,
+        TraceEvent.customer_id.is_(None)
+    ]
+    # Filter by tenant_id (Clerk user ID) - this matches API key events
+    if clerk_user_id:
+        daily_conditions.append(TraceEvent.tenant_id == clerk_user_id)
+    else:
+        # Fallback: filter by user_id if no clerk_user_id
+        daily_conditions.append(TraceEvent.user_id == user_id)
+    
     daily_stmt = select(
         date_trunc.label("date"),
         func.sum(TraceEvent.cost_usd).label("total_cost"),
         func.count(TraceEvent.id).label("call_count")
-    ).where(
-        and_(
-            TraceEvent.created_at >= cutoff_days,
-            TraceEvent.user_id == user_id,
-            TraceEvent.customer_id.is_(None)
-        )
-    ).group_by(date_trunc).order_by(date_trunc)
+    ).where(and_(*daily_conditions)).group_by(date_trunc).order_by(date_trunc)
     
     daily_results = session.exec(daily_stmt).all()
     
