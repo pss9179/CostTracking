@@ -41,6 +41,8 @@ def extract_provider_from_url(url: str) -> Optional[str]:
         return "mistral"
     elif "groq.com" in url_lower:
         return "groq"
+    elif "openrouter.ai" in url_lower or "openrouter" in url_lower:
+        return "openrouter"
     
     return "unknown"
 

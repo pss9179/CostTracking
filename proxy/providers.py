@@ -46,6 +46,8 @@ def detect_provider(url: str) -> str:
         return "azure_openai"
     elif ("bedrock-runtime" in url_lower or "bedrock" in url_lower) and "amazonaws.com" in url_lower:
         return "aws_bedrock"
+    elif "openrouter.ai" in url_lower:
+        return "openrouter"
     
     # Voice AI (7)
     elif "api.elevenlabs.io" in url_lower:
@@ -215,6 +217,16 @@ def parse_usage(provider: str, response_body: Dict[str, Any], request_body: Dict
             usage_data = response_body.get("usage", {})
             usage["input_tokens"] = usage_data.get("prompt_tokens", 0)
             usage["output_tokens"] = usage_data.get("completion_tokens", 0)
+        
+        elif provider == "openrouter":
+            # OpenRouter uses OpenAI-compatible API format
+            usage["model"] = response_body.get("model")
+            usage_data = response_body.get("usage", {})
+            usage["input_tokens"] = usage_data.get("prompt_tokens", 0)
+            usage["output_tokens"] = usage_data.get("completion_tokens", 0)
+            # OpenRouter also provides cost in response
+            if "cost" in response_body:
+                usage["cost_usd"] = response_body.get("cost")
         
         elif provider == "voyage":
             usage["model"] = response_body.get("model", "voyage-2")

@@ -43,6 +43,8 @@ def extract_provider_from_url(url: str) -> Optional[str]:
         return "together"
     elif "api.vapi.ai" in url_lower or "vapi.ai" in url_lower:
         return "vapi"
+    elif "openrouter.ai" in url_lower or "openrouter" in url_lower:
+        return "openrouter"
     elif "groq.com" in url_lower or "groq" in url_lower:
         return "groq"
     elif "mistral.ai" in url_lower or "mistral" in url_lower:
