@@ -867,15 +867,22 @@ async def get_dashboard_all(
     query_start = time.time()
     
     # 1. Provider stats
-    # CRITICAL: Filter by tenant_id using Clerk user ID (events from API keys have tenant_id = clerk_user_id)
+    # CRITICAL: Filter by tenant_id OR user_id to match both API key events and direct events
     provider_conditions = [
         TraceEvent.created_at >= cutoff_hours,
         TraceEvent.customer_id.is_(None),
         TraceEvent.provider != "internal"
     ]
-    # Filter by tenant_id (Clerk user ID) - this matches API key events
+    # Filter by tenant_id (Clerk user ID) OR user_id - ensures we catch all events
     if clerk_user_id:
-        provider_conditions.append(TraceEvent.tenant_id == clerk_user_id)
+        # Match events with tenant_id = clerk_user_id (from API keys) OR user_id = current user
+        from sqlalchemy import or_
+        provider_conditions.append(
+            or_(
+                TraceEvent.tenant_id == clerk_user_id,
+                TraceEvent.user_id == user_id
+            )
+        )
     else:
         # Fallback: filter by user_id if no clerk_user_id
         provider_conditions.append(TraceEvent.user_id == user_id)
@@ -900,15 +907,21 @@ async def get_dashboard_all(
     ]
     
     # 2. Model stats
-    # CRITICAL: Filter by tenant_id using Clerk user ID (events from API keys have tenant_id = clerk_user_id)
+    # CRITICAL: Filter by tenant_id OR user_id to match both API key events and direct events
     model_conditions = [
         TraceEvent.created_at >= cutoff_hours,
         TraceEvent.customer_id.is_(None),
         TraceEvent.model.isnot(None)
     ]
-    # Filter by tenant_id (Clerk user ID) - this matches API key events
+    # Filter by tenant_id (Clerk user ID) OR user_id - ensures we catch all events
     if clerk_user_id:
-        model_conditions.append(TraceEvent.tenant_id == clerk_user_id)
+        from sqlalchemy import or_
+        model_conditions.append(
+            or_(
+                TraceEvent.tenant_id == clerk_user_id,
+                TraceEvent.user_id == user_id
+            )
+        )
     else:
         # Fallback: filter by user_id if no clerk_user_id
         model_conditions.append(TraceEvent.user_id == user_id)
@@ -945,14 +958,20 @@ async def get_dashboard_all(
     else:
         date_trunc = func.date(TraceEvent.created_at)
     
-    # 3. Daily aggregates - filter by tenant_id using Clerk user ID
+    # 3. Daily aggregates - filter by tenant_id OR user_id to match both API key events and direct events
     daily_conditions = [
         TraceEvent.created_at >= cutoff_days,
         TraceEvent.customer_id.is_(None)
     ]
-    # Filter by tenant_id (Clerk user ID) - this matches API key events
+    # Filter by tenant_id (Clerk user ID) OR user_id - ensures we catch all events
     if clerk_user_id:
-        daily_conditions.append(TraceEvent.tenant_id == clerk_user_id)
+        from sqlalchemy import or_
+        daily_conditions.append(
+            or_(
+                TraceEvent.tenant_id == clerk_user_id,
+                TraceEvent.user_id == user_id
+            )
+        )
     else:
         # Fallback: filter by user_id if no clerk_user_id
         daily_conditions.append(TraceEvent.user_id == user_id)
