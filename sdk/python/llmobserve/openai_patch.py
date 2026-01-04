@@ -337,6 +337,25 @@ def _patch_method(client_class: Any, resource_path: list[str], method_name: str,
         if not model and len(args) > 0 and hasattr(args[0], "model"):
             model = args[0].model
         
+        # Check spending caps before making request (model-specific caps)
+        from llmobserve.caps import check_spending_caps, should_check_caps
+        from llmobserve import context
+        if should_check_caps() and model:
+            try:
+                check_spending_caps(
+                    provider="openai",
+                    model=model,
+                    customer_id=context.get_customer_id(),
+                    agent=context.get_current_section() if context.get_current_section() != "/" else None,
+                )
+            except Exception as cap_error:
+                # Re-raise BudgetExceededError, but catch other errors to fail open
+                from llmobserve.caps import BudgetExceededError
+                if isinstance(cap_error, BudgetExceededError):
+                    raise
+                # Log but don't block on other errors
+                logger.debug(f"[llmobserve] Cap check error (fail-open): {cap_error}")
+        
         # Check if streaming
         is_streaming = kwargs.get("stream", False)
         
@@ -384,6 +403,25 @@ def _patch_method(client_class: Any, resource_path: list[str], method_name: str,
         model = kwargs.get("model", None)
         if not model and len(args) > 0 and hasattr(args[0], "model"):
             model = args[0].model
+        
+        # Check spending caps before making request (model-specific caps)
+        from llmobserve.caps import check_spending_caps, should_check_caps
+        from llmobserve import context
+        if should_check_caps() and model:
+            try:
+                check_spending_caps(
+                    provider="openai",
+                    model=model,
+                    customer_id=context.get_customer_id(),
+                    agent=context.get_current_section() if context.get_current_section() != "/" else None,
+                )
+            except Exception as cap_error:
+                # Re-raise BudgetExceededError, but catch other errors to fail open
+                from llmobserve.caps import BudgetExceededError
+                if isinstance(cap_error, BudgetExceededError):
+                    raise
+                # Log but don't block on other errors
+                logger.debug(f"[llmobserve] Cap check error (fail-open): {cap_error}")
         
         # Check if streaming
         is_streaming = kwargs.get("stream", False)

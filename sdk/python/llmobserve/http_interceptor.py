@@ -15,13 +15,16 @@ FEATURES:
 import uuid
 import logging
 import time
-from typing import Optional
+import json
+from typing import Optional, Dict, Any
 
 logger = logging.getLogger("llmobserve")
 
 from llmobserve import context, config
 from llmobserve import request_tracker
 from llmobserve.caps import check_spending_caps, should_check_caps
+from llmobserve.event_creator import extract_model_from_request
+from llmobserve.event_creator import extract_model_from_request
 
 
 def extract_provider_from_url(url: str) -> Optional[str]:
@@ -189,10 +192,27 @@ def patch_httpx():
                             customer_id = context.get_customer_id()
                             agent = context.get_current_section()  # Use section as agent
                             
+                            # Extract model from request body for model-specific caps
+                            model = None
+                            try:
+                                if request_body:
+                                    # Try to parse request body as JSON
+                                    if isinstance(request_body, bytes):
+                                        try:
+                                            body_dict = json.loads(request_body.decode('utf-8'))
+                                            model = extract_model_from_request(body_dict, provider or "")
+                                        except (json.JSONDecodeError, UnicodeDecodeError):
+                                            pass
+                                    elif isinstance(request_body, (str, dict)):
+                                        body_dict = request_body if isinstance(request_body, dict) else json.loads(request_body)
+                                        model = extract_model_from_request(body_dict, provider or "")
+                            except Exception as e:
+                                logger.debug(f"[llmobserve] Failed to extract model for cap check: {e}")
+                            
                             # This will raise BudgetExceededError if cap exceeded
                             check_spending_caps(
                                 provider=provider,
-                                model=None,  # Model detection would require parsing request body
+                                model=model,  # Now includes model from request body
                                 customer_id=customer_id,
                                 agent=agent if agent != "/" else None,
                             )
@@ -379,10 +399,27 @@ def patch_httpx():
                             customer_id = context.get_customer_id()
                             agent = context.get_current_section()  # Use section as agent
                             
+                            # Extract model from request body for model-specific caps
+                            model = None
+                            try:
+                                if request_body:
+                                    # Try to parse request body as JSON
+                                    if isinstance(request_body, bytes):
+                                        try:
+                                            body_dict = json.loads(request_body.decode('utf-8'))
+                                            model = extract_model_from_request(body_dict, provider or "")
+                                        except (json.JSONDecodeError, UnicodeDecodeError):
+                                            pass
+                                    elif isinstance(request_body, (str, dict)):
+                                        body_dict = request_body if isinstance(request_body, dict) else json.loads(request_body)
+                                        model = extract_model_from_request(body_dict, provider or "")
+                            except Exception as e:
+                                logger.debug(f"[llmobserve] Failed to extract model for cap check: {e}")
+                            
                             # This will raise BudgetExceededError if cap exceeded
                             check_spending_caps(
                                 provider=provider,
-                                model=None,  # Model detection would require parsing request body
+                                model=model,  # Now includes model from request body
                                 customer_id=customer_id,
                                 agent=agent if agent != "/" else None,
                             )
