@@ -111,34 +111,33 @@ def ingest_events(
                     skipped_count += 1
                     continue  # Skip duplicate event (likely retry)
             
-            # CRITICAL: Always compute cost if we have token data, even if SDK sent 0
-            # This ensures costs are never $0 for valid API calls
+            # CRITICAL: Always compute cost server-side if we have token data
+            # This ensures costs are accurate and never $0 for valid API calls
+            # Server-side calculation is authoritative (handles model name variations, pricing updates, etc.)
             if event_data.input_tokens > 0 or event_data.output_tokens > 0:
-                if event_data.cost_usd == 0.0:
-                    # SDK didn't calculate cost, compute it server-side
-                    base_cost = compute_cost(
-                        provider=event_data.provider,
-                        model=event_data.model,
-                        input_tokens=event_data.input_tokens,
-                        output_tokens=event_data.output_tokens
+                # Always recalculate server-side for accuracy (handles model name normalization, pricing updates)
+                base_cost = compute_cost(
+                    provider=event_data.provider,
+                    model=event_data.model,
+                    input_tokens=event_data.input_tokens,
+                    output_tokens=event_data.output_tokens
+                )
+                
+                # Apply batch API discount
+                event_data.cost_usd = base_cost * discount_multiplier
+                
+                if base_cost > 0:
+                    logger.info(
+                        f"[events] Computed cost server-side: "
+                        f"{event_data.provider}/{event_data.model}: "
+                        f"${base_cost:.6f} → ${event_data.cost_usd:.6f}"
                     )
-                    
-                    # Apply batch API discount
-                    event_data.cost_usd = base_cost * discount_multiplier
-                    
-                    if base_cost > 0:
-                        logger.info(
-                            f"[events] Computed cost server-side: "
-                            f"{event_data.provider}/{event_data.model}: "
-                            f"${base_cost:.6f} → ${event_data.cost_usd:.6f}"
-                        )
-                elif discount_multiplier < 1.0:
-                    # SDK sent cost, but apply batch API discount
-                    original_cost = event_data.cost_usd
-                    event_data.cost_usd = original_cost * discount_multiplier
-                    logger.debug(
-                        f"[events] Applied {discount_multiplier}x discount: "
-                        f"${original_cost:.6f} → ${event_data.cost_usd:.6f}"
+                elif event_data.cost_usd == 0.0:
+                    # Log warning if server-side calculation also returns 0 (might indicate missing pricing)
+                    logger.warning(
+                        f"[events] Server-side cost calculation returned $0 for "
+                        f"{event_data.provider}/{event_data.model} "
+                        f"({event_data.input_tokens} input + {event_data.output_tokens} output tokens)"
                     )
             
             # Create TraceEvent from TraceEventCreate
