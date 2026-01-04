@@ -153,6 +153,21 @@ def create_safe_wrapper(original_method: Callable, method_name: str, is_async: b
             start_time = time.time()
             model = kwargs.get("model") or (args[0] if len(args) > 0 else None)
             
+            # Check spending caps before making request (model-specific caps)
+            from llmobserve.caps import check_spending_caps, should_check_caps, BudgetExceededError
+            if should_check_caps() and model:
+                try:
+                    check_spending_caps(
+                        provider="anthropic",
+                        model=model,
+                        customer_id=context.get_customer_id(),
+                        agent=context.get_current_section() if context.get_current_section() != "/" else None,
+                    )
+                except BudgetExceededError:
+                    raise
+                except Exception as cap_error:
+                    logger.debug(f"[llmobserve] Cap check error (fail-open): {cap_error}")
+            
             try:
                 result = await original_method(*args, **kwargs)
                 latency_ms = (time.time() - start_time) * 1000
@@ -198,6 +213,21 @@ def create_safe_wrapper(original_method: Callable, method_name: str, is_async: b
             
             start_time = time.time()
             model = kwargs.get("model") or (args[0] if len(args) > 0 else None)
+            
+            # Check spending caps before making request (model-specific caps)
+            from llmobserve.caps import check_spending_caps, should_check_caps, BudgetExceededError
+            if should_check_caps() and model:
+                try:
+                    check_spending_caps(
+                        provider="anthropic",
+                        model=model,
+                        customer_id=context.get_customer_id(),
+                        agent=context.get_current_section() if context.get_current_section() != "/" else None,
+                    )
+                except BudgetExceededError:
+                    raise
+                except Exception as cap_error:
+                    logger.debug(f"[llmobserve] Cap check error (fail-open): {cap_error}")
             
             try:
                 result = original_method(*args, **kwargs)

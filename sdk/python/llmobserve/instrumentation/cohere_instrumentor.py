@@ -71,6 +71,21 @@ def create_safe_wrapper(original_method: Callable, method_name: str) -> Callable
         start_time = time.time()
         model_name = kwargs.get("model") or "command"
         
+        # Check spending caps before making request (model-specific caps)
+        from llmobserve.caps import check_spending_caps, should_check_caps, BudgetExceededError
+        if should_check_caps() and model_name:
+            try:
+                check_spending_caps(
+                    provider="cohere",
+                    model=model_name,
+                    customer_id=context.get_customer_id(),
+                    agent=context.get_current_section() if context.get_current_section() != "/" else None,
+                )
+            except BudgetExceededError:
+                raise
+            except Exception as cap_error:
+                logger.debug(f"[llmobserve] Cap check error (fail-open): {cap_error}")
+        
         try:
             result = original_method(*args, **kwargs)
             latency_ms = (time.time() - start_time) * 1000

@@ -24,7 +24,6 @@ from llmobserve import context, config
 from llmobserve import request_tracker
 from llmobserve.caps import check_spending_caps, should_check_caps
 from llmobserve.event_creator import extract_model_from_request
-from llmobserve.event_creator import extract_model_from_request
 
 
 def extract_provider_from_url(url: str) -> Optional[str]:
@@ -34,16 +33,30 @@ def extract_provider_from_url(url: str) -> Optional[str]:
         return "openai"
     elif "api.anthropic.com" in url_lower or "anthropic" in url_lower:
         return "anthropic"
-    elif "generativelanguage.googleapis.com" in url_lower or "gemini" in url_lower:
+    elif "generativelanguage.googleapis.com" in url_lower or "gemini" in url_lower or "google" in url_lower:
         return "google"
     elif "pinecone.io" in url_lower:
         return "pinecone"
-    elif "api.cohere.ai" in url_lower:
+    elif "api.cohere.ai" in url_lower or "cohere" in url_lower:
         return "cohere"
-    elif "api.together.xyz" in url_lower:
+    elif "api.together.xyz" in url_lower or "together" in url_lower:
         return "together"
     elif "api.vapi.ai" in url_lower or "vapi.ai" in url_lower:
         return "vapi"
+    elif "groq.com" in url_lower or "groq" in url_lower:
+        return "groq"
+    elif "mistral.ai" in url_lower or "mistral" in url_lower:
+        return "mistral"
+    elif "api.perplexity.ai" in url_lower or "perplexity" in url_lower:
+        return "perplexity"
+    elif "api.ai21.com" in url_lower or "ai21" in url_lower:
+        return "ai21"
+    elif "replicate.com" in url_lower or "replicate" in url_lower:
+        return "replicate"
+    elif "huggingface.co" in url_lower or "huggingface" in url_lower:
+        return "huggingface"
+    elif "voyageai.com" in url_lower or "voyage" in url_lower:
+        return "voyage"
     # Add more providers as needed
     return None
 
