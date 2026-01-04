@@ -8,7 +8,7 @@ from uuid import UUID
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session, select, func, and_
-from sqlalchemy import case
+from sqlalchemy import case, or_
 from models import TraceEvent
 from db import get_session
 from auth import get_current_user_id
@@ -876,7 +876,6 @@ async def get_dashboard_all(
     # Filter by tenant_id (Clerk user ID) OR user_id - ensures we catch all events
     if clerk_user_id:
         # Match events with tenant_id = clerk_user_id (from API keys) OR user_id = current user
-        from sqlalchemy import or_
         provider_conditions.append(
             or_(
                 TraceEvent.tenant_id == clerk_user_id,
@@ -915,7 +914,6 @@ async def get_dashboard_all(
     ]
     # Filter by tenant_id (Clerk user ID) OR user_id - ensures we catch all events
     if clerk_user_id:
-        from sqlalchemy import or_
         model_conditions.append(
             or_(
                 TraceEvent.tenant_id == clerk_user_id,
@@ -965,7 +963,6 @@ async def get_dashboard_all(
     ]
     # Filter by tenant_id (Clerk user ID) OR user_id - ensures we catch all events
     if clerk_user_id:
-        from sqlalchemy import or_
         daily_conditions.append(
             or_(
                 TraceEvent.tenant_id == clerk_user_id,
