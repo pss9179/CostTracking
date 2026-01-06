@@ -60,11 +60,14 @@ export function ModelBreakdown({
   const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<'cost' | 'calls'>('cost');
   
-  // Group models by family
+  // Group models by family (filter out $0 cost models - they're incomplete/test data)
   const { families, topSpender, anomaly } = useMemo(() => {
     const familyMap = new Map<string, ModelStat[]>();
     
-    models.forEach(model => {
+    // Filter out models with $0 cost - these are test/incomplete events
+    const validModels = models.filter(m => m.total_cost > 0);
+    
+    validModels.forEach(model => {
       const family = getModelFamily(model.model);
       const existing = familyMap.get(family) || [];
       existing.push(model);
@@ -93,8 +96,8 @@ export function ModelBreakdown({
     const topFam = sorted[0];
     
     // Find anomaly: model with unusually high cost per call
-    const avgCostPerCall = totalCost / models.reduce((sum, m) => sum + m.call_count, 0) || 0;
-    const anomalyModel = models.find(m => {
+    const avgCostPerCall = totalCost / validModels.reduce((sum, m) => sum + m.call_count, 0) || 0;
+    const anomalyModel = validModels.find(m => {
       const modelAvg = m.call_count > 0 ? m.total_cost / m.call_count : 0;
       return modelAvg > avgCostPerCall * 3 && m.call_count > 5; // 3x average and at least 5 calls
     });
@@ -276,7 +279,7 @@ export function ModelBreakdown({
       
       {/* Footer insight */}
       <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500">
-        {families.length} model families • {models.length} unique models
+        {families.length} model families • {families.reduce((sum, f) => sum + f.models.length, 0)} unique models
       </div>
     </div>
   );
