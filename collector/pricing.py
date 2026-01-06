@@ -85,6 +85,74 @@ def clear_pricing_cache():
     _PRICING_CACHE = None
 
 
+def normalize_provider(provider: str) -> str:
+    """Normalize provider name for pricing lookup."""
+    provider = provider.lower().strip()
+    
+    # Provider name mappings
+    mappings = {
+        "meta-llama": "meta",
+        "mistralai": "mistral",
+        "nousresearch": "nous",
+        "perplexity": "perplexity",
+        "togethercomputer": "together",
+        "01-ai": "yi",
+        "databricks": "databricks",
+        "amazon": "amazon",
+        "tiiuae": "tiiuae",
+        "cognitivecomputations": "cognitive",
+    }
+    
+    return mappings.get(provider, provider)
+
+
+def normalize_model(model: str) -> str:
+    """Normalize model name for pricing lookup."""
+    import re
+    model = model.lower().strip()
+    
+    # Remove date suffixes (e.g., -20240307)
+    model = re.sub(r'-\d{8}$', '', model)
+    
+    # Remove version suffixes for some models
+    model = re.sub(r'-v\d+(\.\d+)*$', '', model)
+    
+    # Normalize common model name patterns
+    normalizations = {
+        # Llama variants
+        r'llama-3\.1-(\d+)b-instruct': r'llama-3.1-\1b',
+        r'llama-3\.2-(\d+)b-instruct': r'llama-3.2-\1b',
+        r'llama-3-(\d+)b-instruct': r'llama-3-\1b',
+        # Mistral variants  
+        r'mistral-(\d+)b-instruct.*': r'mistral-\1b',
+        r'mixtral-8x(\d+)b-instruct.*': r'mixtral-8x\1b',
+        # DeepSeek
+        r'deepseek-chat.*': 'deepseek-chat',
+        r'deepseek-coder.*': 'deepseek-coder',
+        r'deepseek-r1.*': 'deepseek-r1',
+        # Qwen
+        r'qwen-2\.5-(\d+)b-instruct': r'qwen-2.5-\1b',
+        r'qwen-2-(\d+)b-instruct': r'qwen-2-\1b',
+        # Claude
+        r'claude-3\.5-sonnet.*': 'claude-3.5-sonnet',
+        r'claude-3-5-sonnet.*': 'claude-3.5-sonnet',
+        r'claude-3-haiku.*': 'claude-3-haiku',
+        r'claude-3-5-haiku.*': 'claude-3.5-haiku',
+        r'claude-3\.5-haiku.*': 'claude-3.5-haiku',
+        # Gemini
+        r'gemini-flash-1\.5.*': 'gemini-1.5-flash',
+        r'gemini-pro-1\.5.*': 'gemini-1.5-pro',
+        r'gemini-2\.0-flash.*': 'gemini-2.0-flash',
+    }
+    
+    for pattern, replacement in normalizations.items():
+        normalized = re.sub(pattern, replacement, model)
+        if normalized != model:
+            return normalized
+    
+    return model
+
+
 def compute_cost(
     provider: str,
     model: Optional[str],
@@ -108,12 +176,24 @@ def compute_cost(
     if registry is None:
         registry = load_pricing_registry()
     
+    # Normalize provider and model names
+    original_provider = provider
+    original_model = model
+    provider = normalize_provider(provider)
+    if model:
+        model = normalize_model(model)
+    
     # Build key with fallback for model name variations
     pricing = {}
     if model:
         # Try exact match first
         key = f"{provider}:{model}"
         pricing = registry.get(key, {})
+        
+        # If not found, try original provider with normalized model
+        if not pricing and original_provider != provider:
+            key = f"{original_provider}:{model}"
+            pricing = registry.get(key, {})
         
         # If not found and model has date suffix (e.g., "claude-3-haiku-20240307"),
         # try without the date suffix (e.g., "claude-3-haiku")

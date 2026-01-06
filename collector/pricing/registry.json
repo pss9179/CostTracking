@@ -346,6 +346,106 @@
     "input": 2.5e-07,
     "output": 7.5e-07
   },
+  "mistral:mistral-7b": {
+    "input": 2.5e-07,
+    "output": 2.5e-07,
+    "_comment": "Mistral 7B via OpenRouter - free tier pricing"
+  },
+  "mistral:mixtral-8x7b": {
+    "input": 6e-07,
+    "output": 6e-07,
+    "_comment": "Mixtral 8x7B MoE"
+  },
+  "mistral:mistral-large": {
+    "input": 2e-06,
+    "output": 6e-06,
+    "_comment": "Mistral Large latest"
+  },
+  "meta:llama-3.1-8b": {
+    "input": 5e-08,
+    "output": 5e-08,
+    "_comment": "Meta Llama 3.1 8B - free/very cheap on most providers"
+  },
+  "meta:llama-3.1-70b": {
+    "input": 3.5e-07,
+    "output": 4e-07,
+    "_comment": "Meta Llama 3.1 70B"
+  },
+  "meta:llama-3.1-405b": {
+    "input": 3e-06,
+    "output": 3e-06,
+    "_comment": "Meta Llama 3.1 405B"
+  },
+  "meta:llama-3.2-3b": {
+    "input": 3e-08,
+    "output": 3e-08,
+    "_comment": "Meta Llama 3.2 3B - very small model"
+  },
+  "meta:llama-3.2-1b": {
+    "input": 2e-08,
+    "output": 2e-08,
+    "_comment": "Meta Llama 3.2 1B"
+  },
+  "deepseek:deepseek-chat": {
+    "input": 1.4e-07,
+    "output": 2.8e-07,
+    "_comment": "DeepSeek Chat V3 - $0.14/M input, $0.28/M output"
+  },
+  "deepseek:deepseek-coder": {
+    "input": 1.4e-07,
+    "output": 2.8e-07,
+    "_comment": "DeepSeek Coder"
+  },
+  "deepseek:deepseek-r1": {
+    "input": 5.5e-07,
+    "output": 2.19e-06,
+    "_comment": "DeepSeek R1 reasoning model - $0.55/M input, $2.19/M output"
+  },
+  "qwen:qwen-2.5-72b": {
+    "input": 3.5e-07,
+    "output": 4e-07,
+    "_comment": "Qwen 2.5 72B"
+  },
+  "qwen:qwen-2.5-7b": {
+    "input": 5e-08,
+    "output": 5e-08,
+    "_comment": "Qwen 2.5 7B"
+  },
+  "qwen:qwen-2.5-3b": {
+    "input": 3e-08,
+    "output": 3e-08,
+    "_comment": "Qwen 2.5 3B"
+  },
+  "qwen:qwen-2-72b": {
+    "input": 3.5e-07,
+    "output": 4e-07,
+    "_comment": "Qwen 2 72B"
+  },
+  "qwen:qwen-2-7b": {
+    "input": 5e-08,
+    "output": 5e-08,
+    "_comment": "Qwen 2 7B"
+  },
+  "cohere:command-r": {
+    "input": 5e-07,
+    "output": 1.5e-06,
+    "_comment": "Cohere Command R"
+  },
+  "cohere:command-r-plus": {
+    "input": 2.5e-06,
+    "output": 1e-05,
+    "_comment": "Cohere Command R+"
+  },
+  "nous:hermes-3-llama-3.1-405b": {
+    "input": 2e-06,
+    "output": 2e-06,
+    "_comment": "NousResearch Hermes 3 on 405B"
+  },
+  "google:gemini-2.0-flash": {
+    "input": 1e-07,
+    "output": 4e-07,
+    "_comment": "Gemini 2.0 Flash"
+  },
   "groq:llama-3.1-405b": {
     "input": 5.9e-07,
     "output": 7.9e-07
