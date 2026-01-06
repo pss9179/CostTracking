@@ -20,26 +20,51 @@ interface ModelBreakdownProps {
   className?: string;
 }
 
-// Family color mapping
+// Family color mapping - broad families for cleaner grouping
 const FAMILY_COLORS: Record<string, string> = {
-  "GPT-4o": "#10b981",
-  "GPT-4 Turbo": "#059669",
-  "GPT-4": "#047857",
+  // OpenAI
+  "GPT-5": "#10b981",
+  "GPT-4": "#059669",
   "GPT-3.5": "#34d399",
-  "Claude 3.5 Sonnet": "#8b5cf6",
-  "Claude 3.5 Haiku": "#a78bfa",
-  "Claude 3 Opus": "#7c3aed",
-  "Claude 3 Sonnet": "#8b5cf6",
-  "Claude 3 Haiku": "#a78bfa",
-  "Claude 2": "#c4b5fd",
+  "OpenAI o-series": "#047857",
+  
+  // Anthropic Claude
+  "Claude Opus": "#7c3aed",
+  "Claude Sonnet": "#8b5cf6",
+  "Claude Haiku": "#a78bfa",
+  "Claude 3.5": "#8b5cf6",
+  "Claude 3": "#a78bfa",
   "Claude": "#8b5cf6",
-  "Gemini Pro": "#3b82f6",
-  "Gemini Flash": "#60a5fa",
+  
+  // xAI Grok
+  "Grok": "#f97316",
+  
+  // Google Gemini
   "Gemini": "#3b82f6",
-  "Mistral Large": "#ec4899",
-  "Mistral Medium": "#f472b6",
-  "Mistral Small": "#f9a8d4",
+  
+  // Mistral (includes Mixtral, Codestral)
   "Mistral": "#ec4899",
+  
+  // Meta Llama
+  "Llama": "#6366f1",
+  
+  // DeepSeek
+  "DeepSeek": "#14b8a6",
+  
+  // Qwen
+  "Qwen": "#f59e0b",
+  
+  // Cohere
+  "Cohere": "#ef4444",
+  
+  // Amazon Nova
+  "Nova": "#8b5cf6",
+  
+  // Perplexity
+  "Perplexity": "#06b6d4",
+  
+  // Microsoft Phi
+  "Phi": "#84cc16",
 };
 
 const DEFAULT_COLOR = "#64748b";

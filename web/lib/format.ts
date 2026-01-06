@@ -191,55 +191,58 @@ export function formatPercentChange(current: number, previous: number): PercentC
 
 /**
  * Get model family from model name for grouping
+ * Groups models into broad families for cleaner dashboard display
  */
 export function getModelFamily(model: string): string {
   const lowerModel = model.toLowerCase();
   
-  // GPT-4 variants
-  if (lowerModel.includes('gpt-4o-mini')) return 'GPT-4o mini';
-  if (lowerModel.includes('gpt-4o')) return 'GPT-4o';
-  if (lowerModel.includes('gpt-4-turbo')) return 'GPT-4 Turbo';
+  // OpenAI GPT family (all GPT models grouped together)
+  if (lowerModel.includes('gpt-5')) return 'GPT-5';
   if (lowerModel.includes('gpt-4')) return 'GPT-4';
+  if (lowerModel.includes('gpt-3')) return 'GPT-3.5';
+  if (lowerModel.includes('o1') || lowerModel.includes('o3') || lowerModel.includes('o4')) return 'OpenAI o-series';
   
-  // GPT-3.5
-  if (lowerModel.includes('gpt-3.5')) return 'GPT-3.5';
-  
-  // Claude variants
-  if (lowerModel.includes('claude-3-5-sonnet') || lowerModel.includes('claude-3.5-sonnet')) return 'Claude 3.5 Sonnet';
-  if (lowerModel.includes('claude-3-5-haiku') || lowerModel.includes('claude-3.5-haiku')) return 'Claude 3.5 Haiku';
-  if (lowerModel.includes('claude-3-opus')) return 'Claude 3 Opus';
-  if (lowerModel.includes('claude-3-sonnet')) return 'Claude 3 Sonnet';
-  if (lowerModel.includes('claude-3-haiku')) return 'Claude 3 Haiku';
-  if (lowerModel.includes('claude-2')) return 'Claude 2';
+  // Anthropic Claude family (all Claude models grouped together)
+  if (lowerModel.includes('claude-opus')) return 'Claude Opus';
+  if (lowerModel.includes('claude-sonnet')) return 'Claude Sonnet';
+  if (lowerModel.includes('claude') && lowerModel.includes('haiku')) return 'Claude Haiku';
+  if (lowerModel.includes('claude-3.5') || lowerModel.includes('claude-3-5')) return 'Claude 3.5';
+  if (lowerModel.includes('claude-3')) return 'Claude 3';
   if (lowerModel.includes('claude')) return 'Claude';
   
-  // Gemini
-  if (lowerModel.includes('gemini-1.5-pro')) return 'Gemini 1.5 Pro';
-  if (lowerModel.includes('gemini-1.5-flash')) return 'Gemini 1.5 Flash';
-  if (lowerModel.includes('gemini-pro')) return 'Gemini Pro';
-  if (lowerModel.includes('gemini-flash')) return 'Gemini Flash';
+  // xAI Grok family (all Grok models grouped together)
+  if (lowerModel.includes('grok')) return 'Grok';
+  
+  // Google Gemini family
   if (lowerModel.includes('gemini')) return 'Gemini';
   
-  // Mistral
-  if (lowerModel.includes('mistral-large')) return 'Mistral Large';
-  if (lowerModel.includes('mistral-medium')) return 'Mistral Medium';
-  if (lowerModel.includes('mistral-small')) return 'Mistral Small';
-  if (lowerModel.includes('mixtral')) return 'Mixtral';
-  if (lowerModel.includes('mistral')) return 'Mistral';
+  // Mistral family (includes Mixtral, Codestral)
+  if (lowerModel.includes('mixtral') || lowerModel.includes('mistral') || lowerModel.includes('codestral')) return 'Mistral';
   
-  // Llama
-  if (lowerModel.includes('llama-3.1')) return 'Llama 3.1';
-  if (lowerModel.includes('llama-3')) return 'Llama 3';
-  if (lowerModel.includes('llama-2')) return 'Llama 2';
+  // Meta Llama family
   if (lowerModel.includes('llama')) return 'Llama';
   
-  // Cohere
-  if (lowerModel.includes('command-r-plus')) return 'Command R+';
-  if (lowerModel.includes('command-r')) return 'Command R';
-  if (lowerModel.includes('command')) return 'Command';
+  // DeepSeek family
+  if (lowerModel.includes('deepseek')) return 'DeepSeek';
   
-  // Default: capitalize
-  return model.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  // Qwen family
+  if (lowerModel.includes('qwen')) return 'Qwen';
+  
+  // Cohere family
+  if (lowerModel.includes('command')) return 'Cohere';
+  
+  // Amazon Nova family
+  if (lowerModel.includes('nova')) return 'Nova';
+  
+  // Perplexity family
+  if (lowerModel.includes('sonar') || lowerModel.includes('pplx')) return 'Perplexity';
+  
+  // Microsoft family
+  if (lowerModel.includes('phi')) return 'Phi';
+  
+  // Default: capitalize first word
+  const firstWord = model.split('-')[0];
+  return firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
 }
 
 // ============================================================================
