@@ -114,8 +114,9 @@ def normalize_model(model: str) -> str:
     # Remove date suffixes (e.g., -20240307)
     model = re.sub(r'-\d{8}$', '', model)
     
-    # Remove version suffixes for some models
-    model = re.sub(r'-v\d+(\.\d+)*$', '', model)
+    # NOTE: Don't remove -v1/-v2 suffixes globally as some models like
+    # Amazon Nova use them as part of the actual model name (nova-pro-v1)
+    # These are handled by trying exact match first in compute_cost()
     
     # Normalize common model name patterns
     normalizations = {
@@ -176,51 +177,57 @@ def compute_cost(
     if registry is None:
         registry = load_pricing_registry()
     
+    # Store originals for fallback attempts
+    original_provider = provider.lower().strip()
+    original_model = model.lower().strip() if model else None
+    
     # Normalize provider and model names
-    original_provider = provider
-    original_model = model
-    provider = normalize_provider(provider)
-    if model:
-        model = normalize_model(model)
+    normalized_provider = normalize_provider(original_provider)
+    normalized_model = normalize_model(original_model) if original_model else None
     
     # Build key with fallback for model name variations
     pricing = {}
-    if model:
-        # Try exact match first
-        key = f"{provider}:{model}"
+    if original_model:
+        # 1. Try exact match with original names first
+        key = f"{original_provider}:{original_model}"
         pricing = registry.get(key, {})
         
-        # If not found, try original provider with normalized model
-        if not pricing and original_provider != provider:
-            key = f"{original_provider}:{model}"
+        # 2. Try with normalized provider but original model
+        if not pricing:
+            key = f"{normalized_provider}:{original_model}"
             pricing = registry.get(key, {})
         
-        # If not found and model has date suffix (e.g., "claude-3-haiku-20240307"),
-        # try without the date suffix (e.g., "claude-3-haiku")
-        if not pricing and "-" in model:
-            # Try stripping date suffix (format: model-YYYYMMDD)
-            import re
-            # Match pattern like -20240307 at the end
-            base_model = re.sub(r'-\d{8}$', '', model)
-            if base_model != model:
-                fallback_key = f"{provider}:{base_model}"
-                pricing = registry.get(fallback_key, {})
-        
-        # If still not found, try matching by model family (e.g., "claude-3-haiku" from "claude-3-haiku-20240307")
+        # 3. Try with original provider but normalized model
         if not pricing:
-            # Extract model family (e.g., "claude-3-haiku" from "claude-3-haiku-20240307")
-            parts = model.split("-")
+            key = f"{original_provider}:{normalized_model}"
+            pricing = registry.get(key, {})
+        
+        # 4. Try fully normalized
+        if not pricing:
+            key = f"{normalized_provider}:{normalized_model}"
+            pricing = registry.get(key, {})
+        
+        # 5. If still not found, try matching by model family (progressively shorter names)
+        if not pricing and original_model and "-" in original_model:
+            parts = original_model.split("-")
             if len(parts) >= 3:
-                # Try progressively shorter model names
-                for i in range(len(parts), 2, -1):  # Start from full name, go down to first 3 parts
+                for i in range(len(parts) - 1, 2, -1):  # Start from full name minus 1, go down
                     test_model = "-".join(parts[:i])
-                    test_key = f"{provider}:{test_model}"
-                    if test_key in registry:
-                        pricing = registry[test_key]
+                    # Try with both providers
+                    for prov in [original_provider, normalized_provider]:
+                        test_key = f"{prov}:{test_model}"
+                        if test_key in registry:
+                            pricing = registry[test_key]
+                            break
+                    if pricing:
                         break
     else:
-        key = f"{provider}"
+        # No model, try provider-level pricing
+        key = f"{original_provider}"
         pricing = registry.get(key, {})
+        if not pricing:
+            key = f"{normalized_provider}"
+            pricing = registry.get(key, {})
     
     # Check for per_call pricing
     if "per_call" in pricing:
