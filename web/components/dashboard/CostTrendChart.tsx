@@ -333,6 +333,20 @@ export function CostTrendChart({
 
   // Disable stacked/lines mode if no provider data
   const effectiveMode = !hasProviderData && mode !== "total" ? "total" : mode;
+  
+  // Normalize data for stacked/lines charts - ensure all data points have all provider keys
+  const normalizedData = useMemo(() => {
+    if (effectiveMode === "total" || providers.length === 0) return data;
+    
+    return data.map(d => {
+      const normalized: ChartDataPoint = { date: d.date, value: d.value };
+      // Ensure each provider key exists (default to 0 if missing)
+      providers.forEach(provider => {
+        normalized[provider] = typeof d[provider] === 'number' ? d[provider] : 0;
+      });
+      return normalized;
+    });
+  }, [data, providers, effectiveMode]);
 
   return (
     <div className={cn("relative", className)}>
@@ -366,7 +380,7 @@ export function CostTrendChart({
       <ResponsiveContainer width="100%" height={height}>
         {effectiveMode === "stacked" ? (
           // Stacked Area Chart
-          <AreaChart data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+          <AreaChart data={normalizedData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
             <defs>
               {providers.map((provider) => (
                 <linearGradient
@@ -434,7 +448,7 @@ export function CostTrendChart({
           </AreaChart>
         ) : (
           // Line Chart (Total or By Provider)
-          <LineChart data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+          <LineChart data={effectiveMode === "lines" ? normalizedData : data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
             <defs>
               <linearGradient id="totalLineGrad" x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor={TOTAL_COLOR} stopOpacity={0.8} />
