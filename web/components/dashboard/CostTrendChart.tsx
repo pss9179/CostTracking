@@ -232,30 +232,36 @@ export function CostTrendChart({
 
   // Extract providers and calculate stats
   const { providers, maxValue, avgValue, hasProviderData } = useMemo(() => {
+    // Safety check for empty or invalid data
+    if (!data || data.length === 0) {
+      return { providers: [], maxValue: 0, avgValue: 0, hasProviderData: false };
+    }
+    
     const providerKeys = Array.from(
       new Set(
-        data.flatMap((d) =>
-          Object.keys(d).filter(
+        data.flatMap((d) => {
+          if (!d) return [];
+          return Object.keys(d).filter(
             (k) =>
               k !== "date" &&
               k !== "value" &&
               typeof d[k] === "number" &&
               (d[k] as number) > 0
-          )
-        )
+          );
+        })
       )
     );
 
     // Sort providers by total cost
     const providerTotals = providerKeys.map((p) => ({
       provider: p,
-      total: data.reduce((sum, d) => sum + (Number(d[p]) || 0), 0),
+      total: data.reduce((sum, d) => sum + (Number(d?.[p]) || 0), 0),
     }));
     providerTotals.sort((a, b) => b.total - a.total);
     const sortedProviders = providerTotals.map((p) => p.provider);
 
-    const values = data.map((d) => d.value).filter((v) => v > 0);
-    const max = Math.max(...values, 0);
+    const values = data.map((d) => d?.value ?? 0).filter((v) => v > 0);
+    const max = values.length > 0 ? Math.max(...values) : 0;
     const avg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
 
     return {
@@ -275,17 +281,20 @@ export function CostTrendChart({
 
   // Calculate trend change
   const trendChange = useMemo(() => {
-    const nonZeroData = data.filter((d) => d.value > 0);
+    if (!data || data.length === 0) return null;
+    const nonZeroData = data.filter((d) => d && typeof d.value === 'number' && d.value > 0);
     if (nonZeroData.length < 2) return null;
-    const first = nonZeroData[0].value;
-    const last = nonZeroData[nonZeroData.length - 1].value;
+    const first = nonZeroData[0]?.value ?? 0;
+    const last = nonZeroData[nonZeroData.length - 1]?.value ?? 0;
+    if (first === 0) return null;
     return formatPercentChange(last, first);
   }, [data]);
 
   // Get previous value for tooltip delta
   const getPrevValue = (label: string) => {
-    const idx = data.findIndex((d) => d.date === label);
-    return idx > 0 ? data[idx - 1].value : 0;
+    if (!data || data.length === 0) return 0;
+    const idx = data.findIndex((d) => d?.date === label);
+    return idx > 0 ? (data[idx - 1]?.value ?? 0) : 0;
   };
 
   // Empty state
@@ -305,7 +314,7 @@ export function CostTrendChart({
   
   // Single data point - show a clear message
   if (data.length === 1) {
-    const point = data[0];
+    const point = data[0] || { date: '', value: 0 };
     return (
       <div className={cn("relative", className)}>
         <div className="flex items-center justify-between mb-3">
@@ -336,10 +345,16 @@ export function CostTrendChart({
   
   // Normalize data for stacked/lines charts - ensure all data points have all provider keys
   const normalizedData = useMemo(() => {
+    // Safety check for empty or invalid data
+    if (!data || data.length === 0) return [];
     if (effectiveMode === "total" || providers.length === 0) return data;
     
     return data.map(d => {
-      const normalized: ChartDataPoint = { date: d.date, value: d.value };
+      if (!d) return { date: '', value: 0 }; // Safety for undefined items
+      const normalized: ChartDataPoint = { 
+        date: d.date || '', 
+        value: typeof d.value === 'number' ? d.value : 0 
+      };
       // Ensure each provider key exists (default to 0 if missing)
       providers.forEach(provider => {
         normalized[provider] = typeof d[provider] === 'number' ? d[provider] : 0;
