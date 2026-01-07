@@ -772,6 +772,7 @@ function DashboardPageContent() {
   
   // A) FIX: Data presence overrides all other states
   const hasData = providerStats.length > 0;
+  const hasAnySpend = stats.totalCost24h > 0 || stats.weekCost > 0 || stats.monthCost > 0;
   
   // TIMING: Log first meaningful render
   useEffect(() => {
@@ -779,8 +780,20 @@ function DashboardPageContent() {
     console.log('[Dashboard] FIRST RENDER at', now.toFixed(0), 'ms (', (now - PAGE_MOUNT_TIME).toFixed(0), 'ms from mount)', { hasData, loading });
   }, []); // Only on mount
   
-  // DEBUG: Log render state
-  console.log('[Dashboard] RENDER:', { hasData, loading, isRefreshing, providerStatsLen: providerStats.length });
+  // DEBUG: Log render state - helps diagnose empty dashboard issue
+  console.log('[Dashboard] RENDER:', { 
+    hasData, 
+    hasAnySpend,
+    loading, 
+    isRefreshing, 
+    providerStatsLen: providerStats.length,
+    modelStatsLen: modelStats.length,
+    dailyStatsLen: dailyStats.length,
+    totalCost24h: stats.totalCost24h,
+    weekCost: stats.weekCost,
+    selectedProviders,
+    selectedModels,
+  });
   
   // Error state - only show if NO data exists
   if (error && !hasData) {
@@ -867,8 +880,8 @@ function DashboardPageContent() {
           </div>
         )}
         
-        {/* Empty state for new users */}
-        {stats.totalCost24h === 0 && stats.weekCost === 0 && stats.monthCost === 0 && (
+        {/* Empty state for new users - only show if NO data at all (not filtered) */}
+        {!hasData && !loading && !isRefreshing && (
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-8 text-center">
             <div className="max-w-md mx-auto">
               <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4">
@@ -898,6 +911,30 @@ function DashboardPageContent() {
                   View docs
                 </a>
               </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Filter empty state - has data but current filter returns nothing */}
+        {hasData && !hasAnySpend && hasActiveFilters && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
+            <div className="max-w-md mx-auto">
+              <span className="text-2xl mb-2 block">🔍</span>
+              <h3 className="text-lg font-medium text-slate-900 mb-2">
+                No data matches your filters
+              </h3>
+              <p className="text-slate-600 text-sm mb-4">
+                Try adjusting your provider or model filters to see data.
+              </p>
+              <button
+                onClick={() => {
+                  setSelectedProviders([]);
+                  setSelectedModels([]);
+                }}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors text-sm"
+              >
+                Clear filters
+              </button>
             </div>
           </div>
         )}
