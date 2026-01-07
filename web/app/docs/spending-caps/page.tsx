@@ -152,6 +152,7 @@ Applies to: All customers (or specific customer IDs)`}
 
       <CodeBlock
         code={`from llmobserve import observe
+from llmobserve.caps import BudgetExceededError
 from openai import OpenAI
 
 observe(api_key="...")
@@ -162,11 +163,11 @@ try:
         model="gpt-4o",
         messages=[{"role": "user", "content": "Hello"}]
     )
-except llmobserve.SpendingCapExceeded as e:
-    # Handle cap exceeded
-    print(f"Spending cap exceeded: {e.cap_name}")
-    print(f"Current spend: ${e.current_spend}")
-    print(f"Limit: ${e.limit}")`}
+except BudgetExceededError as e:
+    # Handle cap exceeded - request was blocked!
+    print(f"Spending cap exceeded: {e}")
+    for cap in e.exceeded_caps:
+        print(f"  - {cap['cap_type']}: {cap['current']}/{cap['limit']}")`}
         language="python"
       />
 
@@ -178,18 +179,22 @@ except llmobserve.SpendingCapExceeded as e:
       <h3>Checking cap status programmatically</h3>
 
       <CodeBlock
-        code={`from llmobserve import get_cap_status
+        code={`# Check cap status via dashboard API
+# Or handle BudgetExceededError in your code
 
-# Check global cap status
-status = get_cap_status()
-print(f"Current spend: ${status.current_spend}")
-print(f"Limit: ${status.limit}")
-print(f"Percent used: {status.percent_used}%")
+from llmobserve.caps import BudgetExceededError
 
-# Check customer-specific cap
-customer_status = get_cap_status(customer_id="cust_123")
-if customer_status.percent_used > 90:
-    show_usage_warning_to_customer()`}
+def make_llm_call(prompt):
+    try:
+        return client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}]
+        )
+    except BudgetExceededError as e:
+        # Log the exceeded cap details
+        print(f"Cap exceeded: {e.exceeded_caps}")
+        # Optionally: switch to cheaper model, queue for later, etc.
+        raise`}
         language="python"
       />
 
