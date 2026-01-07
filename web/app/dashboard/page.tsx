@@ -642,20 +642,42 @@ function DashboardPageContent() {
     return filtered;
   }, [modelStats, selectedProviders, selectedModels]);
   
-  // Calculate aggregated stats
+  // Helper: Calculate filtered cost from a day's provider breakdown
+  const getFilteredDayCost = useCallback((day: DailyStats): number => {
+    // If no filters, return total
+    if (selectedProviders.length === 0 && selectedModels.length === 0) {
+      return day.total || 0;
+    }
+    
+    // If we have provider breakdown, filter it
+    if (day.providers && typeof day.providers === 'object') {
+      let sum = 0;
+      Object.entries(day.providers).forEach(([provider, data]) => {
+        if (selectedProviders.length === 0 || selectedProviders.includes(provider.toLowerCase())) {
+          sum += data.cost || 0;
+        }
+      });
+      return sum;
+    }
+    
+    // Fallback to total if no breakdown available
+    return day.total || 0;
+  }, [selectedProviders, selectedModels]);
+  
+  // Calculate aggregated stats - FILTERED by selected provider/model
   const stats = useMemo<DashboardStats>(() => {
     const totalCost = filteredProviderStats.reduce((sum, stat) => sum + (stat.total_cost || 0), 0);
     const totalCalls = filteredProviderStats.reduce((sum, stat) => sum + (stat.call_count || 0), 0);
     
-    // Week cost: sum of last 7 days from daily aggregates
-    const weekCost = dailyAggregates.slice(-7).reduce((sum, day) => sum + (day.total || 0), 0);
+    // Week cost: sum of last 7 days from daily stats (FILTERED)
+    const weekCost = dailyStats.slice(-7).reduce((sum, day) => sum + getFilteredDayCost(day), 0);
     
-    // Month cost: sum of last 30 days from daily aggregates
-    const monthCost = dailyAggregates.slice(-30).reduce((sum, day) => sum + (day.total || 0), 0);
+    // Month cost: sum of last 30 days from daily stats (FILTERED)
+    const monthCost = dailyStats.slice(-30).reduce((sum, day) => sum + getFilteredDayCost(day), 0);
     
-    // Yesterday's cost from daily aggregates
-    const yesterdayCost = dailyAggregates.length >= 2 
-      ? dailyAggregates[dailyAggregates.length - 2]?.total || 0 
+    // Yesterday's cost from daily stats (FILTERED)
+    const yesterdayCost = dailyStats.length >= 2 
+      ? getFilteredDayCost(dailyStats[dailyStats.length - 2]) 
       : 0;
     
     // Top provider
@@ -676,21 +698,31 @@ function DashboardPageContent() {
       topProvider,
       topModel,
     };
-  }, [filteredProviderStats, filteredModelStats, dailyAggregates]);
+  }, [filteredProviderStats, filteredModelStats, dailyStats, getFilteredDayCost]);
   
-  // Prepare chart data
+  // Prepare chart data - FILTERED by selected provider/model
   const chartData = useMemo(() => {
     return dailyStats.map((day) => {
       const providerCosts: Record<string, number> = {};
+      let filteredTotal = 0;
+      
       if (day.providers && typeof day.providers === 'object') {
         Object.entries(day.providers).forEach(([provider, data]) => {
           // Skip filtered out providers
           if (selectedProviders.length > 0 && !selectedProviders.includes(provider.toLowerCase())) {
             return;
           }
-          providerCosts[provider.toLowerCase()] = data.cost;
+          const cost = data.cost || 0;
+          providerCosts[provider.toLowerCase()] = cost;
+          filteredTotal += cost;
         });
       }
+      
+      // If no filters are active OR no provider breakdown exists, use total
+      const hasFilters = selectedProviders.length > 0 || selectedModels.length > 0;
+      const chartValue = hasFilters && Object.keys(providerCosts).length > 0 
+        ? filteredTotal 
+        : (day.total || 0);
       
       // Use the date label directly from the API (already formatted)
       // The timeseries endpoint returns pre-formatted labels like "Dec 17 19:00" for hourly
@@ -707,11 +739,11 @@ function DashboardPageContent() {
       
       return {
         date: dateLabel,
-        value: day.total || 0,
+        value: chartValue,
         ...providerCosts,
       };
     });
-  }, [dailyStats, selectedProviders]);
+  }, [dailyStats, selectedProviders, selectedModels]);
   
   // Available filters
   const availableProviders = useMemo(() => 
