@@ -43,18 +43,43 @@ app = FastAPI(
 # CORS middleware - configure based on environment
 import os
 ALLOWED_ORIGINS_ENV = os.getenv("ALLOWED_ORIGINS", "*")
+
+# Build list of allowed origins
+allow_origins = []
 if ALLOWED_ORIGINS_ENV == "*":
-    # Development: allow all
-    allow_origins = ["*"]
+    # Development: allow common origins
+    allow_origins = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+    ]
 else:
     # Production: specific domains (comma-separated)
     allow_origins = [origin.strip() for origin in ALLOWED_ORIGINS_ENV.split(",")]
-    # Always include localhost for local development
-    allow_origins.extend(["http://localhost:3000", "http://localhost:3001"])
+
+# Always add known production domains
+production_origins = [
+    "https://app.llmobserve.com",
+    "https://llmobserve.com",
+    "https://www.llmobserve.com",
+    "https://skyline-ui.vercel.app",
+    "https://llmobserve.vercel.app",
+]
+for origin in production_origins:
+    if origin not in allow_origins:
+        allow_origins.append(origin)
+
+# Also add localhost for local development
+localhost_origins = ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"]
+for origin in localhost_origins:
+    if origin not in allow_origins:
+        allow_origins.append(origin)
+
+logger.info(f"CORS allowed origins: {allow_origins}")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,  # Use calculated origins from env var
+    allow_origins=allow_origins,  # Explicit origins (not "*" since we use credentials)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
