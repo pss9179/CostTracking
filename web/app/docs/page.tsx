@@ -171,11 +171,9 @@ export default function DocsPage() {
 from openai import OpenAI
 import os
 
-# Initialize LLM Observe
-observe(
-    collector_url="${process.env.NEXT_PUBLIC_COLLECTOR_URL || "https://api.llmobserve.com"}",
-    api_key=os.getenv("LLMOBSERVE_API_KEY")
-)
+# Initialize LLM Observe - just set your API key!
+# Collector URL defaults to production automatically
+observe(api_key=os.getenv("LLMOBSERVE_API_KEY"))
 
 # Use OpenAI as normal - all calls are tracked automatically!
 client = OpenAI()
@@ -718,10 +716,8 @@ agent = Agent(tools=wrapped_tools, ...)`}
               <CardContent>
                 <CodeBlock 
                   code={`# Simple setup for personal projects
-observe(
-    collector_url="https://api.llmobserve.com",
-    api_key=os.getenv("LLMOBSERVE_API_KEY")
-)`}
+# Collector URL defaults to production - just set API key!
+observe(api_key=os.getenv("LLMOBSERVE_API_KEY"))`}
                   id="use-case-1"
                 />
               </CardContent>
@@ -736,7 +732,6 @@ observe(
                   code={`# Track costs per customer in your SaaS
 def handle_customer_request(customer_id: str, user_query: str):
     observe(
-        collector_url="https://api.llmobserve.com",
         api_key=os.getenv("LLMOBSERVE_API_KEY"),
         customer_id=customer_id  # Track costs per customer
     )
@@ -757,7 +752,6 @@ def handle_customer_request(customer_id: str, user_query: str):
                 <CodeBlock 
                   code={`# Track costs per tenant
 observe(
-    collector_url="https://api.llmobserve.com",
     api_key=os.getenv("LLMOBSERVE_API_KEY"),
     tenant_id=tenant_id,      # Track per tenant
     customer_id=customer_id    # Track per customer within tenant

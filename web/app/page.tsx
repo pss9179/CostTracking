@@ -278,17 +278,13 @@ export default function LandingPage() {
               </div>
               <pre className="text-gray-100 text-sm font-mono overflow-x-auto">
                 <code>{`# Install the package
-npm install llmobserve
+pip install llmobserve
 
-# instrumentation.ts
+# Your code
 from llmobserve import observe
 
-observe(
-    collector_url="${
-      process.env.NEXT_PUBLIC_COLLECTOR_URL || "https://api.llmobserve.com"
-    }",
-    api_key=process.env.LLMOBSERVE_API_KEY
-)
+# Just set your API key - collector URL defaults to production!
+observe(api_key=os.getenv("LLMOBSERVE_API_KEY"))
 
 # That's it! All your LLM calls
 # are now tracked automatically.`}</code>
