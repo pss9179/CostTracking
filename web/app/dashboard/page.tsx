@@ -323,8 +323,8 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       // Track whether fetch succeeded
       let fetchSucceeded = true;
       
-      // Use consolidated endpoint (1 request instead of 5) + separate runs request
-      // This dramatically reduces HTTP overhead and network latency
+      // Use consolidated endpoint for aggregate stats + timeseries for chart data (with provider breakdown)
+      // The timeseries endpoint includes per-provider breakdown needed for stacked/by-provider chart views
       let runsData: Run[] = [];
       let providersData: ProviderStats[] = [];
       let modelsData: ModelStats[] = [];
@@ -332,7 +332,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       let dailyData: DailyStats[] = [];
       
       try {
-        const [runsResult, dashboardResult] = await Promise.all([
+        const [runsResult, dashboardResult, timeseriesResult] = await Promise.all([
           fetchRuns(50, null, token).catch((e) => {
             console.error('[Dashboard] fetchRuns error:', e.message);
             return [];
@@ -341,6 +341,11 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
             console.error('[Dashboard] fetchDashboardAll error:', e.message);
             fetchSucceeded = false;
             return null;
+          }),
+          // Fetch timeseries separately to get provider breakdown for chart
+          fetchTimeseries(hours, null, null, token).catch((e) => {
+            console.error('[Dashboard] fetchTimeseries error:', e.message);
+            return [];
           }),
         ]);
         
@@ -366,14 +371,20 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
             percentage: 0, // Will be calculated if needed
           }));
           
-          // Convert daily data to match DailyStats format
+          // Use consolidated daily data for aggregates
           dailyData = dashboardResult.daily.map(d => ({
             date: d.date,
             total: d.total_cost,
-            providers: {}, // Simplified - providers breakdown not included in consolidated
+            providers: {}, // Aggregates don't need provider breakdown
           }));
-          
-          timeseriesData = dailyData; // Use same data for timeseries
+        }
+        
+        // Use timeseries data for chart (includes provider breakdown for stacked/by-provider modes)
+        if (timeseriesResult && timeseriesResult.length > 0) {
+          timeseriesData = timeseriesResult;
+        } else {
+          // Fallback to daily data if timeseries failed
+          timeseriesData = dailyData;
         }
       } catch (error: any) {
         console.error('[Dashboard] Fetch error:', error.message);

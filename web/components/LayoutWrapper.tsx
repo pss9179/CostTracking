@@ -5,7 +5,8 @@ import { Sidebar } from "@/components/Sidebar";
 import { DateRangeProvider } from "@/contexts/DateRangeContext";
 import { GlobalFiltersProvider } from "@/contexts/GlobalFiltersContext";
 import { TopBar } from "@/components/TopBar";
-import { GlobalFilterBar } from "@/components/GlobalFilterBar";
+// Removed GlobalFilterBar - each page has its own AnalyticsHeader with filters
+// This eliminates the duplicate time filter issue
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -25,7 +26,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
           <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 mt-2 mb-4 mr-2 rounded-xl bg-white shadow-lg overflow-hidden">
           <TopBar />
-          <GlobalFilterBar />
+          {/* Filters are now in each page's AnalyticsHeader - no more duplicate */}
           <main className="flex-1 overflow-y-auto bg-background px-8 py-6">
             {children}
           </main>
