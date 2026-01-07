@@ -78,11 +78,13 @@ def flush_events() -> None:
                 except urllib.error.URLError as e:
                     if attempt < max_retries - 1:
                         delay = base_delay * (2 ** attempt)
-                        logger.debug(f"[llmobserve] Flush failed, retrying in {delay}s: {e}")
+                        logger.warning(f"[llmobserve] ⚠️  Failed to send events, retrying in {delay}s: {e}")
                         time.sleep(delay)
                         continue
                     else:
-                        logger.debug(f"[llmobserve] Flush failed after {max_retries} attempts: {e}")
+                        logger.error(f"[llmobserve] ❌ Failed to send events after {max_retries} attempts: {e}")
+                        logger.error(f"[llmobserve] Collector URL: {collector_url}")
+                        logger.error(f"[llmobserve] Check: 1) URL is correct, 2) Server is running, 3) Network is accessible")
                         return
                 return
             
@@ -105,10 +107,12 @@ def flush_events() -> None:
         except Exception as e:
             if attempt < max_retries - 1:
                 delay = base_delay * (2 ** attempt)
-                logger.debug(f"[llmobserve] Flush failed, retrying in {delay}s: {e}")
+                logger.warning(f"[llmobserve] ⚠️  Failed to send events, retrying in {delay}s: {e}")
                 time.sleep(delay)
             else:
-                logger.debug(f"[llmobserve] Flush failed after {max_retries} attempts: {e}")
+                logger.error(f"[llmobserve] ❌ Failed to send events after {max_retries} attempts: {e}")
+                logger.error(f"[llmobserve] Collector URL: {collector_url}")
+                logger.error(f"[llmobserve] Check: 1) URL is correct, 2) Server is running, 3) Network is accessible")
                 # Fail-open: don't break user's application
                 return
 

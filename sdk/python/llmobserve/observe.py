@@ -109,8 +109,9 @@ def observe(
         return
     
     # Read from env vars if not provided
+    # Check both LLMOBSERVE_COLLECTOR_URL and NEXT_PUBLIC_COLLECTOR_URL (for consistency with frontend)
     if collector_url is None:
-        collector_url = os.getenv("LLMOBSERVE_COLLECTOR_URL")
+        collector_url = os.getenv("LLMOBSERVE_COLLECTOR_URL") or os.getenv("NEXT_PUBLIC_COLLECTOR_URL")
     
     if proxy_url is None:
         proxy_url = os.getenv("LLMOBSERVE_PROXY_URL")
@@ -132,8 +133,12 @@ def observe(
     # Validate required args
     if not collector_url:
         logger.error(
-            "[llmobserve] collector_url required. "
-            "Provide as argument or set LLMOBSERVE_COLLECTOR_URL env var."
+            "[llmobserve] ❌ COLLECTOR_URL REQUIRED!\n"
+            "   Options:\n"
+            "   1. Pass as argument: llmobserve.observe(collector_url='https://...')\n"
+            "   2. Set env var: export LLMOBSERVE_COLLECTOR_URL=https://...\n"
+            "   3. Or use: export NEXT_PUBLIC_COLLECTOR_URL=https://...\n"
+            "   Example: export LLMOBSERVE_COLLECTOR_URL=https://llmobserve-api-production-d791.up.railway.app"
         )
         return
     
@@ -173,6 +178,27 @@ def observe(
         customer_id=customer_id,
         auto_detect_agents=auto_detect_agents
     )
+    
+    # Validate collector URL is reachable (non-blocking, just logs warning)
+    try:
+        import requests
+        try:
+            # Quick health check (1 second timeout)
+            response = requests.get(f"{collector_url.rstrip('/')}/health", timeout=1.0)
+            if response.status_code == 200:
+                logger.info(f"[llmobserve] ✓ Collector URL validated: {collector_url}")
+            else:
+                logger.warning(f"[llmobserve] ⚠️  Collector URL returned {response.status_code}: {collector_url}")
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"[llmobserve] ⚠️  Could not reach collector URL: {collector_url}")
+            logger.warning(f"[llmobserve] Error: {e}")
+            logger.warning(f"[llmobserve] Events may not be tracked. Check your network connection and collector URL.")
+    except ImportError:
+        # requests not available, skip validation
+        pass
+    except Exception as e:
+        # Don't fail initialization if validation fails
+        logger.debug(f"[llmobserve] Collector URL validation skipped: {e}")
     
     # Set customer and tenant in context if provided
     if customer_id:
