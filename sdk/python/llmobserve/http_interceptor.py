@@ -22,7 +22,7 @@ logger = logging.getLogger("llmobserve")
 
 from llmobserve import context, config
 from llmobserve import request_tracker
-from llmobserve.caps import check_spending_caps, should_check_caps
+from llmobserve.caps import check_spending_caps, should_check_caps, BudgetExceededError
 from llmobserve.event_creator import extract_model_from_request
 
 
@@ -319,9 +319,13 @@ def patch_httpx():
                             )
                         
                         return response
+                    
+                    except BudgetExceededError:
+                        # CRITICAL: Re-raise budget exceeded errors - don't fail open for hard caps!
+                        raise
                         
                     except Exception as e:
-                        # Fail-open: if anything fails, continue anyway
+                        # Fail-open: if anything else fails, continue anyway
                         logger.debug(f"[llmobserve] Tracking failed: {e}")
                         return original_send(self, request, **kwargs)
             
@@ -508,9 +512,13 @@ def patch_httpx():
                             )
                         
                         return response
+                    
+                    except BudgetExceededError:
+                        # CRITICAL: Re-raise budget exceeded errors - don't fail open for hard caps!
+                        raise
                         
                     except Exception as e:
-                        # Fail-open: if anything fails, continue anyway
+                        # Fail-open: if anything else fails, continue anyway
                         logger.debug(f"[llmobserve] Async tracking failed: {e}")
                         return await original_async_send(self, request, **kwargs)
             
