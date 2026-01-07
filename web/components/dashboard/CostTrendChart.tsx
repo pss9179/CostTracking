@@ -302,6 +302,34 @@ export function CostTrendChart({
       </div>
     );
   }
+  
+  // Single data point - show a clear message
+  if (data.length === 1) {
+    const point = data[0];
+    return (
+      <div className={cn("relative", className)}>
+        <div className="flex items-center justify-between mb-3">
+          {showModeToggle && (
+            <ChartModeToggle mode={mode} onChange={setMode} disabled={true} />
+          )}
+        </div>
+        <div 
+          className="flex flex-col items-center justify-center bg-slate-50 rounded-lg"
+          style={{ height }}
+        >
+          <div className="text-center">
+            <div className="text-2xl font-bold text-slate-700 mb-1">
+              {formatSmartCost(point.value)}
+            </div>
+            <div className="text-sm text-slate-500">{point.date}</div>
+            <p className="text-xs text-slate-400 mt-3">
+              More data points needed to show trends
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Disable stacked/lines mode if no provider data
   const effectiveMode = !hasProviderData && mode !== "total" ? "total" : mode;
@@ -369,8 +397,9 @@ export function CostTrendChart({
               tickLine={false}
               tick={{ fill: "#94a3b8", fontSize: 11 }}
               dy={8}
-              minTickGap={50}
+              minTickGap={60}
               interval="preserveStartEnd"
+              allowDuplicatedCategory={false}
             />
             <YAxis
               axisLine={false}
@@ -419,8 +448,9 @@ export function CostTrendChart({
               tickLine={false}
               tick={{ fill: "#94a3b8", fontSize: 11 }}
               dy={8}
-              minTickGap={50}
+              minTickGap={60}
               interval="preserveStartEnd"
+              allowDuplicatedCategory={false}
             />
             <YAxis
               axisLine={false}
