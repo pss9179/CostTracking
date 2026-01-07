@@ -108,10 +108,19 @@ def observe(
         logger.debug("[llmobserve] Already initialized, skipping")
         return
     
+    # Default production collector URL (users don't need to set this!)
+    DEFAULT_COLLECTOR_URL = "https://llmobserve-api-production-d791.up.railway.app"
+    
     # Read from env vars if not provided
     # Check both LLMOBSERVE_COLLECTOR_URL and NEXT_PUBLIC_COLLECTOR_URL (for consistency with frontend)
     if collector_url is None:
         collector_url = os.getenv("LLMOBSERVE_COLLECTOR_URL") or os.getenv("NEXT_PUBLIC_COLLECTOR_URL")
+    
+    # If still None, use default production URL (just set API key and it works!)
+    if not collector_url:
+        collector_url = DEFAULT_COLLECTOR_URL
+        logger.info(f"[llmobserve] Using default production collector: {collector_url}")
+        logger.info(f"[llmobserve] 💡 Tip: Set LLMOBSERVE_COLLECTOR_URL for custom collector")
     
     if proxy_url is None:
         proxy_url = os.getenv("LLMOBSERVE_PROXY_URL")
@@ -129,18 +138,6 @@ def observe(
     
     if customer_id is None:
         customer_id = os.getenv("LLMOBSERVE_CUSTOMER_ID")
-    
-    # Validate required args
-    if not collector_url:
-        logger.error(
-            "[llmobserve] ❌ COLLECTOR_URL REQUIRED!\n"
-            "   Options:\n"
-            "   1. Pass as argument: llmobserve.observe(collector_url='https://...')\n"
-            "   2. Set env var: export LLMOBSERVE_COLLECTOR_URL=https://...\n"
-            "   3. Or use: export NEXT_PUBLIC_COLLECTOR_URL=https://...\n"
-            "   Example: export LLMOBSERVE_COLLECTOR_URL=https://llmobserve-api-production-d791.up.railway.app"
-        )
-        return
     
     # API key is optional for MVP/self-hosted deployments
     if not api_key:

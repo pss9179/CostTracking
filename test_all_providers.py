@@ -14,9 +14,10 @@ Usage:
     export ANTHROPIC_API_KEY=sk-...
     export GOOGLE_API_KEY=...
     export OPENROUTER_API_KEY=sk-or-...
-    export LLMOBSERVE_API_KEY=...
-    export LLMOBSERVE_COLLECTOR_URL=https://llmobserve-api-production-d791.up.railway.app
-    # OR: export NEXT_PUBLIC_COLLECTOR_URL=https://llmobserve-api-production-d791.up.railway.app
+    export LLMOBSERVE_API_KEY=...  # Get from dashboard
+    
+    # That's it! Collector URL defaults to production.
+    # Only set LLMOBSERVE_COLLECTOR_URL if using custom collector.
     
     python3 test_all_providers.py
 """
@@ -27,17 +28,11 @@ import time
 # Initialize LLMObserve SDK FIRST (before importing any provider SDKs)
 import llmobserve
 
-# Get collector URL from either env var (SDK checks both)
-collector_url = os.getenv("LLMOBSERVE_COLLECTOR_URL") or os.getenv("NEXT_PUBLIC_COLLECTOR_URL") or "http://localhost:8000"
-
-if collector_url == "http://localhost:8000":
-    print("⚠️  WARNING: Using default localhost collector URL.")
-    print("   Set LLMOBSERVE_COLLECTOR_URL env var to point to your production collector!")
-    print()
-
+# Just set API key - collector URL defaults to production!
+# No need to set collector URL unless you're using a custom one
 llmobserve.observe(
-    collector_url=collector_url,
     api_key=os.getenv("LLMOBSERVE_API_KEY")
+    # collector_url is optional - defaults to production
 )
 
 print("=" * 60)
@@ -189,7 +184,6 @@ print()
 print(f"Results: {success_count}/{total_count} tests passed")
 print()
 print("💡 Check your dashboard to see if all calls were tracked!")
-print(f"   Collector URL: {collector_url}")
 print()
 print("⏳ Waiting 5 seconds for events to flush...")
 time.sleep(5)

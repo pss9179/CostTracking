@@ -1,36 +1,35 @@
 # Quick Setup Guide
 
-## Environment Variables
+## Super Simple Setup
 
-The SDK needs these environment variables to work:
+**Just set your API key and it works!**
 
-### Required:
-```bash
-export LLMOBSERVE_COLLECTOR_URL=https://llmobserve-api-production-d791.up.railway.app
-```
-
-**OR** (for consistency with frontend):
-```bash
-export NEXT_PUBLIC_COLLECTOR_URL=https://llmobserve-api-production-d791.up.railway.app
-```
-
-### Optional:
 ```bash
 export LLMOBSERVE_API_KEY=your_api_key_here  # Get from dashboard
 ```
 
-## Quick Test
-
 ```python
 import llmobserve
 
-# Initialize (reads from env vars automatically)
+# That's it! Uses production collector by default
 llmobserve.observe()
+```
 
-# Or pass directly:
+**Done!** Your calls will show up in the dashboard automatically.
+
+## Optional: Custom Collector URL
+
+Only needed if you're running your own collector:
+
+```bash
+export LLMOBSERVE_COLLECTOR_URL=http://localhost:8000  # For local dev
+```
+
+Or pass it directly:
+```python
 llmobserve.observe(
-    collector_url="https://llmobserve-api-production-d791.up.railway.app",
-    api_key="your_api_key"
+    api_key="your_api_key",
+    collector_url="http://localhost:8000"  # Only if custom
 )
 ```
 
