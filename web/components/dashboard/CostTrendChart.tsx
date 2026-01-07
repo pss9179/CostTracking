@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Line,
   LineChart,
@@ -349,19 +349,33 @@ export function CostTrendChart({
     if (!data || data.length === 0) return [];
     if (effectiveMode === "total" || providers.length === 0) return data;
     
-    return data.map(d => {
+    const normalized = data.map(d => {
       if (!d) return { date: '', value: 0 }; // Safety for undefined items
-      const normalized: ChartDataPoint = { 
+      const normalizedItem: ChartDataPoint = { 
         date: d.date || '', 
         value: typeof d.value === 'number' ? d.value : 0 
       };
       // Ensure each provider key exists (default to 0 if missing)
       providers.forEach(provider => {
-        normalized[provider] = typeof d[provider] === 'number' ? d[provider] : 0;
+        normalizedItem[provider] = typeof d[provider] === 'number' ? d[provider] : 0;
       });
-      return normalized;
+      return normalizedItem;
     });
+    
+    // Final safety check - ensure all items have valid structure
+    return normalized.filter(d => d && d.date && typeof d.value === 'number');
   }, [data, providers, effectiveMode]);
+  
+  // Additional guard: don't render stacked if no valid normalized data
+  const canRenderStacked = effectiveMode === "stacked" && normalizedData.length > 0 && providers.length > 0;
+  const canRenderLines = effectiveMode === "lines" && normalizedData.length > 0 && providers.length > 0;
+  
+  // Auto-fallback to total mode if user selects stacked/lines but data isn't available
+  useEffect(() => {
+    if ((mode === "stacked" || mode === "lines") && !hasProviderData) {
+      setMode("total");
+    }
+  }, [mode, hasProviderData]);
 
   return (
     <div className={cn("relative", className)}>
@@ -392,8 +406,18 @@ export function CostTrendChart({
       </div>
 
       {/* Chart */}
+      {(effectiveMode === "stacked" && !canRenderStacked) || (effectiveMode === "lines" && !canRenderLines) ? (
+        <div 
+          className="flex items-center justify-center bg-slate-50 rounded-lg"
+          style={{ height }}
+        >
+          <p className="text-sm text-slate-400">
+            Provider breakdown data not available. Switch to "Total" view.
+          </p>
+        </div>
+      ) : (
       <ResponsiveContainer width="100%" height={height}>
-        {effectiveMode === "stacked" ? (
+        {canRenderStacked ? (
           // Stacked Area Chart
           <AreaChart data={normalizedData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
             <defs>
@@ -514,7 +538,7 @@ export function CostTrendChart({
                 />
               )}
             />
-            {effectiveMode === "lines" && hasProviderData ? (
+            {canRenderLines ? (
               // Multiple lines for each provider
               providers.map((provider) => (
                 <Line
@@ -548,6 +572,7 @@ export function CostTrendChart({
           </LineChart>
         )}
       </ResponsiveContainer>
+      )}
 
       {/* Legend */}
       <Legend providers={providers} mode={effectiveMode} />
