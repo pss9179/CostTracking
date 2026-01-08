@@ -264,7 +264,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       
       // Add timeout to getToken - 2s max (Clerk should be fast when hydrated)
       let token: string | null = null;
-      try {
+    try {
         const tokenPromise = getToken();
         const timeoutPromise = new Promise<null>((_, reject) => 
           setTimeout(() => reject(new Error('getToken timeout after 2s')), 2000)

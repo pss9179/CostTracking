@@ -349,21 +349,92 @@ async def check_caps(
     
     Called by SDK before making API calls to enforce hard blocks.
     Returns list of exceeded caps (empty if all clear).
+    
+    Supports both API keys (llmo_sk_*) and Clerk JWTs for authentication.
+    API keys NEVER expire - they only stop working if manually revoked.
     """
     import sys
+    import bcrypt
+    from models import APIKey
+    
     sys.stderr.write("[CHECK_CAPS] ========== /caps/check ENDPOINT CALLED ==========\n")
     sys.stderr.flush()
     
-    # MANUALLY call auth to support both API key and Clerk JWT
-    from auth import get_current_user as manual_auth_get_current_user
-    sys.stderr.write(f"[CHECK_CAPS] Calling manual_auth_get_current_user from {manual_auth_get_current_user.__module__}\n")
-    sys.stderr.flush()
-    
+    # Get authorization header
     authorization = request.headers.get("Authorization")
     sys.stderr.write(f"[CHECK_CAPS] Authorization header: {authorization[:50] if authorization else 'None'}...\n")
     sys.stderr.flush()
     
-    user = await manual_auth_get_current_user(request, authorization, session)
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    
+    # Extract Bearer token
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Invalid Authorization format. Expected: Bearer <token>")
+    
+    token = parts[1]
+    user = None
+    
+    # === API KEY AUTHENTICATION (tokens starting with llmo_sk_) ===
+    # API keys NEVER expire - they work forever until manually revoked
+    if token.startswith("llmo_sk_"):
+        sys.stderr.write(f"[CHECK_CAPS] Detected API key (llmo_sk_*) - validating INLINE\n")
+        sys.stderr.flush()
+        
+        # Get all non-revoked API keys and check against them
+        statement = select(APIKey).where(APIKey.revoked_at.is_(None))
+        api_keys = session.exec(statement).all()
+        sys.stderr.write(f"[CHECK_CAPS] Found {len(api_keys)} non-revoked API keys in database\n")
+        sys.stderr.flush()
+        
+        matched_key = None
+        for key in api_keys:
+            try:
+                if bcrypt.checkpw(token.encode('utf-8'), key.key_hash.encode('utf-8')):
+                    matched_key = key
+                    sys.stderr.write(f"[CHECK_CAPS] ✅ API key MATCHED! Key prefix: {key.key_prefix}\n")
+                    sys.stderr.flush()
+                    break
+            except Exception as hash_err:
+                sys.stderr.write(f"[CHECK_CAPS] Hash check error for {key.key_prefix}: {hash_err}\n")
+                continue
+        
+        if not matched_key:
+            sys.stderr.write(f"[CHECK_CAPS] ❌ API key NOT found in database\n")
+            sys.stderr.flush()
+            raise HTTPException(
+                status_code=401, 
+                detail="Invalid API key. Make sure you're using a valid key from your dashboard."
+            )
+        
+        # Update last_used_at
+        from datetime import datetime as dt
+        matched_key.last_used_at = dt.utcnow()
+        session.add(matched_key)
+        session.commit()
+        
+        # Get the user
+        user = session.get(User, matched_key.user_id)
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found for API key")
+        
+        sys.stderr.write(f"[CHECK_CAPS] ✅ API key auth SUCCESS! User: {user.email}\n")
+        sys.stderr.flush()
+    
+    # === CLERK JWT AUTHENTICATION (for browser/dashboard calls) ===
+    else:
+        sys.stderr.write(f"[CHECK_CAPS] Token doesn't start with llmo_sk_ - trying Clerk auth\n")
+        sys.stderr.flush()
+        # Fall back to Clerk auth for non-API-key tokens
+        try:
+            user = await get_current_clerk_user(request, session)
+        except HTTPException as e:
+            # Re-raise with clearer message
+            raise HTTPException(
+                status_code=401,
+                detail=f"Authentication failed. Use an API key (llmo_sk_*) or valid Clerk session."
+            )
     
     print(f"[CHECK_CAPS] check_caps function CALLED! user={user.email if user else None}", flush=True)
     sys.stderr.write(f"[CHECK_CAPS] User authenticated: {user.email if user else None}\n")
