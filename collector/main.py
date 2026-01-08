@@ -343,6 +343,9 @@ def warm_check():
     """
     Warm endpoint that touches the database.
     Use this to wake up both the Railway container AND the PostgreSQL connection pool.
+    
+    This endpoint is designed to be hit by UptimeRobot or similar services every 5 minutes
+    to prevent Railway cold starts (which can take 30+ seconds).
     """
     from db import engine
     from sqlalchemy import text
@@ -353,9 +356,19 @@ def warm_check():
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         db_time = (time.time() - start) * 1000
-        return {"status": "ok", "db_warm": True, "db_time_ms": round(db_time, 1)}
+        return {
+            "status": "ok", 
+            "db_warm": True, 
+            "db_time_ms": round(db_time, 1),
+            "message": "Container and database are warm"
+        }
     except Exception as e:
-        return {"status": "ok", "db_warm": False, "error": str(e)}
+        return {
+            "status": "degraded", 
+            "db_warm": False, 
+            "error": str(e),
+            "message": "Container is warm but database connection failed"
+        }
 
 
 # Include routers
