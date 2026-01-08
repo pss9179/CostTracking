@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Skyline Collector",
     description="Cost observability collector for LLM and API usage",
-    version="0.2.0"  # SaaS version
+    version="0.2.1"  # SaaS version - Auth fix deployment
 )
 
 # CORS middleware - configure based on environment
