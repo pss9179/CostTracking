@@ -272,6 +272,43 @@ async def on_shutdown():
         logger.info("Stopped database keepalive background service")
 
 
+# Debug endpoint to decode JWT
+@app.get("/debug/jwt-decode", tags=["debug"])
+async def debug_jwt_decode(authorization: Optional[str] = Header(None, alias="Authorization")):
+    """Decode JWT token to see what clerk_user_id it contains."""
+    import base64
+    import json
+    
+    if not authorization or not authorization.startswith("Bearer "):
+        return {"error": "No Bearer token provided"}
+    
+    token = authorization[7:]
+    try:
+        parts = token.split('.')
+        if len(parts) != 3:
+            return {"error": "Invalid JWT format"}
+        
+        payload = parts[1]
+        padding = len(payload) % 4
+        if padding:
+            payload += '=' * (4 - padding)
+        
+        decoded = base64.urlsafe_b64decode(payload)
+        token_data = json.loads(decoded)
+        
+        clerk_user_id = token_data.get("sub") or token_data.get("user_id")
+        
+        return {
+            "clerk_user_id_extracted": clerk_user_id,
+            "email": token_data.get("email"),
+            "sub": token_data.get("sub"),
+            "user_id": token_data.get("user_id"),
+            "name": token_data.get("name"),
+            "all_claims": list(token_data.keys())
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 # Health check
 @app.get("/health", tags=["health"])
 def health_check():
