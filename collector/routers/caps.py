@@ -288,10 +288,21 @@ async def check_caps(
         sys.stderr.write(f"[CHECK_CAPS] Detected API key (llmo_sk_*) - validating INLINE\n")
         sys.stderr.flush()
         
-        # Get all non-revoked API keys and check against them
-        statement = select(APIKey).where(APIKey.revoked_at.is_(None))
+        # OPTIMIZED: Extract prefix from token and query by prefix first
+        # Key format: llmo_sk_<32 char hex> - prefix is first 20 chars
+        key_prefix = token[:20]  # e.g., "llmo_sk_04f6a34b0e30"
+        sys.stderr.write(f"[CHECK_CAPS] Looking up key by prefix: {key_prefix}\n")
+        sys.stderr.flush()
+        
+        # Query only matching prefix - much faster than checking all keys!
+        statement = select(APIKey).where(
+            and_(
+                APIKey.key_prefix == key_prefix,
+                APIKey.revoked_at.is_(None)
+            )
+        )
         api_keys = session.exec(statement).all()
-        sys.stderr.write(f"[CHECK_CAPS] Found {len(api_keys)} non-revoked API keys in database\n")
+        sys.stderr.write(f"[CHECK_CAPS] Found {len(api_keys)} keys matching prefix\n")
         sys.stderr.flush()
         
         matched_key = None
@@ -307,7 +318,7 @@ async def check_caps(
                 continue
         
         if not matched_key:
-            sys.stderr.write(f"[CHECK_CAPS] ❌ API key NOT found in database\n")
+            sys.stderr.write(f"[CHECK_CAPS] ❌ API key NOT found or hash mismatch\n")
             sys.stderr.flush()
             raise HTTPException(
                 status_code=401, 

@@ -83,7 +83,7 @@ except ImportError:
     preview_instrumentation = None
     ai_auto_instrument = None
 
-__version__ = "0.3.2"  # Fix HTTP/2 timeout issue with Railway
+__version__ = "0.3.6"  # Add certifi as required dependency for SSL
 
 __all__ = [
     "observe",

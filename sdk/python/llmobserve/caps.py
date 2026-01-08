@@ -2,11 +2,13 @@
 Spending Cap Enforcement
 
 Checks hard spending caps before API calls and raises exceptions if exceeded.
+
+NOTE: This module uses urllib directly to bypass all SDK patching.
+Both httpx and requests are monkey-patched by the SDK, which can cause issues.
 """
 import logging
 import os
 from typing import Optional, Dict, Any
-import httpx
 
 from llmobserve import config
 
@@ -103,35 +105,57 @@ def check_spending_caps(
         params["agent"] = agent
     
     try:
-        # Call collector to check caps
-        # Force HTTP/1.1 to avoid HTTP/2 issues with Railway edge
-        with httpx.Client(http2=False, timeout=5.0) as client:
-            response = client.get(
-                f"{collector_url}/caps/check",
-                params=params,
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
+        # Use urllib directly to bypass all SDK patching (requests and httpx are both patched)
+        import urllib.request
+        import urllib.parse
+        import urllib.error
+        import ssl
+        import json as json_module
         
-        if response.status_code == 200:
-            result = response.json()
-            
+        # Build URL with params
+        url = f"{collector_url}/caps/check"
+        if params:
+            url = f"{url}?{urllib.parse.urlencode(params)}"
+        
+        req = urllib.request.Request(
+            url,
+            headers={"Authorization": f"Bearer {api_key}"},
+            method="GET"
+        )
+        
+        # Create SSL context with certifi certificates (if available) or default
+        ssl_context = ssl.create_default_context()
+        try:
+            import certifi
+            ssl_context.load_verify_locations(certifi.where())
+        except ImportError:
+            pass  # Use system certificates
+        
+        try:
+            # 15 second timeout - cap check can be slow due to database queries
+            with urllib.request.urlopen(req, timeout=15.0, context=ssl_context) as resp:
+                response_data = resp.read().decode('utf-8')
+                response_json = json_module.loads(response_data)
+                status_code = resp.status
+        except urllib.error.HTTPError as http_err:
+            status_code = http_err.code
+            try:
+                response_json = json_module.loads(http_err.read().decode('utf-8'))
+            except:
+                response_json = {"detail": str(http_err)}
+        
+        if status_code == 200:
             # If not allowed, raise exception
-            if not result.get("allowed", True):
-                exceeded = result.get("exceeded_caps", [])
+            if not response_json.get("allowed", True):
+                exceeded = response_json.get("exceeded_caps", [])
                 raise BudgetExceededError(
-                    f"Spending cap exceeded: {result.get('message', 'Unknown')}",
+                    f"Spending cap exceeded: {response_json.get('message', 'Unknown')}",
                     exceeded
                 )
-            
-            return result
+            return response_json
         
-        elif response.status_code == 401:
-            # Parse error detail
-            try:
-                detail = response.json().get("detail", "Invalid API key")
-            except:
-                detail = "Invalid API key"
-            
+        elif status_code == 401:
+            detail = response_json.get("detail", "Invalid API key")
             msg = f"Cap check auth failed: {detail}. Make sure LLMOBSERVE_API_KEY is a valid key from https://app.llmobserve.com"
             
             if strict:
@@ -146,10 +170,10 @@ def check_spending_caps(
                 }
         
         else:
-            msg = f"Cap check failed with HTTP {response.status_code}"
+            msg = f"Cap check failed with HTTP {status_code}"
             if strict:
                 logger.error(f"[llmobserve] {msg}")
-                raise CapCheckError(msg, status_code=response.status_code)
+                raise CapCheckError(msg, status_code=status_code)
             else:
                 logger.warning(f"[llmobserve] {msg} (failing open)")
                 return {
@@ -166,26 +190,21 @@ def check_spending_caps(
         # Re-raise cap check errors in strict mode
         raise
     
-    except httpx.TimeoutException as e:
-        msg = f"Cap check timed out: {e}"
+    except Exception as e:
+        # Handle timeout and connection errors
+        error_type = type(e).__name__
+        if "Timeout" in error_type or "timeout" in str(e).lower() or "timed out" in str(e).lower():
+            msg = f"Cap check timed out: {e}"
+        elif "Connection" in error_type or "connection" in str(e).lower():
+            msg = f"Cap check connection error: {e}"
+        else:
+            msg = f"Cap check error: {error_type}: {e}"
+        
         if strict:
             logger.error(f"[llmobserve] {msg}")
             raise CapCheckError(msg)
         else:
             logger.warning(f"[llmobserve] {msg} (failing open)")
-            return {
-                "allowed": True,
-                "exceeded_caps": [],
-                "message": f"Timeout - allowing request"
-            }
-    
-    except Exception as e:
-        msg = f"Cap check error: {type(e).__name__}: {e}"
-        if strict:
-            logger.error(f"[llmobserve] {msg}")
-            raise CapCheckError(msg)
-        else:
-            logger.debug(f"[llmobserve] {msg} (failing open)")
             return {
                 "allowed": True,
                 "exceeded_caps": [],
@@ -196,4 +215,3 @@ def check_spending_caps(
 def should_check_caps() -> bool:
     """Check if cap checking is enabled."""
     return bool(config.get_api_key() and config.get_collector_url())
-

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llmobserve-sdk"
-version = "0.3.2"
+version = "0.3.6"
 description = "Automatic cost tracking and observability for LLM applications"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -27,6 +27,7 @@ classifiers = [
 ]
 dependencies = [
     "tiktoken>=0.5.0",
+    "certifi>=2023.0.0",
 ]
 
 [project.scripts]
