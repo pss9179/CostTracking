@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlmodel import Session, select, func, and_, or_
 
 from models import (
@@ -337,11 +337,11 @@ async def list_alerts(
 
 @router.get("/check")
 async def check_caps(
+    request: Request,
     provider: Optional[str] = Query(default=None, description="Provider name (e.g., 'openai')"),
     model: Optional[str] = Query(default=None, description="Model ID (e.g., 'gpt-4o')"),
     customer_id: Optional[str] = Query(default=None, description="Customer ID"),
     agent: Optional[str] = Query(default=None, description="Agent name"),
-    user: User = Depends(auth_get_current_user),  # Support both API key and Clerk JWT - FORCE USE OF AUTH MODULE
     session: Session = Depends(get_session),
 ):
     """
@@ -350,10 +350,25 @@ async def check_caps(
     Called by SDK before making API calls to enforce hard blocks.
     Returns list of exceeded caps (empty if all clear).
     """
-    print(f"[CHECK_CAPS] check_caps function CALLED! user={user.email if user else None}", flush=True)
     import sys
-    sys.stderr.write(f"[CHECK_CAPS] check_caps function CALLED! user={user.email if user else None}\n")
+    sys.stderr.write("[CHECK_CAPS] ========== /caps/check ENDPOINT CALLED ==========\n")
     sys.stderr.flush()
+    
+    # MANUALLY call auth to support both API key and Clerk JWT
+    from auth import get_current_user as manual_auth_get_current_user
+    sys.stderr.write(f"[CHECK_CAPS] Calling manual_auth_get_current_user from {manual_auth_get_current_user.__module__}\n")
+    sys.stderr.flush()
+    
+    authorization = request.headers.get("Authorization")
+    sys.stderr.write(f"[CHECK_CAPS] Authorization header: {authorization[:50] if authorization else 'None'}...\n")
+    sys.stderr.flush()
+    
+    user = await manual_auth_get_current_user(request, authorization, session)
+    
+    print(f"[CHECK_CAPS] check_caps function CALLED! user={user.email if user else None}", flush=True)
+    sys.stderr.write(f"[CHECK_CAPS] User authenticated: {user.email if user else None}\n")
+    sys.stderr.flush()
+    
     # Get all active hard_block caps for this user
     caps = session.exec(
         select(SpendingCap).where(
