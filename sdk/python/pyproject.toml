@@ -39,5 +39,5 @@ dev = [
 
 [project.urls]
 Homepage = "https://llmobserve.com"
-Documentation = "https://docs.llmobserve.com"
-Repository = "https://github.com/yourusername/llmobserve"
+Documentation = "https://app.llmobserve.com/docs"
+Repository = "https://github.com/pss9179/CostTracking"
