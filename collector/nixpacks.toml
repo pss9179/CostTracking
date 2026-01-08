@@ -1,0 +1,9 @@
+# Force fresh build - change Python version to bust cache
+[phases.setup]
+nixPkgs = ["python311", "postgresql_16"]
+
+[phases.install]
+cmds = ["python -m pip install --upgrade pip", "pip install -r requirements.txt"]
+
+[start]
+cmd = "uvicorn main:app --host 0.0.0.0 --port $PORT"
