@@ -957,7 +957,7 @@ async def get_dashboard_all(
         print(f"[dashboard-all] CACHE HIT in {(time.time()-start_time)*1000:.0f}ms", flush=True)
         return cached
     
-    print(f"[dashboard-all] START user={str(user_id)[:8]}... clerk_id={clerk_user_id[:20] if clerk_user_id else 'None'}... hours={hours} days={days}", flush=True)
+    print(f"[dashboard-all] START user_id={user_id} clerk_user_id={clerk_user_id} email={current_user.email} hours={hours} days={days}", flush=True)
     
     cutoff_hours = datetime.utcnow() - timedelta(hours=hours)
     cutoff_days = datetime.utcnow() - timedelta(days=days)
@@ -993,6 +993,8 @@ async def get_dashboard_all(
     
     provider_results = session.exec(provider_stmt).all()
     provider_total = sum(r.total_cost or 0 for r in provider_results)
+    
+    print(f"[dashboard-all] QUERY RESULT: Found {len(provider_results)} providers, total_cost={provider_total}", flush=True)
     
     providers = [
         {
