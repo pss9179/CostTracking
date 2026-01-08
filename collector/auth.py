@@ -90,14 +90,16 @@ async def get_current_user(
     
     token = parts[1]
     
-    # Log to stderr and logger
+    # Log to stderr and logger (AUTH_VERSION_20250108_v2)
     import sys
-    sys.stderr.write(f"[AUTH] Token extracted: {token}\n")
-    sys.stderr.write(f"[AUTH] Token length: {len(token)}\n")
-    sys.stderr.write(f"[AUTH] Starts with llmo_sk_: {token.startswith('llmo_sk_')}\n")
+    sys.stderr.write(f"[AUTH v2] ========== AUTH VERSION 20250108_v2 ==========\n")
+    sys.stderr.write(f"[AUTH v2] Token extracted: {token[:40]}...\n")
+    sys.stderr.write(f"[AUTH v2] Token length: {len(token)}\n")
+    sys.stderr.write(f"[AUTH v2] Token repr first 20: {repr(token[:20])}\n")
+    sys.stderr.write(f"[AUTH v2] Starts with llmo_sk_: {token.startswith('llmo_sk_')}\n")
     sys.stderr.flush()
-    logger.error(f"[AUTH] Token received: {token[:30]}...")
-    logger.error(f"[AUTH] Starts with llmo_sk_: {token.startswith('llmo_sk_')}")
+    logger.error(f"[AUTH v2] Token received: {token[:30]}...")
+    logger.error(f"[AUTH v2] Starts with llmo_sk_: {token.startswith('llmo_sk_')}")
     
     # Check if it's an API key (starts with llmo_sk_)
     if token.startswith("llmo_sk_"):
