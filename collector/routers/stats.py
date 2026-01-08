@@ -6,8 +6,8 @@ import time
 from typing import List, Dict, Any, Optional, Tuple
 from uuid import UUID
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, Query, Header
-from sqlmodel import Session, select, func, and_
+from fastapi import APIRouter, Depends, Query, Header, HTTPException
+from sqlmodel import Session, select, func, and_, or_
 from sqlalchemy import case, or_
 from models import TraceEvent, User
 from db import get_session
@@ -275,7 +275,8 @@ async def get_costs_by_provider(
     """
     start_time = time.time()
     user_id = current_user.id
-    print(f"[by-provider] START user={str(user_id)[:8]}... hours={hours}", flush=True)
+    clerk_user_id = current_user.clerk_user_id  # Use Clerk user ID for tenant filtering
+    print(f"[by-provider] START user={str(user_id)[:8]}... clerk_user_id={clerk_user_id} hours={hours}", flush=True)
     
     # Check server-side cache first
     cache_key = make_cache_key("by-provider", str(user_id), hours=hours, tenant_id=tenant_id, customer_id=customer_id)
@@ -294,10 +295,16 @@ async def get_costs_by_provider(
         func.count(TraceEvent.id).label("call_count")
     ).where(TraceEvent.created_at >= cutoff)
     
-    # Filter by tenant_id (preferred) or user_id
-    # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
-    if tenant_id:
-        statement = statement.where(TraceEvent.tenant_id == tenant_id)
+    # CRITICAL: Filter by tenant_id (Clerk user ID) OR user_id to ensure data isolation
+    # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
+    # - user_id: Fallback for events created through other means
+    if clerk_user_id:
+        statement = statement.where(
+            or_(
+                TraceEvent.tenant_id == clerk_user_id,
+                TraceEvent.user_id == user_id
+            )
+        )
     elif user_id:
         statement = statement.where(
             and_(
@@ -360,6 +367,7 @@ async def get_costs_by_model(
     Requires Clerk authentication. Returns breakdown with total cost, call count, and percentage per model.
     """
     user_id = current_user.id
+    clerk_user_id = current_user.clerk_user_id  # Use Clerk user ID for tenant filtering
     
     # Check server-side cache first
     cache_key = make_cache_key("by-model", str(user_id), hours=hours, tenant_id=tenant_id, customer_id=customer_id)
@@ -380,10 +388,16 @@ async def get_costs_by_model(
         func.avg(TraceEvent.latency_ms).label("avg_latency")
     ).where(TraceEvent.created_at >= cutoff)
     
-    # Filter by tenant_id (preferred) or user_id
-    # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
-    if tenant_id:
-        statement = statement.where(TraceEvent.tenant_id == tenant_id)
+    # CRITICAL: Filter by tenant_id (Clerk user ID) OR user_id to ensure data isolation
+    # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
+    # - user_id: Fallback for events created through other means
+    if clerk_user_id:
+        statement = statement.where(
+            or_(
+                TraceEvent.tenant_id == clerk_user_id,
+                TraceEvent.user_id == user_id
+            )
+        )
     elif user_id:
         statement = statement.where(
             and_(
@@ -445,6 +459,7 @@ async def get_daily_costs(
     Returns costs per day with provider breakdown.
     """
     user_id = current_user.id
+    clerk_user_id = current_user.clerk_user_id  # Use Clerk user ID for tenant filtering
     
     # Check server-side cache first
     cache_key = make_cache_key("daily", str(user_id), days=days, tenant_id=tenant_id)
@@ -462,10 +477,16 @@ async def get_daily_costs(
         func.count(TraceEvent.id).label("call_count")
     ).where(TraceEvent.created_at >= cutoff)
     
-    # Filter by tenant_id (preferred) or user_id
-    # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
-    if tenant_id:
-        statement = statement.where(TraceEvent.tenant_id == tenant_id)
+    # CRITICAL: Filter by tenant_id (Clerk user ID) OR user_id to ensure data isolation
+    # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
+    # - user_id: Fallback for events created through other means
+    if clerk_user_id:
+        statement = statement.where(
+            or_(
+                TraceEvent.tenant_id == clerk_user_id,
+                TraceEvent.user_id == user_id
+            )
+        )
     elif user_id:
         statement = statement.where(
             and_(
@@ -535,6 +556,7 @@ async def get_cost_timeseries(
     If customer_id is None, shows only non-customer data (for dashboard).
     """
     user_id = current_user.id
+    clerk_user_id = current_user.clerk_user_id  # Use Clerk user ID for tenant filtering
     
     # Check server-side cache first
     cache_key = make_cache_key("timeseries", str(user_id), hours=hours, tenant_id=tenant_id, customer_id=customer_id)
@@ -569,10 +591,16 @@ async def get_cost_timeseries(
         TraceEvent.cost_usd
     ).where(TraceEvent.created_at >= cutoff)
     
-    # Filter by tenant_id (preferred) or user_id
-    # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
-    if tenant_id:
-        statement = statement.where(TraceEvent.tenant_id == tenant_id)
+    # CRITICAL: Filter by tenant_id (Clerk user ID) OR user_id to ensure data isolation
+    # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
+    # - user_id: Fallback for events created through other means
+    if clerk_user_id:
+        statement = statement.where(
+            or_(
+                TraceEvent.tenant_id == clerk_user_id,
+                TraceEvent.user_id == user_id
+            )
+        )
     elif user_id:
         statement = statement.where(
             and_(
@@ -668,6 +696,7 @@ async def get_costs_by_section(
     If customer_id is None, shows only non-customer data (for features page).
     """
     user_id = current_user.id
+    clerk_user_id = current_user.clerk_user_id  # Use Clerk user ID for tenant filtering
     
     # Check server-side cache first
     cache_key = make_cache_key("by-section", str(user_id), hours=hours, tenant_id=tenant_id, customer_id=customer_id)
@@ -686,10 +715,16 @@ async def get_costs_by_section(
         func.avg(TraceEvent.latency_ms).label("avg_latency_ms")
     ).where(TraceEvent.created_at >= cutoff)
     
-    # Filter by tenant_id (preferred) or user_id
-    # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
-    if tenant_id:
-        statement = statement.where(TraceEvent.tenant_id == tenant_id)
+    # CRITICAL: Filter by tenant_id (Clerk user ID) OR user_id to ensure data isolation
+    # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
+    # - user_id: Fallback for events created through other means
+    if clerk_user_id:
+        statement = statement.where(
+            or_(
+                TraceEvent.tenant_id == clerk_user_id,
+                TraceEvent.user_id == user_id
+            )
+        )
     elif user_id:
         statement = statement.where(
             and_(
@@ -884,19 +919,30 @@ async def get_costs_by_customer(
             func.avg(TraceEvent.latency_ms).label("avg_latency_ms")
         ).where(TraceEvent.created_at >= cutoff)
         
-        # TEMPORARY: Skip user filtering to debug - same as dashboard
-        # Filter by tenant_id (Clerk user ID) OR user_id to catch all events
+        # CRITICAL: Filter by tenant_id (Clerk user ID) OR user_id to ensure data isolation
         # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
         # - user_id: Fallback for events created through other means
-        # if clerk_user_id:
-        #     statement = statement.where(
-        #         or_(
-        #             TraceEvent.tenant_id == clerk_user_id,
-        #             TraceEvent.user_id == user_id
-        #         )
-        #     )
-        # elif user_id:
-        #     statement = statement.where(TraceEvent.user_id == user_id)
+        # Safety check: Ensure we're filtering by user
+        if not clerk_user_id and not user_id:
+            print(f"[by-customer] ERROR: No user_id or clerk_user_id - rejecting request", flush=True)
+            raise HTTPException(status_code=403, detail="Authentication required - no user context")
+        
+        print(f"[by-customer] Filtering by clerk_user_id={clerk_user_id}, user_id={user_id}", flush=True)
+        
+        if clerk_user_id:
+            statement = statement.where(
+                or_(
+                    TraceEvent.tenant_id == clerk_user_id,
+                    TraceEvent.user_id == user_id
+                )
+            )
+        elif user_id:
+            statement = statement.where(
+                and_(
+                    TraceEvent.user_id == user_id,
+                    TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+                )
+            )
         
         # Exclude "internal" provider and null customer_ids
         statement = statement.where(
@@ -961,7 +1007,28 @@ async def get_customer_detail(
     """
     try:
         user_id = current_user.id
+        clerk_user_id = current_user.clerk_user_id  # Use Clerk user ID for tenant filtering
+        
+        # Safety check: Ensure we're filtering by user
+        if not clerk_user_id and not user_id:
+            print(f"[customer/{customer_id}] ERROR: No user_id or clerk_user_id - rejecting request", flush=True)
+            raise HTTPException(status_code=403, detail="Authentication required - no user context")
+        
+        print(f"[customer/{customer_id}] Filtering by clerk_user_id={clerk_user_id}, user_id={user_id}", flush=True)
+        
         cutoff = datetime.utcnow() - timedelta(days=days)
+        
+        # Build user filter condition
+        if clerk_user_id:
+            user_filter = or_(
+                TraceEvent.tenant_id == clerk_user_id,
+                TraceEvent.user_id == user_id
+            )
+        else:
+            user_filter = and_(
+                TraceEvent.user_id == user_id,
+                TraceEvent.user_id.isnot(None)
+            )
         
         # Overall stats for this customer
         stats_stmt = (
@@ -971,7 +1038,7 @@ async def get_customer_detail(
                 func.avg(TraceEvent.latency_ms).label("avg_latency")
             )
             .where(and_(
-                TraceEvent.user_id == user_id,
+                user_filter,
                 TraceEvent.customer_id == customer_id,
                 TraceEvent.created_at >= cutoff
             ))
@@ -986,7 +1053,7 @@ async def get_customer_detail(
             func.count(TraceEvent.id).label("calls")
         )
         .where(and_(
-            TraceEvent.user_id == user_id,
+            user_filter,
             TraceEvent.customer_id == customer_id,
             TraceEvent.created_at >= cutoff,
             TraceEvent.provider != "internal"
@@ -1004,7 +1071,7 @@ async def get_customer_detail(
             func.count(TraceEvent.id).label("calls")
         )
         .where(and_(
-            TraceEvent.user_id == user_id,
+            user_filter,
             TraceEvent.customer_id == customer_id,
             TraceEvent.model.isnot(None),
             TraceEvent.created_at >= cutoff

@@ -5,12 +5,12 @@ These endpoints require authentication and only return data for the authenticate
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, Query
-from sqlmodel import Session, select, func, and_
+from fastapi import APIRouter, Depends, Query, HTTPException
+from sqlmodel import Session, select, func, and_, or_
 from uuid import UUID
 from db import get_session
 from models import TraceEvent
-from auth import get_current_user_id
+from auth import get_current_user_id, get_current_clerk_user
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -18,18 +18,28 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 @router.get("/customers", response_model=List[Dict[str, Any]])
 async def get_my_customers(
     *,
-    user_id: Optional[UUID] = None,  # Made optional for MVP
     tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
     session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user),  # REQUIRE Clerk authentication
     days: int = Query(7, ge=1, le=90, description="Number of days to look back")
 ) -> List[Dict[str, Any]]:
     """
-    Get customer breakdown.
+    Get customer breakdown for the authenticated user.
     
-    For MVP: Returns all customer data if no user_id or tenant_id provided.
+    Requires Clerk authentication. Returns only customers belonging to the authenticated user.
     Returns cost, calls, and latency per customer.
     """
     try:
+        user_id = current_user.id
+        clerk_user_id = current_user.clerk_user_id  # Use Clerk user ID for tenant filtering
+        
+        # Safety check: Ensure we're filtering by user
+        if not clerk_user_id and not user_id:
+            print(f"[dashboard/customers] ERROR: No user_id or clerk_user_id - rejecting request", flush=True)
+            raise HTTPException(status_code=403, detail="Authentication required - no user context")
+        
+        print(f"[dashboard/customers] Filtering by clerk_user_id={clerk_user_id}, user_id={user_id}", flush=True)
+        
         time_ago = datetime.utcnow() - timedelta(days=days)
         
         statement = select(
@@ -42,15 +52,28 @@ async def get_my_customers(
             TraceEvent.created_at >= time_ago
         ))
         
-        # Filter by tenant_id (preferred) or user_id
-        if tenant_id:
-            statement = statement.where(TraceEvent.tenant_id == tenant_id)
+        # CRITICAL: Filter by tenant_id (Clerk user ID) OR user_id to ensure data isolation
+        # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
+        # - user_id: Fallback for events created through other means
+        if clerk_user_id:
+            statement = statement.where(
+                or_(
+                    TraceEvent.tenant_id == clerk_user_id,
+                    TraceEvent.user_id == user_id
+                )
+            )
         elif user_id:
-            statement = statement.where(TraceEvent.user_id == user_id)
+            statement = statement.where(
+                and_(
+                    TraceEvent.user_id == user_id,
+                    TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
+                )
+            )
         
         statement = statement.group_by(TraceEvent.customer_id).order_by(func.sum(TraceEvent.cost_usd).desc())
         
         results = session.exec(statement).all()
+        print(f"[dashboard/customers] Query returned {len(results)} customers for clerk_user_id={clerk_user_id}", flush=True)
         
         return [
             {
@@ -61,6 +84,8 @@ async def get_my_customers(
             }
             for r in results
         ]
+    except HTTPException:
+        raise
     except Exception as e:
         # Log error but return empty list instead of crashing
         import logging

@@ -881,10 +881,12 @@ function CustomersPageContent() {
       // Note: Not awaiting waitForBackendWarm() - API requests wake Railway directly
       
       mark('customers-fetch');
-      console.log('[Customers] Starting fetch with token:', token ? 'present' : 'MISSING');
+      console.log('[Customers] Starting fetch with token:', token ? 'present' : 'MISSING', 'userId:', userId);
+      // Pass userId (Clerk user ID) as tenantId for explicit data isolation
+      const tenantId = userId || null;
       const [current, previous] = await Promise.all([
-        fetchCustomerStats(hours, null, token),
-        fetchCustomerStats(hours * 2, null, token),
+        fetchCustomerStats(hours, tenantId, token),
+        fetchCustomerStats(hours * 2, tenantId, token),
       ]);
       console.log('[Customers] Fetch complete:', { current: current?.length ?? 0, previous: previous?.length ?? 0 });
       measure('customers-fetch');

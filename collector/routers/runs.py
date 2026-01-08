@@ -6,7 +6,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select, func, text, and_
+from sqlmodel import Session, select, func, text, and_, or_
 from models import TraceEvent
 from db import get_session, IS_POSTGRESQL
 from auth import get_current_user_id
@@ -54,7 +54,8 @@ async def get_latest_runs(
     """
     start_time = time.time()
     user_id = current_user.id
-    print(f"[runs/latest] START user={str(user_id)[:8]}... limit={limit}", flush=True)
+    clerk_user_id = current_user.clerk_user_id  # Use Clerk user ID for tenant filtering
+    print(f"[runs/latest] START user={str(user_id)[:8]}... clerk_user_id={clerk_user_id} limit={limit}", flush=True)
     # Group by run_id and aggregate
     # Use string_agg for PostgreSQL, group_concat for SQLite
     if IS_POSTGRESQL:
@@ -70,10 +71,16 @@ async def get_latest_runs(
         sections_agg.label("sections")
     ).group_by(TraceEvent.run_id)
     
-    # Filter by tenant_id (preferred for multi-tenancy) or user_id
-    # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
-    if tenant_id:
-        statement = statement.where(TraceEvent.tenant_id == tenant_id)
+    # CRITICAL: Filter by tenant_id (Clerk user ID) OR user_id to ensure data isolation
+    # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
+    # - user_id: Fallback for events created through other means
+    if clerk_user_id:
+        statement = statement.where(
+            or_(
+                TraceEvent.tenant_id == clerk_user_id,
+                TraceEvent.user_id == user_id
+            )
+        )
     elif user_id:
         statement = statement.where(
             and_(
@@ -97,9 +104,14 @@ async def get_latest_runs(
             .where(TraceEvent.run_id == result.run_id)
             .where(TraceEvent.section_path.isnot(None))
         )
-        # Apply same tenant/user filter
-        if tenant_id:
-            section_path_statement = section_path_statement.where(TraceEvent.tenant_id == tenant_id)
+        # Apply same tenant/user filter using clerk_user_id
+        if clerk_user_id:
+            section_path_statement = section_path_statement.where(
+                or_(
+                    TraceEvent.tenant_id == clerk_user_id,
+                    TraceEvent.user_id == user_id
+                )
+            )
         elif user_id:
             section_path_statement = section_path_statement.where(
                 and_(
@@ -121,9 +133,14 @@ async def get_latest_runs(
                 select(TraceEvent.section)
                 .where(TraceEvent.run_id == result.run_id)
             )
-            # Apply same tenant/user filter
-            if tenant_id:
-                section_statement = section_statement.where(TraceEvent.tenant_id == tenant_id)
+            # Apply same tenant/user filter using clerk_user_id
+            if clerk_user_id:
+                section_statement = section_statement.where(
+                    or_(
+                        TraceEvent.tenant_id == clerk_user_id,
+                        TraceEvent.user_id == user_id
+                    )
+                )
             elif user_id:
                 section_statement = section_statement.where(
                     and_(
