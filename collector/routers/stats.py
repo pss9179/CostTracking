@@ -1015,17 +1015,17 @@ async def get_dashboard_all(
         TraceEvent.customer_id.is_(None),
         TraceEvent.model.isnot(None)
     ]
+    # TEMPORARY DEBUG: Skip user filtering (same as provider query)
     # Filter by tenant_id (Clerk user ID) OR user_id - ensures we catch all events
-    if clerk_user_id:
-        model_conditions.append(
-            or_(
-                TraceEvent.tenant_id == clerk_user_id,
-                TraceEvent.user_id == user_id
-            )
-        )
-    else:
-        # Fallback: filter by user_id if no clerk_user_id
-        model_conditions.append(TraceEvent.user_id == user_id)
+    # if clerk_user_id:
+    #     model_conditions.append(
+    #         or_(
+    #             TraceEvent.tenant_id == clerk_user_id,
+    #             TraceEvent.user_id == user_id
+    #         )
+    #     )
+    # else:
+    #     model_conditions.append(TraceEvent.user_id == user_id)
     
     model_stmt = select(
         TraceEvent.provider,
@@ -1064,17 +1064,17 @@ async def get_dashboard_all(
         TraceEvent.created_at >= cutoff_days,
         TraceEvent.customer_id.is_(None)
     ]
+    # TEMPORARY DEBUG: Skip user filtering (same as provider/model queries)
     # Filter by tenant_id (Clerk user ID) OR user_id - ensures we catch all events
-    if clerk_user_id:
-        daily_conditions.append(
-            or_(
-                TraceEvent.tenant_id == clerk_user_id,
-                TraceEvent.user_id == user_id
-            )
-        )
-    else:
-        # Fallback: filter by user_id if no clerk_user_id
-        daily_conditions.append(TraceEvent.user_id == user_id)
+    # if clerk_user_id:
+    #     daily_conditions.append(
+    #         or_(
+    #             TraceEvent.tenant_id == clerk_user_id,
+    #             TraceEvent.user_id == user_id
+    #         )
+    #     )
+    # else:
+    #     daily_conditions.append(TraceEvent.user_id == user_id)
     
     daily_stmt = select(
         date_trunc.label("date"),
