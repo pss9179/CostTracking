@@ -1,5 +1,5 @@
 {
-    "name": "llmobserve",
+    "name": "llmobserve-sdk",
   "version": "0.3.0",
   "description": "Zero-config LLM cost tracking for Node.js - automatically tracks OpenAI, Anthropic, and more",
     "main": "dist/index.js",
