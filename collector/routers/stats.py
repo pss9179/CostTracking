@@ -754,10 +754,14 @@ async def get_costs_by_customer(
         user_id = current_user.id
         clerk_user_id = current_user.clerk_user_id  # Get Clerk user ID for tenant filtering
         
+        # DEBUG: Log what we're looking for
+        print(f"[by-customer] user_id={user_id}, clerk_user_id={clerk_user_id}, hours={hours}", flush=True)
+        
         # Check server-side cache first
         cache_key = make_cache_key("by-customer", str(user_id), hours=hours, tenant_id=tenant_id)
         cached = get_cached_response(cache_key)
         if cached is not None:
+            print(f"[by-customer] Returning cached response with {len(cached)} customers", flush=True)
             return cached
         
         # Calculate time window
@@ -795,6 +799,20 @@ async def get_costs_by_customer(
         statement = statement.group_by(TraceEvent.customer_id).order_by(func.sum(TraceEvent.cost_usd).desc())
         
         results = session.exec(statement).all()
+        print(f"[by-customer] Query returned {len(results)} customers", flush=True)
+        
+        # DEBUG: Also check how many events have customer_id for this user
+        debug_stmt = select(func.count(TraceEvent.id)).where(
+            and_(
+                TraceEvent.customer_id.isnot(None),
+                or_(
+                    TraceEvent.tenant_id == clerk_user_id,
+                    TraceEvent.user_id == user_id
+                )
+            )
+        )
+        debug_count = session.exec(debug_stmt).first()
+        print(f"[by-customer] Total events with customer_id for this user: {debug_count}", flush=True)
         
         customers = [
             {
