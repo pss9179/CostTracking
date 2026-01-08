@@ -335,6 +335,12 @@ async def list_alerts(
     ]
 
 
+@router.get("/check-version")
+async def check_version():
+    """Return caps router version to verify deployment."""
+    return {"version": "caps-router-v20250108-inline-auth", "inline_auth": True}
+
+
 @router.get("/check")
 async def check_caps(
     request: Request,
@@ -357,8 +363,11 @@ async def check_caps(
     import bcrypt
     from models import APIKey
     
-    sys.stderr.write("[CHECK_CAPS] ========== /caps/check ENDPOINT CALLED ==========\n")
+    sys.stderr.write("[CHECK_CAPS] ========== /caps/check ENDPOINT v20250108 ==========\n")
     sys.stderr.flush()
+    
+    # Return version marker for verification
+    debug_version = "caps-check-v20250108"
     
     # Get authorization header
     authorization = request.headers.get("Authorization")
