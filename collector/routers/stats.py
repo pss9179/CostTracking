@@ -68,21 +68,50 @@ async def clear_cache():
 
 @router.get("/debug-user-data")
 async def debug_user_data(
-    clerk_id: str = Query(..., description="Clerk user ID to check"),
-    session: Session = Depends(get_session)
+    clerk_id: str = Query(None, description="Clerk user ID to check (optional if token provided)"),
+    session: Session = Depends(get_session),
+    authorization: Optional[str] = Header(None, alias="Authorization")
 ):
     """Debug endpoint to check what data exists for a user."""
     from sqlmodel import select, func
     from models import TraceEvent, User
     from datetime import datetime, timedelta
     from sqlalchemy import or_
+    import base64
+    import json
+    
+    token_clerk_id = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+        try:
+            parts = token.split('.')
+            if len(parts) == 3:
+                payload = parts[1]
+                padding = len(payload) % 4
+                if padding:
+                    payload += '=' * (4 - padding)
+                decoded = base64.urlsafe_b64decode(payload)
+                token_data = json.loads(decoded)
+                token_clerk_id = token_data.get("sub") or token_data.get("user_id")
+        except Exception as e:
+            token_clerk_id = f"ERROR: {str(e)}"
+    
+    # Use token clerk_id if available, otherwise use query param
+    effective_clerk_id = token_clerk_id if token_clerk_id and not token_clerk_id.startswith("ERROR") else clerk_id
+    
+    if not effective_clerk_id:
+        return {"error": "No clerk_id provided (neither in query param nor extractable from token)"}
     
     # Find the user
-    user_stmt = select(User).where(User.clerk_user_id == clerk_id)
+    user_stmt = select(User).where(User.clerk_user_id == effective_clerk_id)
     user = session.exec(user_stmt).first()
     
     if not user:
-        return {"error": f"User with clerk_id {clerk_id} not found"}
+        return {
+            "error": f"User with clerk_id {effective_clerk_id} not found",
+            "token_clerk_id": token_clerk_id,
+            "query_clerk_id": clerk_id
+        }
     
     cutoff = datetime.utcnow() - timedelta(hours=168)
     
@@ -110,7 +139,9 @@ async def debug_user_data(
             "clerk_user_id": user.clerk_user_id
         },
         "query_info": {
-            "clerk_id_used": clerk_id,
+            "clerk_id_from_token": token_clerk_id,
+            "clerk_id_from_query": clerk_id,
+            "effective_clerk_id": effective_clerk_id,
             "user_id_used": str(user.id),
             "cutoff": str(cutoff)
         },
