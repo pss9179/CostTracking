@@ -738,6 +738,57 @@ async def get_costs_by_section(
     return sections
 
 
+@router.get("/debug-customers")
+async def debug_customers(
+    hours: int = Query(720, description="Time window in hours"),
+    session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user)
+) -> Dict[str, Any]:
+    """Debug endpoint to see customer data query details."""
+    user_id = current_user.id
+    clerk_user_id = current_user.clerk_user_id
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    
+    # Count events with customer_id for this user (by tenant_id)
+    tenant_count_stmt = select(func.count(TraceEvent.id)).where(
+        and_(
+            TraceEvent.customer_id.isnot(None),
+            TraceEvent.tenant_id == clerk_user_id
+        )
+    )
+    tenant_count = session.exec(tenant_count_stmt).first() or 0
+    
+    # Count events with customer_id for this user (by user_id)
+    user_count_stmt = select(func.count(TraceEvent.id)).where(
+        and_(
+            TraceEvent.customer_id.isnot(None),
+            TraceEvent.user_id == user_id
+        )
+    )
+    user_count = session.exec(user_count_stmt).first() or 0
+    
+    # Count ALL events with customer_id
+    all_count_stmt = select(func.count(TraceEvent.id)).where(
+        TraceEvent.customer_id.isnot(None)
+    )
+    all_count = session.exec(all_count_stmt).first() or 0
+    
+    # Get sample tenant_ids from events with customer_id
+    sample_stmt = select(TraceEvent.tenant_id, TraceEvent.customer_id).where(
+        TraceEvent.customer_id.isnot(None)
+    ).limit(10)
+    samples = session.exec(sample_stmt).all()
+    
+    return {
+        "current_user_id": str(user_id),
+        "current_clerk_user_id": clerk_user_id,
+        "events_by_tenant_id": tenant_count,
+        "events_by_user_id": user_count,
+        "total_events_with_customer_id": all_count,
+        "sample_events": [{"tenant_id": s.tenant_id, "customer_id": s.customer_id} for s in samples]
+    }
+
+
 @router.get("/by-customer")
 async def get_costs_by_customer(
     hours: int = Query(720, description="Time window in hours (default 30 days)"),
