@@ -104,12 +104,13 @@ def check_spending_caps(
     
     try:
         # Call collector to check caps
-        response = httpx.get(
-            f"{collector_url}/caps/check",
-            params=params,
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=5.0,  # Increased timeout for cold starts
-        )
+        # Force HTTP/1.1 to avoid HTTP/2 issues with Railway edge
+        with httpx.Client(http2=False, timeout=5.0) as client:
+            response = client.get(
+                f"{collector_url}/caps/check",
+                params=params,
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
         
         if response.status_code == 200:
             result = response.json()
