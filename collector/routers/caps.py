@@ -235,7 +235,7 @@ async def list_alerts(
 @router.get("/check-version")
 async def check_version():
     """Return caps router version to verify deployment."""
-    return {"version": "caps-router-v20250108-inline-auth", "inline_auth": True}
+    return {"version": "caps-router-v20250108-prefix-fix", "inline_auth": True}
 
 
 @router.get("/check")
@@ -289,8 +289,8 @@ async def check_caps(
         sys.stderr.flush()
         
         # OPTIMIZED: Extract prefix from token and query by prefix first
-        # Key format: llmo_sk_<32 char hex> - prefix is first 20 chars
-        key_prefix = token[:20]  # e.g., "llmo_sk_04f6a34b0e30"
+        # Key format: llmo_sk_<hex> - prefix is stored as first 12 chars + "..."
+        key_prefix = token[:12] + "..."  # e.g., "llmo_sk_04f6..."
         sys.stderr.write(f"[CHECK_CAPS] Looking up key by prefix: {key_prefix}\n")
         sys.stderr.flush()
         
