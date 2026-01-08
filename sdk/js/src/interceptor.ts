@@ -4,6 +4,7 @@
 
 import { EventBuffer, TraceEvent } from './buffer';
 import { getContext, getCurrentAgent } from './context';
+import { checkSpendingCaps, BudgetExceededError, isCapsEnabled } from './caps';
 
 interface ObserveConfig {
   collectorUrl: string;
@@ -39,6 +40,39 @@ export function patchFetch(buffer: EventBuffer, config: ObserveConfig): void {
     // Skip collector requests to avoid infinite loops
     if (url.includes(config.collectorUrl)) {
       return originalFetch(input, init);
+    }
+
+    // Check spending caps BEFORE making the request
+    const provider = extractProviderFromUrl(url);
+    if (provider && isCapsEnabled()) {
+      const ctx = getContext();
+      const currentAgent = getCurrentAgent();
+      
+      // Extract model from request body if possible
+      let model: string | undefined;
+      try {
+        if (init?.body) {
+          const bodyStr = typeof init.body === 'string' 
+            ? init.body 
+            : init.body instanceof ArrayBuffer 
+              ? new TextDecoder().decode(init.body)
+              : null;
+          if (bodyStr) {
+            const bodyJson = JSON.parse(bodyStr);
+            model = bodyJson.model;
+          }
+        }
+      } catch {
+        // Ignore parsing errors
+      }
+
+      // This will throw BudgetExceededError if cap is exceeded
+      await checkSpendingCaps({
+        provider,
+        model,
+        customerId: ctx.customerId || undefined,
+        agent: currentAgent || undefined,
+      });
     }
 
     try {

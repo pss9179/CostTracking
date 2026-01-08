@@ -23,6 +23,11 @@
 import { EventBuffer } from './buffer';
 import { patchFetch } from './interceptor';
 import { getContext, setContext } from './context';
+import { initCaps, checkSpendingCaps, BudgetExceededError } from './caps';
+
+// Re-export caps types
+export { BudgetExceededError } from './caps';
+export type { ExceededCap, CapCheckResult } from './caps';
 
 export interface ObserveConfig {
   /** URL of the collector server (e.g., 'http://localhost:8000') */
@@ -37,6 +42,8 @@ export interface ObserveConfig {
   flushIntervalMs?: number;
   /** Enable debug logging */
   debug?: boolean;
+  /** Enable spending cap enforcement (default: true) */
+  enableCaps?: boolean;
 }
 
 function generateId(): string {
@@ -93,7 +100,16 @@ export function observe(config: ObserveConfig): void {
     customerId: config.customerId || process.env.LLMOBSERVE_CUSTOMER_ID || '',
     flushIntervalMs: config.flushIntervalMs || 500,
     debug: config.debug || false,
+    enableCaps: config.enableCaps !== false, // Default to true
   };
+
+  // Initialize spending caps (enabled by default)
+  if (finalConfig.enableCaps) {
+    initCaps(finalConfig.collectorUrl, finalConfig.apiKey);
+    if (finalConfig.debug) {
+      console.log('[llmobserve] ✅ Spending caps enabled');
+    }
+  }
 
   // Initialize context
   setContext({

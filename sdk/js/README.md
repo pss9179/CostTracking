@@ -53,6 +53,41 @@ observe({
 - **Automatic cost calculation**: Supports GPT-4, Claude, and more
 - **Multi-tenant support**: Track costs per tenant/customer
 - **Sections**: Group related calls with `section('name').run(async () => ...)`
+- **Spending Caps**: Enforce hard spending limits and block requests when exceeded
+
+## Spending Caps
+
+Caps are **enabled by default**. When a cap is exceeded, the SDK throws a `BudgetExceededError` before the API call is made:
+
+```typescript
+import { observe, BudgetExceededError } from 'llmobserve';
+
+observe({
+  collectorUrl: 'https://llmobserve-api-production-d791.up.railway.app',
+  apiKey: 'llmo_sk_xxx',
+  enableCaps: true  // Default: true
+});
+
+try {
+  const response = await openai.chat.completions.create({...});
+} catch (error) {
+  if (error instanceof BudgetExceededError) {
+    console.error('Budget exceeded!', error.exceededCaps);
+    // Handle gracefully - show user a message, etc.
+  }
+  throw error;
+}
+```
+
+### Disabling Caps
+
+```typescript
+observe({
+  collectorUrl: '...',
+  apiKey: '...',
+  enableCaps: false  // Disable cap enforcement
+});
+```
 
 ## Supported Providers
 
