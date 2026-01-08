@@ -15,7 +15,7 @@ import httpx
 
 # Test configuration
 COLLECTOR_URL = "https://llmobserve-api-production-d791.up.railway.app"
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")  # Set via: export OPENROUTER_API_KEY='sk-or-v1-xxx'
 
 # Get API key from environment or use a test key
 # You can set this via: export LLMOBSERVE_API_KEY='llmo_sk_xxx'
