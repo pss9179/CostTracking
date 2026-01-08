@@ -51,7 +51,20 @@ def make_cache_key(endpoint: str, user_id: str, **params) -> str:
     param_str = "&".join(f"{k}={v}" for k, v in sorted(params.items()) if v is not None)
     return f"{endpoint}:{user_id}:{param_str}"
 
+def clear_stats_cache():
+    """Clear all cached stats responses."""
+    global _response_cache
+    count = len(_response_cache)
+    _response_cache = {}
+    return count
+
 router = APIRouter(prefix="/stats", tags=["stats"])
+
+@router.post("/clear-cache")
+async def clear_cache():
+    """Clear the stats response cache."""
+    count = clear_stats_cache()
+    return {"status": "success", "message": f"Cleared {count} cached responses"}
 
 
 @router.get("/llms")
