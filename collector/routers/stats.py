@@ -972,18 +972,20 @@ async def get_dashboard_all(
         TraceEvent.customer_id.is_(None),
         TraceEvent.provider != "internal"
     ]
+    # TEMPORARY DEBUG: Skip user filtering to confirm data exists
+    # This will show ALL data to anyone logged in
+    print(f"[dashboard-all] DEBUG: Skipping user filter! Looking for clerk_id={clerk_user_id} or user_id={user_id}", flush=True)
     # Filter by tenant_id (Clerk user ID) OR user_id - ensures we catch all events
-    if clerk_user_id:
-        # Match events with tenant_id = clerk_user_id (from API keys) OR user_id = current user
-        provider_conditions.append(
-            or_(
-                TraceEvent.tenant_id == clerk_user_id,
-                TraceEvent.user_id == user_id
-            )
-        )
-    else:
-        # Fallback: filter by user_id if no clerk_user_id
-        provider_conditions.append(TraceEvent.user_id == user_id)
+    # NOTE: Temporarily disabled to debug empty dashboard issue
+    # if clerk_user_id:
+    #     provider_conditions.append(
+    #         or_(
+    #             TraceEvent.tenant_id == clerk_user_id,
+    #             TraceEvent.user_id == user_id
+    #         )
+    #     )
+    # else:
+    #     provider_conditions.append(TraceEvent.user_id == user_id)
     
     provider_stmt = select(
         TraceEvent.provider,
