@@ -332,35 +332,51 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       let dailyData: DailyStats[] = [];
       
       try {
-        const [runsResult, dashboardResult, timeseriesResult] = await Promise.all([
-          fetchRuns(50, null, token).catch((e) => {
+        // OPTIMIZATION: Use Promise.allSettled to prevent one failure from blocking others
+        // Also add timeout to prevent hanging on Railway cold starts
+        const API_TIMEOUT = 30000; // 30 seconds - covers Railway cold starts
+        
+        const fetchWithTimeout = <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+          return Promise.race([
+            promise,
+            new Promise<T>((_, reject) => 
+              setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
+            )
+          ]);
+        };
+        
+        const [runsResult, dashboardResult, timeseriesResult] = await Promise.allSettled([
+          fetchWithTimeout(fetchRuns(50, null, token), API_TIMEOUT).catch((e) => {
             console.error('[Dashboard] fetchRuns error:', e.message);
             return [];
           }),
-          fetchDashboardAll(hours, days, token).catch((e) => {
+          fetchWithTimeout(fetchDashboardAll(hours, days, token), API_TIMEOUT).catch((e) => {
             console.error('[Dashboard] fetchDashboardAll error:', e.message);
             fetchSucceeded = false;
             return null;
           }),
           // Fetch timeseries separately to get provider breakdown for chart
-          fetchTimeseries(hours, null, null, token).catch((e) => {
+          fetchWithTimeout(fetchTimeseries(hours, null, null, token), API_TIMEOUT).catch((e) => {
             console.error('[Dashboard] fetchTimeseries error:', e.message);
             return [];
           }),
         ]);
         
-        runsData = runsResult;
+        // Extract values from Promise.allSettled results
+        runsData = runsResult.status === 'fulfilled' ? runsResult.value : [];
+        const dashboardData = dashboardResult.status === 'fulfilled' ? dashboardResult.value : null;
+        const timeseriesDataResult = timeseriesResult.status === 'fulfilled' ? timeseriesResult.value : [];
         
-        if (dashboardResult) {
+        if (dashboardData) {
           // Map consolidated response to existing data structures
-          providersData = dashboardResult.providers.map(p => ({
+          providersData = dashboardData.providers.map(p => ({
             provider: p.provider,
             total_cost: p.total_cost,
             call_count: p.call_count,
             percentage: p.percentage,
           }));
           
-          modelsData = dashboardResult.models.map(m => ({
+          modelsData = dashboardData.models.map(m => ({
             provider: m.provider,
             model: m.model,
             total_cost: m.total_cost,
@@ -372,7 +388,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
           }));
           
           // Use consolidated daily data for aggregates
-          dailyData = dashboardResult.daily.map(d => ({
+          dailyData = dashboardData.daily.map(d => ({
             date: d.date,
             total: d.total_cost,
             providers: {}, // Aggregates don't need provider breakdown
@@ -380,9 +396,9 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
         }
         
         // Use timeseries data for chart (includes provider breakdown for stacked/by-provider modes)
-        if (timeseriesResult && timeseriesResult.length > 0) {
-          timeseriesData = timeseriesResult;
-        } else {
+        if (timeseriesDataResult && timeseriesDataResult.length > 0) {
+          timeseriesData = timeseriesDataResult;
+        } else if (dailyData && dailyData.length > 0) {
           // Fallback to daily data if timeseries failed
           timeseriesData = dailyData;
         }
@@ -419,13 +435,16 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       // E) FIX: Check mounted before setState
       if (!mountedRef.current) return false;
       
-      setRuns(runsData || []);
-      setProviderStats(providersData || []);
-      setModelStats(modelsData || []);
-      setDailyStats(timeseriesData || []);
-      setDailyAggregates(dailyData || []);
-      setPrevProviderStats(prevProvidersData);
-      setPrevDailyStats(prevDailyOnly);
+      // CRITICAL FIX: Only update state if we have new data - never clear existing data
+      // This prevents the "data disappearing" bug where state gets cleared during loading
+      // Always update if we got a response (even empty array), but never set to undefined/null
+      if (Array.isArray(runsData)) setRuns(runsData);
+      if (Array.isArray(providersData)) setProviderStats(providersData);
+      if (Array.isArray(modelsData)) setModelStats(modelsData);
+      if (Array.isArray(timeseriesData)) setDailyStats(timeseriesData);
+      if (Array.isArray(dailyData)) setDailyAggregates(dailyData);
+      if (Array.isArray(prevProvidersData)) setPrevProviderStats(prevProvidersData);
+      if (Array.isArray(prevDailyOnly)) setPrevDailyStats(prevDailyOnly);
       setLastRefresh(new Date());
       setError(null);
       
