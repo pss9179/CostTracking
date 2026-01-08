@@ -195,113 +195,10 @@ async def list_caps(
     return result
 
 
-@router.get("/{cap_id}", response_model=CapResponse)
-async def get_cap(
-    cap_id: UUID,
-    user: User = Depends(get_current_clerk_user),
-    session: Session = Depends(get_session),
-):
-    """Get a specific spending cap."""
-    cap = session.get(SpendingCap, cap_id)
-    if not cap or cap.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Cap not found")
-    
-    period_start, period_end = get_period_dates(cap.period)
-    current_spend = calculate_current_spend(
-        session, user.id, cap.cap_type, cap.target_name, period_start, period_end
-    )
-    
-    return CapResponse(
-        id=cap.id,
-        cap_type=cap.cap_type,
-        target_name=cap.target_name,
-        limit_amount=cap.limit_amount,
-        period=cap.period,
-        enforcement=cap.enforcement,
-        exceeded_at=cap.exceeded_at,
-        alert_threshold=cap.alert_threshold,
-        alert_email=cap.alert_email,
-        enabled=cap.enabled,
-        current_spend=current_spend,
-        percentage_used=(current_spend / cap.limit_amount * 100) if cap.limit_amount > 0 else 0,
-        created_at=cap.created_at,
-        updated_at=cap.updated_at,
-    )
-
-
-@router.patch("/{cap_id}", response_model=CapResponse)
-async def update_cap(
-    cap_id: UUID,
-    cap_update: CapUpdate,
-    user: User = Depends(get_current_clerk_user),
-    session: Session = Depends(get_session),
-):
-    """Update a spending cap."""
-    cap = session.get(SpendingCap, cap_id)
-    if not cap or cap.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Cap not found")
-    
-    if cap_update.limit_amount is not None:
-        cap.limit_amount = cap_update.limit_amount
-    if cap_update.alert_threshold is not None:
-        cap.alert_threshold = cap_update.alert_threshold
-    if cap_update.alert_email is not None:
-        cap.alert_email = cap_update.alert_email
-    if cap_update.enforcement is not None:
-        if cap_update.enforcement not in ["alert", "hard_block"]:
-            raise HTTPException(status_code=400, detail="Enforcement must be 'alert' or 'hard_block'")
-        cap.enforcement = cap_update.enforcement
-    if cap_update.enabled is not None:
-        cap.enabled = cap_update.enabled
-    
-    cap.updated_at = datetime.utcnow()
-    session.add(cap)
-    session.commit()
-    session.refresh(cap)
-    
-    period_start, period_end = get_period_dates(cap.period)
-    current_spend = calculate_current_spend(
-        session, user.id, cap.cap_type, cap.target_name, period_start, period_end
-    )
-    
-    logger.info(f"Updated spending cap {cap_id} for user {user.email}")
-    
-    return CapResponse(
-        id=cap.id,
-        cap_type=cap.cap_type,
-        target_name=cap.target_name,
-        limit_amount=cap.limit_amount,
-        period=cap.period,
-        enforcement=cap.enforcement,
-        exceeded_at=cap.exceeded_at,
-        alert_threshold=cap.alert_threshold,
-        alert_email=cap.alert_email,
-        enabled=cap.enabled,
-        current_spend=current_spend,
-        percentage_used=(current_spend / cap.limit_amount * 100) if cap.limit_amount > 0 else 0,
-        created_at=cap.created_at,
-        updated_at=cap.updated_at,
-    )
-
-
-@router.delete("/{cap_id}")
-async def delete_cap(
-    cap_id: UUID,
-    user: User = Depends(get_current_clerk_user),
-    session: Session = Depends(get_session),
-):
-    """Delete a spending cap."""
-    cap = session.get(SpendingCap, cap_id)
-    if not cap or cap.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Cap not found")
-    
-    session.delete(cap)
-    session.commit()
-    
-    logger.info(f"Deleted spending cap {cap_id} for user {user.email}")
-    
-    return {"status": "success", "message": "Cap deleted"}
-
+# =====================================================================
+# SPECIFIC ROUTES - These MUST come before /{cap_id} routes!
+# FastAPI matches routes in order, and /{cap_id} would catch these first.
+# =====================================================================
 
 @router.get("/alerts/", response_model=List[AlertResponse])
 async def list_alerts(
@@ -562,3 +459,116 @@ async def test_email(email: str = Query(..., description="Email address to send 
     except Exception as e:
         logger.error(f"Error sending test email: {e}")
         raise HTTPException(status_code=500, detail=f"Email test failed: {str(e)}")
+
+
+# =====================================================================
+# PARAMETERIZED ROUTES - Must be defined LAST (after all specific routes)
+# /{cap_id} would otherwise catch /alerts, /check, etc.
+# =====================================================================
+
+@router.get("/{cap_id}", response_model=CapResponse)
+async def get_cap(
+    cap_id: UUID,
+    user: User = Depends(get_current_clerk_user),
+    session: Session = Depends(get_session),
+):
+    """Get a specific spending cap."""
+    cap = session.get(SpendingCap, cap_id)
+    if not cap or cap.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Cap not found")
+    
+    period_start, period_end = get_period_dates(cap.period)
+    current_spend = calculate_current_spend(
+        session, user.id, cap.cap_type, cap.target_name, period_start, period_end
+    )
+    
+    return CapResponse(
+        id=cap.id,
+        cap_type=cap.cap_type,
+        target_name=cap.target_name,
+        limit_amount=cap.limit_amount,
+        period=cap.period,
+        enforcement=cap.enforcement,
+        exceeded_at=cap.exceeded_at,
+        alert_threshold=cap.alert_threshold,
+        alert_email=cap.alert_email,
+        enabled=cap.enabled,
+        current_spend=current_spend,
+        percentage_used=(current_spend / cap.limit_amount * 100) if cap.limit_amount > 0 else 0,
+        created_at=cap.created_at,
+        updated_at=cap.updated_at,
+    )
+
+
+@router.patch("/{cap_id}", response_model=CapResponse)
+async def update_cap(
+    cap_id: UUID,
+    cap_update: CapUpdate,
+    user: User = Depends(get_current_clerk_user),
+    session: Session = Depends(get_session),
+):
+    """Update a spending cap."""
+    cap = session.get(SpendingCap, cap_id)
+    if not cap or cap.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Cap not found")
+    
+    if cap_update.limit_amount is not None:
+        cap.limit_amount = cap_update.limit_amount
+    if cap_update.alert_threshold is not None:
+        cap.alert_threshold = cap_update.alert_threshold
+    if cap_update.alert_email is not None:
+        cap.alert_email = cap_update.alert_email
+    if cap_update.enforcement is not None:
+        if cap_update.enforcement not in ["alert", "hard_block"]:
+            raise HTTPException(status_code=400, detail="Enforcement must be 'alert' or 'hard_block'")
+        cap.enforcement = cap_update.enforcement
+    if cap_update.enabled is not None:
+        cap.enabled = cap_update.enabled
+    
+    cap.updated_at = datetime.utcnow()
+    session.add(cap)
+    session.commit()
+    session.refresh(cap)
+    
+    period_start, period_end = get_period_dates(cap.period)
+    current_spend = calculate_current_spend(
+        session, user.id, cap.cap_type, cap.target_name, period_start, period_end
+    )
+    
+    logger.info(f"Updated spending cap {cap_id} for user {user.email}")
+    
+    return CapResponse(
+        id=cap.id,
+        cap_type=cap.cap_type,
+        target_name=cap.target_name,
+        limit_amount=cap.limit_amount,
+        period=cap.period,
+        enforcement=cap.enforcement,
+        exceeded_at=cap.exceeded_at,
+        alert_threshold=cap.alert_threshold,
+        alert_email=cap.alert_email,
+        enabled=cap.enabled,
+        current_spend=current_spend,
+        percentage_used=(current_spend / cap.limit_amount * 100) if cap.limit_amount > 0 else 0,
+        created_at=cap.created_at,
+        updated_at=cap.updated_at,
+    )
+
+
+@router.delete("/{cap_id}")
+async def delete_cap(
+    cap_id: UUID,
+    user: User = Depends(get_current_clerk_user),
+    session: Session = Depends(get_session),
+):
+    """Delete a spending cap."""
+    cap = session.get(SpendingCap, cap_id)
+    if not cap or cap.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Cap not found")
+    
+    session.delete(cap)
+    session.commit()
+    
+    logger.info(f"Deleted spending cap {cap_id} for user {user.email}")
+    
+    return {"status": "success", "message": "Cap deleted"}
