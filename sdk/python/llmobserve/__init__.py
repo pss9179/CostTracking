@@ -60,7 +60,7 @@ from llmobserve.middleware import (
     django_middleware
 )
 from llmobserve.robustness import get_patch_state, validate_patch_integrity
-from llmobserve.caps import BudgetExceededError
+from llmobserve.caps import BudgetExceededError, CapCheckError
 from llmobserve.grpc_costs import configure_grpc_cost, clear_grpc_costs
 from llmobserve.static_analyzer import preview_agent_tree, analyze_code_file, analyze_code_string
 from llmobserve.multi_language_analyzer import (
@@ -83,7 +83,7 @@ except ImportError:
     preview_instrumentation = None
     ai_auto_instrument = None
 
-__version__ = "0.3.0"  # API key-based authentication
+__version__ = "0.3.1"  # Improved cap check errors + strict mode
 
 __all__ = [
     "observe",
@@ -132,6 +132,7 @@ __all__ = [
     "validate_patch_integrity",
     # Spending caps
     "BudgetExceededError",
+    "CapCheckError",
     # gRPC cost configuration
     "configure_grpc_cost",
     "clear_grpc_costs",

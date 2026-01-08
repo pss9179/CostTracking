@@ -4,6 +4,7 @@ Spending Cap Enforcement
 Checks hard spending caps before API calls and raises exceptions if exceeded.
 """
 import logging
+import os
 from typing import Optional, Dict, Any
 import httpx
 
@@ -32,11 +33,23 @@ class BudgetExceededError(Exception):
         return msg
 
 
+class CapCheckError(Exception):
+    """
+    Raised when cap check fails and strict mode is enabled.
+    
+    This allows users to handle cap check failures explicitly.
+    """
+    def __init__(self, message: str, status_code: Optional[int] = None):
+        super().__init__(message)
+        self.status_code = status_code
+
+
 def check_spending_caps(
     provider: Optional[str] = None,
     model: Optional[str] = None,
     customer_id: Optional[str] = None,
     agent: Optional[str] = None,
+    strict: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """
     Check if any hard spending caps would be exceeded.
@@ -46,23 +59,37 @@ def check_spending_caps(
         model: Model ID (e.g., 'gpt-4o')
         customer_id: Customer ID
         agent: Agent name
+        strict: If True, raise CapCheckError on auth/connection failures.
+                If False (default), fail open and allow requests.
+                Can also be set via LLMOBSERVE_STRICT_CAPS=true env var.
     
     Returns:
         Dict with 'allowed', 'exceeded_caps', and 'message' fields
     
     Raises:
         BudgetExceededError: If any hard cap is exceeded
+        CapCheckError: If strict mode is enabled and cap check fails
     """
-    # If no API key, skip cap checking (not authenticated)
+    # Determine strict mode
+    if strict is None:
+        strict = os.getenv("LLMOBSERVE_STRICT_CAPS", "").lower() in ("true", "1", "yes")
+    
+    # If no API key, handle based on strict mode
     api_key = config.get_api_key()
     collector_url = config.get_collector_url()
     
     if not api_key:
-        return {
-            "allowed": True,
-            "exceeded_caps": [],
-            "message": "No API key - caps not checked"
-        }
+        msg = "No LLMOBSERVE_API_KEY set - caps cannot be checked. Get your API key from https://app.llmobserve.com"
+        if strict:
+            logger.error(f"[llmobserve] {msg}")
+            raise CapCheckError(msg)
+        else:
+            logger.warning(f"[llmobserve] {msg}")
+            return {
+                "allowed": True,
+                "exceeded_caps": [],
+                "message": "No API key - caps not checked"
+            }
     
     # Build query params
     params = {}
@@ -81,7 +108,7 @@ def check_spending_caps(
             f"{collector_url}/caps/check",
             params=params,
             headers={"Authorization": f"Bearer {api_key}"},
-            timeout=2.0,  # Fast timeout - don't delay user requests
+            timeout=5.0,  # Increased timeout for cold starts
         )
         
         if response.status_code == 200:
@@ -98,35 +125,71 @@ def check_spending_caps(
             return result
         
         elif response.status_code == 401:
-            logger.warning("[llmobserve] Cap check failed: Invalid API key")
-            # Fail open - don't block user's API calls
-            return {
-                "allowed": True,
-                "exceeded_caps": [],
-                "message": "Auth failed - allowing request"
-            }
+            # Parse error detail
+            try:
+                detail = response.json().get("detail", "Invalid API key")
+            except:
+                detail = "Invalid API key"
+            
+            msg = f"Cap check auth failed: {detail}. Make sure LLMOBSERVE_API_KEY is a valid key from https://app.llmobserve.com"
+            
+            if strict:
+                logger.error(f"[llmobserve] {msg}")
+                raise CapCheckError(msg, status_code=401)
+            else:
+                logger.warning(f"[llmobserve] {msg} (failing open)")
+                return {
+                    "allowed": True,
+                    "exceeded_caps": [],
+                    "message": "Auth failed - allowing request (set LLMOBSERVE_STRICT_CAPS=true to block)"
+                }
         
         else:
-            logger.warning(f"[llmobserve] Cap check failed: HTTP {response.status_code}")
-            # Fail open
+            msg = f"Cap check failed with HTTP {response.status_code}"
+            if strict:
+                logger.error(f"[llmobserve] {msg}")
+                raise CapCheckError(msg, status_code=response.status_code)
+            else:
+                logger.warning(f"[llmobserve] {msg} (failing open)")
+                return {
+                    "allowed": True,
+                    "exceeded_caps": [],
+                    "message": f"Check failed - allowing request"
+                }
+    
+    except BudgetExceededError:
+        # Always re-raise budget errors
+        raise
+    
+    except CapCheckError:
+        # Re-raise cap check errors in strict mode
+        raise
+    
+    except httpx.TimeoutException as e:
+        msg = f"Cap check timed out: {e}"
+        if strict:
+            logger.error(f"[llmobserve] {msg}")
+            raise CapCheckError(msg)
+        else:
+            logger.warning(f"[llmobserve] {msg} (failing open)")
             return {
                 "allowed": True,
                 "exceeded_caps": [],
-                "message": "Check failed - allowing request"
+                "message": f"Timeout - allowing request"
             }
     
-    except BudgetExceededError:
-        # Re-raise budget errors
-        raise
-    
     except Exception as e:
-        # Fail open - don't break user's application if cap check fails
-        logger.debug(f"[llmobserve] Cap check error (fail-open): {e}")
-        return {
-            "allowed": True,
-            "exceeded_caps": [],
-            "message": f"Check error - allowing request: {e}"
-        }
+        msg = f"Cap check error: {type(e).__name__}: {e}"
+        if strict:
+            logger.error(f"[llmobserve] {msg}")
+            raise CapCheckError(msg)
+        else:
+            logger.debug(f"[llmobserve] {msg} (failing open)")
+            return {
+                "allowed": True,
+                "exceeded_caps": [],
+                "message": f"Check error - allowing request"
+            }
 
 
 def should_check_caps() -> bool:
