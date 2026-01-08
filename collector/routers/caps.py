@@ -235,7 +235,7 @@ async def list_alerts(
 @router.get("/check-version")
 async def check_version():
     """Return caps router version to verify deployment."""
-    return {"version": "caps-router-v20250108-prefix-fix", "inline_auth": True}
+    return {"version": "caps-router-v20250108-fallback", "inline_auth": True}
 
 
 @router.get("/check")
@@ -294,7 +294,7 @@ async def check_caps(
         sys.stderr.write(f"[CHECK_CAPS] Looking up key by prefix: {key_prefix}\n")
         sys.stderr.flush()
         
-        # Query only matching prefix - much faster than checking all keys!
+        # Query only matching prefix first (optimized)
         statement = select(APIKey).where(
             and_(
                 APIKey.key_prefix == key_prefix,
@@ -310,15 +310,35 @@ async def check_caps(
             try:
                 if bcrypt.checkpw(token.encode('utf-8'), key.key_hash.encode('utf-8')):
                     matched_key = key
-                    sys.stderr.write(f"[CHECK_CAPS] ✅ API key MATCHED! Key prefix: {key.key_prefix}\n")
+                    sys.stderr.write(f"[CHECK_CAPS] ✅ API key MATCHED by prefix! Key prefix: {key.key_prefix}\n")
                     sys.stderr.flush()
                     break
             except Exception as hash_err:
                 sys.stderr.write(f"[CHECK_CAPS] Hash check error for {key.key_prefix}: {hash_err}\n")
                 continue
         
+        # FALLBACK: If prefix lookup failed, check all keys (slower but reliable)
         if not matched_key:
-            sys.stderr.write(f"[CHECK_CAPS] ❌ API key NOT found or hash mismatch\n")
+            sys.stderr.write(f"[CHECK_CAPS] Prefix lookup failed, falling back to full scan\n")
+            sys.stderr.flush()
+            
+            fallback_stmt = select(APIKey).where(APIKey.revoked_at.is_(None))
+            all_keys = session.exec(fallback_stmt).all()
+            sys.stderr.write(f"[CHECK_CAPS] Checking {len(all_keys)} total keys\n")
+            sys.stderr.flush()
+            
+            for key in all_keys:
+                try:
+                    if bcrypt.checkpw(token.encode('utf-8'), key.key_hash.encode('utf-8')):
+                        matched_key = key
+                        sys.stderr.write(f"[CHECK_CAPS] ✅ API key MATCHED via fallback! Key prefix: {key.key_prefix}\n")
+                        sys.stderr.flush()
+                        break
+                except Exception as hash_err:
+                    continue
+        
+        if not matched_key:
+            sys.stderr.write(f"[CHECK_CAPS] ❌ API key NOT found in database\n")
             sys.stderr.flush()
             raise HTTPException(
                 status_code=401, 
