@@ -192,7 +192,7 @@ async def proxy_request(request: Request) -> Response:
         # Determine span type
         if is_graphql:
             span_type = "graphql_call"
-        elif provider in ["openai", "anthropic", "google", "cohere", "mistral", "groq"]:
+        elif provider in ["openai", "anthropic", "google", "cohere", "mistral", "groq", "openrouter"]:
             span_type = "llm_call"
         else:
             span_type = "api_call"

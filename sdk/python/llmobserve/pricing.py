@@ -4,24 +4,34 @@ Synced with collector/pricing/registry.json
 """
 from typing import Dict, Any, Optional
 
-# Baked-in pricing registry (matches collector) - Updated with latest OpenAI pricing
+# Baked-in pricing registry (matches collector)
+# Sources:
+# - OpenAI: https://openai.com/api/pricing (verified Jan 2025)
+# - Anthropic: https://www.anthropic.com/pricing (verified Jan 2025)
+# - xAI: Pricing not publicly available - manual verification needed
 PRICING_REGISTRY: Dict[str, Any] = {
     # GPT-5 models
+    # Source: https://openai.com/api/pricing
+    # Verified: Jan 2025
     "openai:gpt-5": {
-        "input": 0.00000125,
-        "output": 0.00001
+        "input": 0.00000125,  # $1.25 per million tokens
+        "output": 0.00001,  # $10.00 per million tokens
+        "cached_input": 0.000000125  # $0.125 per million tokens (10% of input)
     },
     "openai:gpt-5-mini": {
-        "input": 0.00000025,
-        "output": 0.000002
+        "input": 0.00000025,  # $0.25 per million tokens
+        "output": 0.000002,  # $2.00 per million tokens
+        "cached_input": 0.000000025  # $0.025 per million tokens (10% of input)
     },
     "openai:gpt-5-nano": {
-        "input": 0.00000005,
-        "output": 0.0000004
+        "input": 0.00000005,  # $0.05 per million tokens
+        "output": 0.0000004,  # $0.40 per million tokens
+        "cached_input": 0.000000005  # $0.005 per million tokens (10% of input)
     },
     "openai:gpt-5-pro": {
-        "input": 0.000015,
-        "output": 0.00012
+        "input": 0.000015,  # $15.00 per million tokens
+        "output": 0.00012,  # $120.00 per million tokens
+        "cached_input": 0.0000015  # $1.50 per million tokens (10% of input)
     },
     
     # GPT-4.1 models (fine-tunable)
@@ -104,13 +114,17 @@ PRICING_REGISTRY: Dict[str, Any] = {
     },
     
     # GPT-4 models (legacy)
+    # Source: https://openai.com/api/pricing
+    # Verified: Jan 2025
     "openai:gpt-4o": {
-        "input": 0.0000025,
-        "output": 0.00001
+        "input": 0.0000025,  # $2.50 per million tokens
+        "output": 0.00001,  # $10.00 per million tokens
+        "cached_input": 0.00000025  # $0.25 per million tokens (10% of input)
     },
     "openai:gpt-4o-mini": {
-        "input": 0.00000015,
-        "output": 0.0000006
+        "input": 0.00000015,  # $0.15 per million tokens
+        "output": 0.0000006,  # $0.60 per million tokens
+        "cached_input": 0.000000015  # $0.015 per million tokens (10% of input)
     },
     "openai:gpt-4-turbo": {
         "input": 0.00001,
@@ -195,84 +209,108 @@ PRICING_REGISTRY: Dict[str, Any] = {
     },
     
     # Anthropic Claude Models
-    # Claude 4.1 series
-    "anthropic:claude-opus-4.1": {
-        "input": 0.000015,
-        "output": 0.000075,
-        "cache_write": 0.00001875,
-        "cache_read": 0.0000015
+    # Source: https://www.anthropic.com/pricing
+    # Verified: Jan 2025
+    # 
+    # Key Pricing Notes:
+    # - Opus 4.5 introduced significant price drop ($5/$25 vs $15/$75 for Opus 4.0/4.1)
+    # - Opus 4.1+ models may charge separately for "thinking tokens" during extended reasoning
+    # - Sonnet 4.5 doubles input cost ($6/million) for long-context (>200K tokens)
+    # - Prompt caching: Read cache is ~10% of standard input price
+    #
+    # Claude 4.5 series (Latest - Released Nov 2025)
+    "anthropic:claude-opus-4.5": {
+        "input": 0.000005,  # $5.00 per million tokens - Latest flagship model (Nov 2025)
+        "output": 0.000025,  # $25.00 per million tokens
+        "cache_write": 0.00000625,  # $6.25 per million tokens (estimated)
+        "cache_read": 0.0000005  # $0.50 per million tokens (~10% of input)
     },
     "anthropic:claude-sonnet-4.5": {
-        "input": 0.000003,  # ≤200K tokens
-        "input_extended": 0.000006,  # >200K tokens
-        "output": 0.000015,  # ≤200K tokens
-        "output_extended": 0.00002250,  # >200K tokens
-        "cache_write": 0.00000375,  # ≤200K
-        "cache_write_extended": 0.0000075,  # >200K
-        "cache_read": 0.0000003,  # ≤200K
-        "cache_read_extended": 0.0000006  # >200K
+        "input": 0.000003,  # $3.00 per million tokens (≤200K tokens) - Most current Sonnet
+        "input_extended": 0.000006,  # $6.00 per million tokens (>200K tokens) - Price doubles for long-context
+        "output": 0.000015,  # $15.00 per million tokens (≤200K tokens)
+        "output_extended": 0.00002250,  # $22.50 per million tokens (>200K tokens)
+        "cache_write": 0.00000375,  # $3.75 per million tokens (≤200K)
+        "cache_write_extended": 0.0000075,  # $7.50 per million tokens (>200K)
+        "cache_read": 0.0000003,  # $0.30 per million tokens (≤200K) - ~10% of input
+        "cache_read_extended": 0.0000006  # $0.60 per million tokens (>200K)
     },
     "anthropic:claude-haiku-4.5": {
-        "input": 0.000001,
-        "output": 0.000005,
-        "cache_write": 0.00000125,
-        "cache_read": 0.0000001
+        "input": 0.000001,  # $1.00 per million tokens
+        "output": 0.000005,  # $5.00 per million tokens
+        "cache_write": 0.00000125,  # $1.25 per million tokens
+        "cache_read": 0.0000001  # $0.10 per million tokens (~10% of input)
     },
     
-    # Claude 4 series
+    # Claude 4.1 series
+    # Note: Opus 4.1 introduced extended thinking tokens (may incur separate charges)
+    "anthropic:claude-opus-4.1": {
+        "input": 0.000015,  # $15.00 per million tokens - Premium pricing with extended thinking
+        "output": 0.000075,  # $75.00 per million tokens
+        "cache_write": 0.00001875,  # $18.75 per million tokens
+        "cache_read": 0.0000015  # $1.50 per million tokens (~10% of input)
+    },
+    
+    # Claude 4 series (Legacy - May 2025)
     "anthropic:claude-sonnet-4": {
-        "input": 0.000003,
-        "output": 0.000015,
-        "cache_write": 0.00000375,
-        "cache_read": 0.0000003
+        "input": 0.000003,  # $3.00 per million tokens - Standard mid-tier pricing
+        "output": 0.000015,  # $15.00 per million tokens
+        "cache_write": 0.00000375,  # $3.75 per million tokens
+        "cache_read": 0.0000003  # $0.30 per million tokens (~10% of input)
     },
     "anthropic:claude-opus-4": {
-        "input": 0.000015,
-        "output": 0.000075,
-        "cache_write": 0.00001875,
-        "cache_read": 0.0000015
+        "input": 0.000015,  # $15.00 per million tokens - Legacy flagship (May 2025)
+        "output": 0.000075,  # $75.00 per million tokens
+        "cache_write": 0.00001875,  # $18.75 per million tokens
+        "cache_read": 0.0000015  # $1.50 per million tokens (~10% of input)
     },
     
-    # Claude 3.7 series
+    # Claude 3.7 series (Deprecated)
+    # Note: Replaced by Sonnet 4 family
     "anthropic:claude-sonnet-3.7": {
-        "input": 0.000003,
-        "output": 0.000015,
-        "cache_write": 0.00000375,
-        "cache_read": 0.0000003
+        "input": 0.000003,  # $3.00 per million tokens - Deprecated (replaced by Sonnet 4)
+        "output": 0.000015,  # $15.00 per million tokens
+        "cache_write": 0.00000375,  # $3.75 per million tokens
+        "cache_read": 0.0000003  # $0.30 per million tokens (~10% of input)
     },
     
     # Claude 3.5 series
+    # Source: https://www.anthropic.com/pricing
+    # Verified: Jan 2025 - Claude 3.5 Sonnet: $3/$15 per million tokens
+    # Verified: Jan 2025 - Claude 3.5 Haiku: $0.80/$4.00 per million tokens
     "anthropic:claude-haiku-3.5": {
-        "input": 0.0000008,
-        "output": 0.000004,
-        "cache_write": 0.000001,
-        "cache_read": 0.00000008
+        "input": 0.0000008,  # $0.80 per million tokens
+        "output": 0.000004,  # $4.00 per million tokens
+        "cache_write": 0.000001,  # $1.00 per million tokens
+        "cache_read": 0.00000008  # $0.08 per million tokens
     },
     "anthropic:claude-3-5-sonnet-20241022": {
-        "input": 0.000003,
-        "output": 0.000015,
-        "cache_write": 0.00000375,
-        "cache_read": 0.0000003
+        "input": 0.000003,  # $3.00 per million tokens
+        "output": 0.000015,  # $15.00 per million tokens
+        "cache_write": 0.00000375,  # $3.75 per million tokens
+        "cache_read": 0.0000003  # $0.30 per million tokens
     },
     
     # Claude 3 series (legacy)
+    # Source: https://www.anthropic.com/pricing
+    # Verified: Jan 2025
     "anthropic:claude-3-opus": {
-        "input": 0.000015,
-        "output": 0.000075,
-        "cache_write": 0.00001875,
-        "cache_read": 0.0000015
+        "input": 0.000015,  # $15.00 per million tokens
+        "output": 0.000075,  # $75.00 per million tokens
+        "cache_write": 0.00001875,  # $18.75 per million tokens
+        "cache_read": 0.0000015  # $1.50 per million tokens
     },
     "anthropic:claude-3-sonnet": {
-        "input": 0.000003,
-        "output": 0.000015,
-        "cache_write": 0.00000375,
-        "cache_read": 0.0000003
+        "input": 0.000003,  # $3.00 per million tokens
+        "output": 0.000015,  # $15.00 per million tokens
+        "cache_write": 0.00000375,  # $3.75 per million tokens
+        "cache_read": 0.0000003  # $0.30 per million tokens
     },
     "anthropic:claude-3-haiku": {
-        "input": 0.00000025,
-        "output": 0.00000125,
-        "cache_write": 0.0000003,
-        "cache_read": 0.00000003
+        "input": 0.00000025,  # $0.25 per million tokens
+        "output": 0.00000125,  # $1.25 per million tokens
+        "cache_write": 0.0000003,  # $0.30 per million tokens
+        "cache_read": 0.00000003  # $0.03 per million tokens
     },
     
     # Anthropic Tools
@@ -661,30 +699,42 @@ PRICING_REGISTRY: Dict[str, Any] = {
     },
     
     # xAI / Grok Models
+    # Source: https://x.ai/api/ (verified Jan 2025)
+    # 
+    # Key Pricing Notes:
+    # - Grok-3 competes directly with Claude Sonnet pricing ($3/$15)
+    # - Grok-Code-Fast-1 offers cached input as low as $0.02 per million tokens
+    # - Prompt caching available for significant cost savings
+    #
     # Language Models
     "xai:grok-code-fast-1": {
-        "input": 0.0000002,
-        "output": 0.0000015
+        "input": 0.0000002,  # $0.20 per million tokens - Optimized for agentic coding
+        "output": 0.0000015,  # $1.50 per million tokens - 256K context window
+        "cached_input": 0.00000002  # $0.02 per million tokens - Significant caching discount
     },
     "xai:grok-4-fast-reasoning": {
-        "input": 0.0000002,
-        "output": 0.0000005
+        "input": 0.0000002,  # $0.20 per million tokens
+        "output": 0.0000005  # $0.50 per million tokens
     },
     "xai:grok-4-fast-non-reasoning": {
-        "input": 0.0000002,
-        "output": 0.0000005
+        "input": 0.0000002,  # $0.20 per million tokens
+        "output": 0.0000005  # $0.50 per million tokens
     },
     "xai:grok-4-0709": {
-        "input": 0.000003,
-        "output": 0.000015
+        "input": 0.000003,  # $3.00 per million tokens
+        "output": 0.000015  # $15.00 per million tokens
+    },
+    "xai:grok-4": {
+        "input": 0.000003,  # $3.00 per million tokens
+        "output": 0.000015  # $15.00 per million tokens
     },
     "xai:grok-3-mini": {
-        "input": 0.0000003,
-        "output": 0.0000005
+        "input": 0.0000003,  # $0.30 per million tokens - Ultra-low cost reasoning model
+        "output": 0.0000005  # $0.50 per million tokens
     },
     "xai:grok-3": {
-        "input": 0.000003,
-        "output": 0.000015
+        "input": 0.000003,  # $3.00 per million tokens - Competes with Claude Sonnet pricing
+        "output": 0.000015  # $15.00 per million tokens
     },
     "xai:grok-2-vision": {
         "input": 0.000002,

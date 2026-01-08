@@ -84,7 +84,7 @@ def calculate_cost(provider: str, usage: Dict[str, Any], endpoint: Optional[str]
     Calculate cost from usage data.
     
     Args:
-        provider: Provider name (e.g., "openai", "anthropic", "unknown")
+        provider: Provider name (e.g., "openai", "anthropic", "unknown", "openrouter")
         usage: Usage data dict with keys like model, input_tokens, output_tokens, etc.
         endpoint: Optional endpoint name (e.g., "charges.create", "messages.create")
     
@@ -93,8 +93,33 @@ def calculate_cost(provider: str, usage: Dict[str, Any], endpoint: Optional[str]
     """
     model = usage.get("model")
     
+    # For OpenRouter, extract the actual provider from model name
+    # OpenRouter models are in format "provider/model-name" (e.g., "openai/gpt-4o")
+    actual_provider = provider
+    if provider == "openrouter" and model:
+        # Extract provider from model name (e.g., "openai/gpt-4o" -> "openai")
+        if "/" in model:
+            actual_provider = model.split("/", 1)[0]
+            # Normalize provider names
+            provider_map = {
+                "openai": "openai",
+                "anthropic": "anthropic",
+                "google": "google",
+                "cohere": "cohere",
+                "mistral": "mistral",
+                "groq": "groq",
+                "xai": "xai",
+                "meta": "meta",
+                "meta-llama": "meta",
+                "perplexity": "perplexity",
+                "together": "together",
+                "deepseek": "deepseek",
+                "01-ai": "01-ai",
+            }
+            actual_provider = provider_map.get(actual_provider.lower(), actual_provider.lower())
+    
     # Get tenant tier if available
-    tenant_tier = get_tenant_tier(tenant_id, provider) if tenant_id else None
+    tenant_tier = get_tenant_tier(tenant_id, actual_provider) if tenant_id else None
     
     # Try pricing lookup in order:
     # 1. provider:model:tier (tier-specific model pricing)
@@ -107,39 +132,42 @@ def calculate_cost(provider: str, usage: Dict[str, Any], endpoint: Optional[str]
     pricing_key = None
     pricing = None
     
+    # Use actual_provider for pricing lookup (not "openrouter")
+    pricing_provider = actual_provider
+    
     # Try tier-specific pricing first
     if tenant_tier:
         if model:
-            pricing_key = f"{provider}:{model}:{tenant_tier}"
+            pricing_key = f"{pricing_provider}:{model}:{tenant_tier}"
             if pricing_key in PRICING_REGISTRY:
                 pricing = PRICING_REGISTRY[pricing_key]
         
         if not pricing and endpoint:
-            pricing_key = f"{provider}:{endpoint}:{tenant_tier}"
+            pricing_key = f"{pricing_provider}:{endpoint}:{tenant_tier}"
             if pricing_key in PRICING_REGISTRY:
                 pricing = PRICING_REGISTRY[pricing_key]
         
         if not pricing:
-            pricing_key = f"{provider}:{tenant_tier}"
+            pricing_key = f"{pricing_provider}:{tenant_tier}"
             if pricing_key in PRICING_REGISTRY:
                 pricing = PRICING_REGISTRY[pricing_key]
     
     # Fall back to non-tier-specific pricing
     if not pricing:
         if model:
-            pricing_key = f"{provider}:{model}"
+            pricing_key = f"{pricing_provider}:{model}"
             if pricing_key in PRICING_REGISTRY:
                 pricing = PRICING_REGISTRY[pricing_key]
         
         # If no model or model-based pricing not found, try endpoint-based
         if not pricing and endpoint:
-            pricing_key = f"{provider}:{endpoint}"
+            pricing_key = f"{pricing_provider}:{endpoint}"
             if pricing_key in PRICING_REGISTRY:
                 pricing = PRICING_REGISTRY[pricing_key]
         
         # Fallback to provider-level pricing
         if not pricing:
-            pricing_key = provider
+            pricing_key = pricing_provider
             if pricing_key in PRICING_REGISTRY:
                 pricing = PRICING_REGISTRY[pricing_key]
     

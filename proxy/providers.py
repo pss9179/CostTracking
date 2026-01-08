@@ -219,11 +219,18 @@ def parse_usage(provider: str, response_body: Dict[str, Any], request_body: Dict
             usage["output_tokens"] = usage_data.get("completion_tokens", 0)
         
         elif provider == "openrouter":
-            # OpenRouter uses OpenAI-compatible API format
-            usage["model"] = response_body.get("model")
+            # OpenRouter uses OpenAI-compatible format
+            # Model name is in response.model, format: "provider/model-name" (e.g., "openai/gpt-4o")
+            model_name = response_body.get("model", "")
+            usage["model"] = model_name  # Keep full name like "openai/gpt-4o"
+            
+            # Use OpenAI format for usage
             usage_data = response_body.get("usage", {})
             usage["input_tokens"] = usage_data.get("prompt_tokens", 0)
             usage["output_tokens"] = usage_data.get("completion_tokens", 0)
+            usage["cached_tokens"] = usage_data.get("prompt_tokens_details", {}).get("cached_tokens", 0)
+            # Subtract cached tokens from input tokens
+            usage["input_tokens"] = usage["input_tokens"] - usage["cached_tokens"]
             # OpenRouter also provides cost in response
             if "cost" in response_body:
                 usage["cost_usd"] = response_body.get("cost")
