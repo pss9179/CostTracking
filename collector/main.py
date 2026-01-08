@@ -3,7 +3,8 @@ FastAPI main application for Skyline Collector.
 """
 import asyncio
 import logging
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Header
+from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
