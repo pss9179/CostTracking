@@ -3,7 +3,7 @@ requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "llmobserve"
+name = "llmobserve-sdk"
 version = "0.3.0"
 description = "Automatic cost tracking and observability for LLM applications"
 readme = "README.md"
@@ -29,6 +29,9 @@ dependencies = [
     "tiktoken>=0.5.0",
 ]
 
+[project.scripts]
+llmobserve = "llmobserve.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
@@ -41,3 +44,6 @@ dev = [
 Homepage = "https://llmobserve.com"
 Documentation = "https://app.llmobserve.com/docs"
 Repository = "https://github.com/pss9179/CostTracking"
+
+[tool.setuptools]
+packages = ["llmobserve", "llmobserve.instrumentation", "llmobserve.llm_wrappers"]
