@@ -313,7 +313,7 @@ async def debug_jwt_decode(authorization: Optional[str] = Header(None, alias="Au
 @app.get("/health", tags=["health"])
 def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "service": "llmobserve-collector", "version": "0.3.3-debug-user-filter"}
+    return {"status": "ok", "service": "llmobserve-collector", "version": "0.3.4-fix-dashboard"}
 
 @app.get("/debug/auth-test", tags=["debug"])
 async def debug_auth_test(request: Request):
