@@ -181,11 +181,37 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 # Background task for cap monitoring
 cap_monitor_task = None
+db_keepalive_task = None
+
+async def db_keepalive_loop():
+    """Periodically ping the database to keep connections warm."""
+    from db import engine
+    from sqlalchemy import text
+    import time
+    
+    while True:
+        try:
+            await asyncio.sleep(60)  # Ping every 60 seconds
+            start = time.time()
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            elapsed = (time.time() - start) * 1000
+            logger.debug(f"[DB Keepalive] Ping completed in {elapsed:.0f}ms")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.warning(f"[DB Keepalive] Ping failed: {e}")
 
 # Initialize database on startup
 @app.on_event("startup")
 async def on_startup():
     """Initialize database tables and start background services."""
+    import time
+    from db import engine
+    from sqlalchemy import text
+    
+    startup_start = time.time()
+    
     try:
         init_db()
         run_migrations()
@@ -195,6 +221,16 @@ async def on_startup():
         # Don't crash the app - it might connect later
         # Healthcheck will still work
     
+    # Warm the database connection pool
+    try:
+        db_start = time.time()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        db_elapsed = (time.time() - db_start) * 1000
+        logger.info(f"Database connection warmed in {db_elapsed:.0f}ms")
+    except Exception as e:
+        logger.warning(f"Database warm-up failed: {e}")
+    
     # Start cap monitor in background
     try:
         global cap_monitor_task
@@ -202,11 +238,23 @@ async def on_startup():
         logger.info("Started cap monitor background service")
     except Exception as e:
         logger.error(f"Failed to start cap monitor: {e}", exc_info=True)
+    
+    # Start database keepalive in background
+    try:
+        global db_keepalive_task
+        db_keepalive_task = asyncio.create_task(db_keepalive_loop())
+        logger.info("Started database keepalive background service")
+    except Exception as e:
+        logger.error(f"Failed to start db keepalive: {e}", exc_info=True)
+    
+    total_startup = (time.time() - startup_start) * 1000
+    logger.info(f"Startup complete in {total_startup:.0f}ms")
 
 @app.on_event("shutdown")
 async def on_shutdown():
     """Cleanup background services."""
-    global cap_monitor_task
+    global cap_monitor_task, db_keepalive_task
+    
     if cap_monitor_task:
         cap_monitor_task.cancel()
         try:
@@ -214,6 +262,14 @@ async def on_shutdown():
         except asyncio.CancelledError:
             pass
         logger.info("Stopped cap monitor background service")
+    
+    if db_keepalive_task:
+        db_keepalive_task.cancel()
+        try:
+            await db_keepalive_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Stopped database keepalive background service")
 
 
 # Health check
