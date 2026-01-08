@@ -884,18 +884,19 @@ async def get_costs_by_customer(
             func.avg(TraceEvent.latency_ms).label("avg_latency_ms")
         ).where(TraceEvent.created_at >= cutoff)
         
+        # TEMPORARY: Skip user filtering to debug - same as dashboard
         # Filter by tenant_id (Clerk user ID) OR user_id to catch all events
         # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
         # - user_id: Fallback for events created through other means
-        if clerk_user_id:
-            statement = statement.where(
-                or_(
-                    TraceEvent.tenant_id == clerk_user_id,
-                    TraceEvent.user_id == user_id
-                )
-            )
-        elif user_id:
-            statement = statement.where(TraceEvent.user_id == user_id)
+        # if clerk_user_id:
+        #     statement = statement.where(
+        #         or_(
+        #             TraceEvent.tenant_id == clerk_user_id,
+        #             TraceEvent.user_id == user_id
+        #         )
+        #     )
+        # elif user_id:
+        #     statement = statement.where(TraceEvent.user_id == user_id)
         
         # Exclude "internal" provider and null customer_ids
         statement = statement.where(
