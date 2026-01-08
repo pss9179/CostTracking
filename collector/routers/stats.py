@@ -738,6 +738,37 @@ async def get_costs_by_section(
     return sections
 
 
+@router.get("/debug-by-customer-auth")
+async def debug_by_customer_auth(
+    session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user)
+) -> Dict[str, Any]:
+    """Debug: what user does by-customer see from Clerk auth?"""
+    user_id = current_user.id
+    clerk_user_id = current_user.clerk_user_id
+    
+    # Count matching events
+    cutoff = datetime.utcnow() - timedelta(hours=720)
+    count_stmt = select(func.count(TraceEvent.id)).where(
+        and_(
+            TraceEvent.customer_id.isnot(None),
+            TraceEvent.created_at >= cutoff,
+            or_(
+                TraceEvent.tenant_id == clerk_user_id,
+                TraceEvent.user_id == user_id
+            )
+        )
+    )
+    count = session.exec(count_stmt).first() or 0
+    
+    return {
+        "auth_user_id": str(user_id),
+        "auth_clerk_user_id": clerk_user_id,
+        "auth_email": current_user.email,
+        "matching_events_with_customer_id": count
+    }
+
+
 @router.get("/debug-customers")
 async def debug_customers(
     hours: int = Query(720, description="Time window in hours"),
