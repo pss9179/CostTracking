@@ -752,6 +752,7 @@ async def get_costs_by_customer(
     """
     try:
         user_id = current_user.id
+        clerk_user_id = current_user.clerk_user_id  # Get Clerk user ID for tenant filtering
         
         # Check server-side cache first
         cache_key = make_cache_key("by-customer", str(user_id), hours=hours, tenant_id=tenant_id)
@@ -770,17 +771,18 @@ async def get_costs_by_customer(
             func.avg(TraceEvent.latency_ms).label("avg_latency_ms")
         ).where(TraceEvent.created_at >= cutoff)
         
-        # Filter by tenant_id (preferred) or user_id
-        # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
-        if tenant_id:
-            statement = statement.where(TraceEvent.tenant_id == tenant_id)
-        elif user_id:
+        # Filter by tenant_id (Clerk user ID) OR user_id to catch all events
+        # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
+        # - user_id: Fallback for events created through other means
+        if clerk_user_id:
             statement = statement.where(
-                and_(
-                    TraceEvent.user_id == user_id,
-                    TraceEvent.user_id.isnot(None)
+                or_(
+                    TraceEvent.tenant_id == clerk_user_id,
+                    TraceEvent.user_id == user_id
                 )
             )
+        elif user_id:
+            statement = statement.where(TraceEvent.user_id == user_id)
         
         # Exclude "internal" provider and null customer_ids
         statement = statement.where(
