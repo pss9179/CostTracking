@@ -66,6 +66,61 @@ async def clear_cache():
     count = clear_stats_cache()
     return {"status": "success", "message": f"Cleared {count} cached responses"}
 
+@router.get("/debug-user-data")
+async def debug_user_data(
+    clerk_id: str = Query(..., description="Clerk user ID to check"),
+    session: Session = Depends(get_session)
+):
+    """Debug endpoint to check what data exists for a user."""
+    from sqlmodel import select, func
+    from models import TraceEvent, User
+    from datetime import datetime, timedelta
+    from sqlalchemy import or_
+    
+    # Find the user
+    user_stmt = select(User).where(User.clerk_user_id == clerk_id)
+    user = session.exec(user_stmt).first()
+    
+    if not user:
+        return {"error": f"User with clerk_id {clerk_id} not found"}
+    
+    cutoff = datetime.utcnow() - timedelta(hours=168)
+    
+    # Count events
+    event_stmt = select(
+        TraceEvent.provider,
+        func.count(TraceEvent.id).label("count"),
+        func.sum(TraceEvent.cost_usd).label("cost")
+    ).where(
+        TraceEvent.created_at >= cutoff,
+        TraceEvent.customer_id.is_(None),
+        TraceEvent.provider != "internal",
+        or_(
+            TraceEvent.tenant_id == clerk_id,
+            TraceEvent.user_id == user.id
+        )
+    ).group_by(TraceEvent.provider)
+    
+    results = session.exec(event_stmt).all()
+    
+    return {
+        "user": {
+            "id": str(user.id),
+            "email": user.email,
+            "clerk_user_id": user.clerk_user_id
+        },
+        "query_info": {
+            "clerk_id_used": clerk_id,
+            "user_id_used": str(user.id),
+            "cutoff": str(cutoff)
+        },
+        "providers": [
+            {"provider": r.provider, "count": r.count, "cost": float(r.cost or 0)}
+            for r in results
+        ],
+        "total_providers": len(results)
+    }
+
 
 @router.get("/llms")
 async def get_llm_stats(
