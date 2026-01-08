@@ -19,40 +19,68 @@ export default function CustomersPage() {
       category="Labeling & organization"
       toc={toc}
     >
-      <h2 id="why-track-customers">Why track by customer?</h2>
+      <h2 id="why-track-customers">How customer tracking works</h2>
 
       <p>
-        If you're building a SaaS product that uses LLMs, tracking costs per customer helps you:
+        <strong>You're building a SaaS that uses LLMs.</strong> Your customers (people who bought your SaaS) 
+        make API calls through your app. You want to know: <em>"Which of my customers is costing me the most?"</em>
+      </p>
+
+      <p>
+        That's what <code>customer_id</code> does. When you set it, every LLM API call gets tagged with that 
+        customer's ID. Then in your dashboard, you can see:
       </p>
 
       <ul>
-        <li><strong>Understand profitability</strong> — Know which customers cost more than they pay</li>
-        <li><strong>Set fair pricing</strong> — Base pricing on actual usage patterns</li>
-        <li><strong>Enforce limits</strong> — Set per-customer spending caps</li>
-        <li><strong>Identify abuse</strong> — Spot customers with unusually high usage</li>
+        <li><strong>Cost per customer</strong> — "Customer A spent $50, Customer B spent $200"</li>
+        <li><strong>Profitability</strong> — "Customer B pays $10/month but costs me $200 in API calls"</li>
+        <li><strong>Usage patterns</strong> — "Which customers use expensive models vs cheap ones"</li>
+        <li><strong>Set limits</strong> — "Block Customer B from spending more than $100/month"</li>
       </ul>
 
+      <Callout type="info" title="Real example">
+        <p className="mb-2">
+          <strong>Your SaaS:</strong> A chatbot app where users pay $20/month
+        </p>
+        <p className="mb-2">
+          <strong>Your customers:</strong> Alice (user_123), Bob (user_456), Charlie (user_789)
+        </p>
+        <p>
+          <strong>What you see in dashboard:</strong>
+        </p>
+        <ul className="list-disc ml-6 mt-2">
+          <li>user_123: $5.00 (25 calls) — Profitable ✅</li>
+          <li>user_456: $150.00 (500 calls) — Losing money ❌</li>
+          <li>user_789: $12.00 (60 calls) — Profitable ✅</li>
+        </ul>
+        <p className="mt-2">
+          Now you know: Bob is abusing your service. Set a cap or raise his price.
+        </p>
+      </Callout>
+
       <Callout type="tip">
-        Customer tracking is completely optional. If you're not running a multi-user application, 
-        you can skip this and just track overall costs.
+        <strong>Don't have multiple customers?</strong> You can skip customer tracking entirely. 
+        Just use <code>observe(api_key="...")</code> without <code>customer_id</code> and track your overall costs.
       </Callout>
 
       <h2 id="setting-customer-id">Setting customer ID</h2>
 
       <p>
-        The simplest way is to pass <code>customer_id</code> when calling <code>observe()</code>:
+        <strong>For web apps:</strong> You'll usually set <code>customer_id</code> dynamically per request 
+        (see next section). But if you're running a script for a specific customer, you can set it at init:
       </p>
 
       <CodeBlock
-        code={`from llmobserve import observe
+        code={`from llmobserve import observe, set_customer_id
 from openai import OpenAI
 
+# Initialize once at startup
+observe(api_key="llmo_sk_...")
+
+# When a customer makes a request, set their ID
 def handle_customer_request(customer_id: str, query: str):
-    # Initialize with customer ID
-    observe(
-        api_key="llmo_sk_...",
-        customer_id=customer_id
-    )
+    # Set customer ID for this request
+    set_customer_id(customer_id)
     
     # All LLM calls are now tracked for this customer
     client = OpenAI()
@@ -66,17 +94,23 @@ def handle_customer_request(customer_id: str, query: str):
         filename="main.py"
       />
 
-      <h2 id="dynamic-customer-id">Dynamic customer ID</h2>
+      <p className="mt-4">
+        <strong>Important:</strong> The <code>customer_id</code> is just a string identifier. Use whatever 
+        makes sense for your app: user ID, email, Stripe customer ID, etc.
+      </p>
+
+      <h2 id="dynamic-customer-id">Dynamic customer ID (recommended for web apps)</h2>
 
       <p>
-        For web servers where the customer changes per request, use <code>set_customer_id()</code> 
-        to dynamically update the customer:
+        <strong>This is what you'll use 99% of the time.</strong> In a web app, each request comes from 
+        a different customer. Set the customer ID at the start of each request, and all LLM calls in that 
+        request will be tracked for that customer:
       </p>
 
       <CodeBlock
         code={`from llmobserve import observe, set_customer_id
 from openai import OpenAI
-from flask import Flask, request, g
+from flask import Flask, request
 
 app = Flask(__name__)
 client = OpenAI()
@@ -86,13 +120,18 @@ observe(api_key="llmo_sk_...")
 
 @app.before_request
 def set_customer():
-    # Get customer from auth token, session, etc.
-    customer_id = get_customer_from_request(request)
-    set_customer_id(customer_id)
+    # Get customer ID from your auth system
+    # This could be from JWT token, session, database, etc.
+    auth_token = request.headers.get("Authorization")
+    user = get_user_from_token(auth_token)  # Your auth logic
+    
+    # Set customer ID - all LLM calls in this request will be tagged
+    set_customer_id(user.id)  # or user.email, user.stripe_customer_id, etc.
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    # LLM calls are automatically tracked for the current customer
+    # This LLM call is automatically tracked for the customer
+    # set in @app.before_request
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": request.json["message"]}]
@@ -107,20 +146,26 @@ def chat():
       <CodeBlock
         code={`from llmobserve import observe, set_customer_id
 from openai import OpenAI
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Header
 
 app = FastAPI()
 client = OpenAI()
 
 observe(api_key="llmo_sk_...")
 
-async def get_current_customer(token: str = Depends(oauth2_scheme)):
-    customer = await verify_token(token)
-    set_customer_id(customer.id)
-    return customer
+async def get_current_customer(authorization: str = Header(...)):
+    # Verify JWT token and get user
+    user = await verify_jwt_token(authorization)  # Your auth logic
+    
+    # Set customer ID for this request
+    set_customer_id(user.id)  # All LLM calls will be tagged with this
+    
+    return user
 
 @app.post("/chat")
 async def chat(message: str, customer = Depends(get_current_customer)):
+    # This LLM call is automatically tracked for the customer
+    # set in get_current_customer dependency
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": message}]
@@ -151,18 +196,11 @@ async def chat(message: str, customer = Depends(get_current_customer)):
         running up excessive costs. See <Link href="/docs/spending-caps">Spending caps</Link> for details.
       </p>
 
-      <CodeBlock
-        code={`# Example: Check customer usage before processing
-from llmobserve import get_customer_usage
-
-usage = get_customer_usage(customer_id)
-
-if usage.total_cost > customer.monthly_limit:
-    raise Exception("Customer has exceeded their monthly limit")
-
-# Process request...`}
-        language="python"
-      />
+      <p>
+        You can set spending limits per customer in the dashboard. When a customer exceeds their limit, 
+        the SDK will raise <code>BudgetExceededError</code> and block the API call. See 
+        <Link href="/docs/spending-caps"> Spending caps</Link> for details.
+      </p>
 
       <Callout type="info" title="Multi-tenant applications">
         For multi-tenant apps, you can also pass a <code>tenant_id</code> to group customers 
