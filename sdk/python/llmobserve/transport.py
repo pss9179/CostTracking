@@ -73,7 +73,8 @@ def flush_events() -> None:
                     req.add_header("Authorization", f"Bearer {config.get_api_key()}")
                 
                 try:
-                    urllib.request.urlopen(req, timeout=5)
+                    # 30 second timeout - handles Railway cold starts
+                    urllib.request.urlopen(req, timeout=30.0)
                     return  # Success
                 except urllib.error.URLError as e:
                     if attempt < max_retries - 1:
@@ -99,7 +100,7 @@ def flush_events() -> None:
                 url,
                 json=events,
                 headers=headers,
-                timeout=5
+                timeout=30  # 30 seconds - handles Railway cold starts
             )
             response.raise_for_status()  # Raise on HTTP error
             return  # Success

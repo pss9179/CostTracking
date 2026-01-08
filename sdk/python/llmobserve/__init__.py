@@ -83,7 +83,7 @@ except ImportError:
     preview_instrumentation = None
     ai_auto_instrument = None
 
-__version__ = "0.3.6"  # Add certifi as required dependency for SSL
+__version__ = "0.3.7"  # Increase timeouts to 30s for Railway cold starts
 
 __all__ = [
     "observe",

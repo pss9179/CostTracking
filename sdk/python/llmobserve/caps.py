@@ -132,8 +132,8 @@ def check_spending_caps(
             pass  # Use system certificates
         
         try:
-            # 15 second timeout - cap check can be slow due to database queries
-            with urllib.request.urlopen(req, timeout=15.0, context=ssl_context) as resp:
+            # 30 second timeout - handles Railway cold starts (can take 10-20s) + normal requests (~1-2s)
+            with urllib.request.urlopen(req, timeout=30.0, context=ssl_context) as resp:
                 response_data = resp.read().decode('utf-8')
                 response_json = json_module.loads(response_data)
                 status_code = resp.status
