@@ -34,6 +34,28 @@ sys.stderr.flush()
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/caps", tags=["caps"])
 
+# =====================================================================
+# API KEY CACHE - Avoid expensive bcrypt checks on every request
+# Cache validated API keys for 5 minutes
+# =====================================================================
+import time
+_api_key_cache: dict = {}  # {token: (user_id, expires_at)}
+API_KEY_CACHE_TTL = 300  # 5 minutes
+
+def get_cached_user_id(token: str) -> Optional[UUID]:
+    """Get user_id from cache if token is cached and not expired."""
+    if token in _api_key_cache:
+        user_id, expires_at = _api_key_cache[token]
+        if time.time() < expires_at:
+            return user_id
+        else:
+            del _api_key_cache[token]
+    return None
+
+def cache_api_key(token: str, user_id: UUID):
+    """Cache a validated API key."""
+    _api_key_cache[token] = (user_id, time.time() + API_KEY_CACHE_TTL)
+
 # Debug: Print when module loads to verify deployment
 print("[CAPS MODULE] caps.py module loaded - API key auth enabled!", flush=True)
 
@@ -235,7 +257,7 @@ async def list_alerts(
 @router.get("/check-version")
 async def check_version():
     """Return caps router version to verify deployment."""
-    return {"version": "caps-router-v20250108-fallback", "inline_auth": True}
+    return {"version": "caps-router-v20250108-cached", "inline_auth": True, "cache_ttl": API_KEY_CACHE_TTL}
 
 
 @router.get("/check")
@@ -285,78 +307,84 @@ async def check_caps(
     # === API KEY AUTHENTICATION (tokens starting with llmo_sk_) ===
     # API keys NEVER expire - they work forever until manually revoked
     if token.startswith("llmo_sk_"):
-        sys.stderr.write(f"[CHECK_CAPS] Detected API key (llmo_sk_*) - validating INLINE\n")
+        sys.stderr.write(f"[CHECK_CAPS] Detected API key (llmo_sk_*)\n")
         sys.stderr.flush()
         
-        # OPTIMIZED: Extract prefix from token and query by prefix first
-        # Key format: llmo_sk_<hex> - prefix is stored as first 12 chars + "..."
-        key_prefix = token[:12] + "..."  # e.g., "llmo_sk_04f6..."
-        sys.stderr.write(f"[CHECK_CAPS] Looking up key by prefix: {key_prefix}\n")
-        sys.stderr.flush()
+        # CHECK CACHE FIRST - avoid expensive bcrypt on every request
+        cached_user_id = get_cached_user_id(token)
+        if cached_user_id:
+            sys.stderr.write(f"[CHECK_CAPS] ✅ API key found in CACHE (fast path)\n")
+            sys.stderr.flush()
+            user = session.get(User, cached_user_id)
+            if user:
+                # Skip to cap checking logic below
+                pass
+            else:
+                # User deleted? Clear cache and re-validate
+                cached_user_id = None
         
-        # Query only matching prefix first (optimized)
-        statement = select(APIKey).where(
-            and_(
-                APIKey.key_prefix == key_prefix,
-                APIKey.revoked_at.is_(None)
+        if not cached_user_id:
+            # SLOW PATH: Validate with bcrypt (first time only)
+            sys.stderr.write(f"[CHECK_CAPS] Cache miss - validating with bcrypt (slow)\n")
+            sys.stderr.flush()
+            
+            key_prefix = token[:12] + "..."
+            statement = select(APIKey).where(
+                and_(
+                    APIKey.key_prefix == key_prefix,
+                    APIKey.revoked_at.is_(None)
+                )
             )
-        )
-        api_keys = session.exec(statement).all()
-        sys.stderr.write(f"[CHECK_CAPS] Found {len(api_keys)} keys matching prefix\n")
-        sys.stderr.flush()
-        
-        matched_key = None
-        for key in api_keys:
-            try:
-                if bcrypt.checkpw(token.encode('utf-8'), key.key_hash.encode('utf-8')):
-                    matched_key = key
-                    sys.stderr.write(f"[CHECK_CAPS] ✅ API key MATCHED by prefix! Key prefix: {key.key_prefix}\n")
-                    sys.stderr.flush()
-                    break
-            except Exception as hash_err:
-                sys.stderr.write(f"[CHECK_CAPS] Hash check error for {key.key_prefix}: {hash_err}\n")
-                continue
-        
-        # FALLBACK: If prefix lookup failed, check all keys (slower but reliable)
-        if not matched_key:
-            sys.stderr.write(f"[CHECK_CAPS] Prefix lookup failed, falling back to full scan\n")
+            api_keys = session.exec(statement).all()
+            sys.stderr.write(f"[CHECK_CAPS] Found {len(api_keys)} keys matching prefix\n")
             sys.stderr.flush()
             
-            fallback_stmt = select(APIKey).where(APIKey.revoked_at.is_(None))
-            all_keys = session.exec(fallback_stmt).all()
-            sys.stderr.write(f"[CHECK_CAPS] Checking {len(all_keys)} total keys\n")
-            sys.stderr.flush()
-            
-            for key in all_keys:
+            matched_key = None
+            for key in api_keys:
                 try:
                     if bcrypt.checkpw(token.encode('utf-8'), key.key_hash.encode('utf-8')):
                         matched_key = key
-                        sys.stderr.write(f"[CHECK_CAPS] ✅ API key MATCHED via fallback! Key prefix: {key.key_prefix}\n")
+                        sys.stderr.write(f"[CHECK_CAPS] ✅ API key MATCHED!\n")
                         sys.stderr.flush()
                         break
                 except Exception as hash_err:
                     continue
-        
-        if not matched_key:
-            sys.stderr.write(f"[CHECK_CAPS] ❌ API key NOT found in database\n")
+            
+            # FALLBACK: Check all keys if prefix lookup failed
+            if not matched_key:
+                sys.stderr.write(f"[CHECK_CAPS] Prefix miss, trying full scan\n")
+                sys.stderr.flush()
+                fallback_stmt = select(APIKey).where(APIKey.revoked_at.is_(None))
+                all_keys = session.exec(fallback_stmt).all()
+                for key in all_keys:
+                    try:
+                        if bcrypt.checkpw(token.encode('utf-8'), key.key_hash.encode('utf-8')):
+                            matched_key = key
+                            break
+                    except:
+                        continue
+            
+            if not matched_key:
+                sys.stderr.write(f"[CHECK_CAPS] ❌ API key NOT found\n")
+                sys.stderr.flush()
+                raise HTTPException(status_code=401, detail="Invalid API key")
+            
+            # CACHE the validated key for future requests
+            cache_api_key(token, matched_key.user_id)
+            sys.stderr.write(f"[CHECK_CAPS] Cached API key for 5 minutes\n")
             sys.stderr.flush()
-            raise HTTPException(
-                status_code=401, 
-                detail="Invalid API key. Make sure you're using a valid key from your dashboard."
-            )
+            
+            # Update last_used_at
+            from datetime import datetime as dt
+            matched_key.last_used_at = dt.utcnow()
+            session.add(matched_key)
+            session.commit()
+            
+            user = session.get(User, matched_key.user_id)
+            if not user:
+                raise HTTPException(status_code=401, detail="User not found")
         
-        # Update last_used_at
-        from datetime import datetime as dt
-        matched_key.last_used_at = dt.utcnow()
-        session.add(matched_key)
-        session.commit()
-        
-        # Get the user
-        user = session.get(User, matched_key.user_id)
-        if not user:
-            raise HTTPException(status_code=401, detail="User not found for API key")
-        
-        sys.stderr.write(f"[CHECK_CAPS] ✅ API key auth SUCCESS! User: {user.email}\n")
+        sys.stderr.write(f"[CHECK_CAPS] ✅ Auth complete for user: {user.email if user else 'unknown'}\n")
         sys.stderr.flush()
     
     # === CLERK JWT AUTHENTICATION (for browser/dashboard calls) ===
