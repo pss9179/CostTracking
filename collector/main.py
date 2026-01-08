@@ -338,7 +338,7 @@ async def debug_auth_test(request: Request):
 
 
 # Warm endpoint - wakes up container AND database connection
-@app.get("/warm", tags=["health"])
+@app.api_route("/warm", methods=["GET", "HEAD"], tags=["health"])
 def warm_check():
     """
     Warm endpoint that touches the database.
