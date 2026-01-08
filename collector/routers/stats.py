@@ -6,7 +6,7 @@ import time
 from typing import List, Dict, Any, Optional, Tuple
 from uuid import UUID
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Header
 from sqlmodel import Session, select, func, and_
 from sqlalchemy import case, or_
 from models import TraceEvent
