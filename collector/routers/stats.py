@@ -877,7 +877,21 @@ async def get_costs_by_customer(
         statement = statement.group_by(TraceEvent.customer_id).order_by(func.sum(TraceEvent.cost_usd).desc())
         
         results = session.exec(statement).all()
-        print(f"[by-customer] Query returned {len(results)} customers", flush=True)
+        print(f"[by-customer] Query returned {len(results)} customers for clerk_user_id={clerk_user_id}", flush=True)
+        
+        # DEBUG: Count matching events
+        debug_count_stmt = select(func.count(TraceEvent.id)).where(
+            and_(
+                TraceEvent.customer_id.isnot(None),
+                TraceEvent.created_at >= cutoff,
+                or_(
+                    TraceEvent.tenant_id == clerk_user_id,
+                    TraceEvent.user_id == user_id
+                )
+            )
+        )
+        debug_count = session.exec(debug_count_stmt).first() or 0
+        print(f"[by-customer] DEBUG: Found {debug_count} matching events for user", flush=True)
         
         customers = [
             {
