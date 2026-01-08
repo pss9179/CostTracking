@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Skyline Collector",
     description="Cost observability collector for LLM and API usage",
-    version="0.3.1"  # Optimized API key lookup - prefix-based query
+    version="0.3.5-fix-data-isolation"  # Fix critical data isolation bug - users were seeing other users' data
 )
 
 # CORS middleware - configure based on environment
