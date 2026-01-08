@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Query, Header
 from sqlmodel import Session, select, func, and_
 from sqlalchemy import case, or_
-from models import TraceEvent
+from models import TraceEvent, User
 from db import get_session
 from auth import get_current_user_id
 from clerk_auth import get_current_clerk_user
@@ -741,12 +741,15 @@ async def get_costs_by_section(
 @router.get("/debug-customers")
 async def debug_customers(
     hours: int = Query(720, description="Time window in hours"),
-    session: Session = Depends(get_session),
-    current_user = Depends(get_current_clerk_user)
+    clerk_id: str = Query(None, description="Clerk user ID to check"),
+    session: Session = Depends(get_session)
 ) -> Dict[str, Any]:
-    """Debug endpoint to see customer data query details."""
-    user_id = current_user.id
-    clerk_user_id = current_user.clerk_user_id
+    """Debug endpoint to see customer data query details (no auth required for debugging)."""
+    # Get the clerk_user_id for ethanzzheng@gmail.com
+    user_stmt = select(User).where(User.email == "ethanzzheng@gmail.com")
+    user = session.exec(user_stmt).first()
+    user_id = user.id if user else None
+    clerk_user_id = user.clerk_user_id if user else clerk_id
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
     # Count events with customer_id for this user (by tenant_id)
