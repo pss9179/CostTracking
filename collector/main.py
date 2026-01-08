@@ -220,7 +220,7 @@ async def on_shutdown():
 @app.get("/health", tags=["health"])
 def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "service": "llmobserve-collector", "version": "0.3.0-caps-debug"}
+    return {"status": "ok", "service": "llmobserve-collector", "version": "0.3.1-caps-fix"}
 
 @app.get("/debug/auth-test", tags=["debug"])
 async def debug_auth_test(request: Request):
