@@ -1,0 +1,110 @@
+[
+  {
+    "model": "openai/gpt-4o-mini",
+    "name": "OpenAI GPT-4o Mini",
+    "status": "success",
+    "response": "Hello from LLMObserve test today!",
+    "input_tokens": 22,
+    "output_tokens": 8,
+    "latency": 1.0543920993804932
+  },
+  {
+    "model": "openai/gpt-4o",
+    "name": "OpenAI GPT-4o",
+    "status": "success",
+    "response": "Hello from LLMObserve test!",
+    "input_tokens": 22,
+    "output_tokens": 7,
+    "latency": 2.57342267036438
+  },
+  {
+    "model": "anthropic/claude-3-5-haiku-20241022",
+    "name": "Anthropic Claude 3.5 Haiku",
+    "status": "failed",
+    "error": "Error code: 429 - {'error': {'message': 'Provider returned error', 'code': 429, 'metadata': {'raw': 'anthropic/claude-3.5-haiku-20241022 is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: https://openrouter.ai/settings/integrations', 'provider_name': 'Google'}}, 'user_id': 'user_37tsa9pP6HIjGJtMZsThPHPSM4d'}"
+  },
+  {
+    "model": "anthropic/claude-3-5-sonnet-20241022",
+    "name": "Anthropic Claude 3.5 Sonnet",
+    "status": "success",
+    "response": "Hello from LLMObserve test here!",
+    "input_tokens": 27,
+    "output_tokens": 14,
+    "latency": 3.3467509746551514
+  },
+  {
+    "model": "google/gemini-flash-1.5",
+    "name": "Google Gemini Flash 1.5",
+    "status": "failed",
+    "error": "Error code: 404 - {'error': {'message': 'No endpoints found for google/gemini-flash-1.5.', 'code': 404}, 'user_id': 'user_37tsa9pP6HIjGJtMZsThPHPSM4d'}"
+  },
+  {
+    "model": "google/gemini-pro-1.5",
+    "name": "Google Gemini Pro 1.5",
+    "status": "failed",
+    "error": "Error code: 404 - {'error': {'message': 'No endpoints found for google/gemini-pro-1.5.', 'code': 404}, 'user_id': 'user_37tsa9pP6HIjGJtMZsThPHPSM4d'}"
+  },
+  {
+    "model": "meta-llama/llama-3.1-8b-instruct",
+    "name": "Meta Llama 3.1 8B",
+    "status": "success",
+    "response": "Hello from LLMObserve test now.",
+    "input_tokens": 26,
+    "output_tokens": 10,
+    "latency": 3.3927409648895264
+  },
+  {
+    "model": "meta-llama/llama-3.1-70b-instruct",
+    "name": "Meta Llama 3.1 70B",
+    "status": "success",
+    "response": "Hello from LLM Observe test!",
+    "input_tokens": 26,
+    "output_tokens": 8,
+    "latency": 2.8071448802948
+  },
+  {
+    "model": "mistralai/mistral-7b-instruct",
+    "name": "Mistral 7B Instruct",
+    "status": "success",
+    "response": " Hello. From. LLMObserve. test!.",
+    "input_tokens": 28,
+    "output_tokens": 14,
+    "latency": 2.722614049911499
+  },
+  {
+    "model": "mistralai/mixtral-8x7b-instruct",
+    "name": "Mistral Mixtral 8x7B",
+    "status": "success",
+    "response": "\"Hi! It's LLMObserve's test here.\"",
+    "input_tokens": 24,
+    "output_tokens": 15,
+    "latency": 2.6290760040283203
+  },
+  {
+    "model": "perplexity/llama-3.1-sonar-small-128k-online",
+    "name": "Perplexity Sonar Small",
+    "status": "failed",
+    "error": "Error code: 404 - {'error': {'message': 'No endpoints found for perplexity/llama-3.1-sonar-small-128k-online.', 'code': 404}, 'user_id': 'user_37tsa9pP6HIjGJtMZsThPHPSM4d'}"
+  },
+  {
+    "model": "cohere/command-r",
+    "name": "Cohere Command R",
+    "status": "failed",
+    "error": "Error code: 404 - {'error': {'message': 'No endpoints found for cohere/command-r.', 'code': 404}, 'user_id': 'user_37tsa9pP6HIjGJtMZsThPHPSM4d'}"
+  },
+  {
+    "model": "deepseek/deepseek-chat",
+    "name": "DeepSeek Chat",
+    "status": "success",
+    "response": "Hello from LLMObserve test!",
+    "input_tokens": 19,
+    "output_tokens": 9,
+    "latency": 2.555675983428955
+  },
+  {
+    "model": "qwen/qwen-2-7b-instruct",
+    "name": "Qwen 2 7B",
+    "status": "failed",
+    "error": "Error code: 404 - {'error': {'message': 'No endpoints found for qwen/qwen-2-7b-instruct.', 'code': 404}, 'user_id': 'user_37tsa9pP6HIjGJtMZsThPHPSM4d'}"
+  }
+]

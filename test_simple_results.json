@@ -1,0 +1,50 @@
+[
+  {
+    "model": "openai/gpt-4o-mini",
+    "actual_model": "openai/gpt-4o-mini",
+    "input_tokens": 15,
+    "output_tokens": 2,
+    "latency_ms": 476.18722915649414,
+    "event_status": 201
+  },
+  {
+    "model": "openai/gpt-4o",
+    "actual_model": "openai/gpt-4o",
+    "input_tokens": 15,
+    "output_tokens": 2,
+    "latency_ms": 447.68404960632324,
+    "event_status": 201
+  },
+  {
+    "model": "anthropic/claude-3.5-sonnet",
+    "actual_model": "anthropic/claude-3.5-sonnet",
+    "input_tokens": 16,
+    "output_tokens": 4,
+    "latency_ms": 1815.1299953460693,
+    "event_status": 201
+  },
+  {
+    "model": "meta-llama/llama-3.1-8b-instruct",
+    "actual_model": "meta-llama/llama-3.1-8b-instruct",
+    "input_tokens": 19,
+    "output_tokens": 3,
+    "latency_ms": 865.2350902557373,
+    "event_status": 201
+  },
+  {
+    "model": "mistralai/mistral-7b-instruct",
+    "actual_model": "mistralai/mistral-7b-instruct",
+    "input_tokens": 13,
+    "output_tokens": 10,
+    "latency_ms": 570.544958114624,
+    "event_status": 201
+  },
+  {
+    "model": "deepseek/deepseek-chat",
+    "actual_model": "deepseek/deepseek-chat",
+    "input_tokens": 11,
+    "output_tokens": 1,
+    "latency_ms": 1076.401948928833,
+    "event_status": 201
+  }
+]
