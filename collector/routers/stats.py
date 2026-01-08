@@ -752,43 +752,67 @@ async def debug_customers(
     clerk_user_id = user.clerk_user_id if user else clerk_id
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
-    # Count events with customer_id for this user (by tenant_id)
+    # Count events with customer_id for this user (by tenant_id) - WITH TIME FILTER
     tenant_count_stmt = select(func.count(TraceEvent.id)).where(
         and_(
             TraceEvent.customer_id.isnot(None),
-            TraceEvent.tenant_id == clerk_user_id
+            TraceEvent.tenant_id == clerk_user_id,
+            TraceEvent.created_at >= cutoff
         )
     )
     tenant_count = session.exec(tenant_count_stmt).first() or 0
     
-    # Count events with customer_id for this user (by user_id)
+    # Count events with customer_id for this user (by user_id) - WITH TIME FILTER
     user_count_stmt = select(func.count(TraceEvent.id)).where(
         and_(
             TraceEvent.customer_id.isnot(None),
-            TraceEvent.user_id == user_id
+            TraceEvent.user_id == user_id,
+            TraceEvent.created_at >= cutoff
         )
     )
     user_count = session.exec(user_count_stmt).first() or 0
     
-    # Count ALL events with customer_id
+    # Count ALL events with customer_id - WITH TIME FILTER
     all_count_stmt = select(func.count(TraceEvent.id)).where(
-        TraceEvent.customer_id.isnot(None)
+        and_(
+            TraceEvent.customer_id.isnot(None),
+            TraceEvent.created_at >= cutoff
+        )
     )
     all_count = session.exec(all_count_stmt).first() or 0
     
-    # Get sample tenant_ids from events with customer_id
-    sample_stmt = select(TraceEvent.tenant_id, TraceEvent.customer_id).where(
+    # Count events WITHOUT time filter
+    no_time_count_stmt = select(func.count(TraceEvent.id)).where(
         TraceEvent.customer_id.isnot(None)
-    ).limit(10)
-    samples = session.exec(sample_stmt).all()
+    )
+    no_time_count = session.exec(no_time_count_stmt).first() or 0
+    
+    # Get recent events with customer_id
+    recent_stmt = select(TraceEvent.tenant_id, TraceEvent.customer_id, TraceEvent.created_at, TraceEvent.provider).where(
+        and_(
+            TraceEvent.customer_id.isnot(None),
+            TraceEvent.created_at >= cutoff
+        )
+    ).order_by(TraceEvent.created_at.desc()).limit(10)
+    recent = session.exec(recent_stmt).all()
     
     return {
         "current_user_id": str(user_id),
         "current_clerk_user_id": clerk_user_id,
-        "events_by_tenant_id": tenant_count,
-        "events_by_user_id": user_count,
-        "total_events_with_customer_id": all_count,
-        "sample_events": [{"tenant_id": s.tenant_id, "customer_id": s.customer_id} for s in samples]
+        "cutoff_time": str(cutoff),
+        "hours": hours,
+        "events_by_tenant_id_with_time": tenant_count,
+        "events_by_user_id_with_time": user_count,
+        "events_with_customer_id_with_time": all_count,
+        "events_with_customer_id_no_time": no_time_count,
+        "recent_events": [
+            {
+                "tenant_id": r.tenant_id, 
+                "customer_id": r.customer_id, 
+                "created_at": str(r.created_at),
+                "provider": r.provider
+            } for r in recent
+        ]
     }
 
 
@@ -854,19 +878,6 @@ async def get_costs_by_customer(
         
         results = session.exec(statement).all()
         print(f"[by-customer] Query returned {len(results)} customers", flush=True)
-        
-        # DEBUG: Also check how many events have customer_id for this user
-        debug_stmt = select(func.count(TraceEvent.id)).where(
-            and_(
-                TraceEvent.customer_id.isnot(None),
-                or_(
-                    TraceEvent.tenant_id == clerk_user_id,
-                    TraceEvent.user_id == user_id
-                )
-            )
-        )
-        debug_count = session.exec(debug_stmt).first()
-        print(f"[by-customer] Total events with customer_id for this user: {debug_count}", flush=True)
         
         customers = [
             {
