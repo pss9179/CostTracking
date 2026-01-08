@@ -220,7 +220,27 @@ async def on_shutdown():
 @app.get("/health", tags=["health"])
 def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "service": "llmobserve-collector", "version": "0.2.0"}
+    return {"status": "ok", "service": "llmobserve-collector", "version": "0.3.0-caps-debug"}
+
+@app.get("/debug/auth-test", tags=["debug"])
+async def debug_auth_test(request: Request):
+    """Debug endpoint to test auth detection."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        return {"error": "No Authorization header"}
+    
+    parts = auth_header.split()
+    if len(parts) != 2:
+        return {"error": f"Invalid header format, parts={len(parts)}"}
+    
+    token = parts[1]
+    return {
+        "token_length": len(token),
+        "token_prefix": token[:20] if len(token) >= 20 else token,
+        "starts_with_llmo_sk": token.startswith("llmo_sk_"),
+        "repr_first_20": repr(token[:20]),
+        "version": "debug-20250108",
+    }
 
 
 # Warm endpoint - wakes up container AND database connection
