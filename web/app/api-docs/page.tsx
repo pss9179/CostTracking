@@ -1,11 +1,142 @@
 "use client";
 
-import { Terminal, Check, Copy, Code2, Layers, Settings, AlertTriangle, Shield, Users, Bell, Zap } from "lucide-react";
+import { Terminal, Check, Copy, Code2, Layers, Settings, AlertTriangle, Shield, Bell, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
+// Full model list from pricing registry
+const SUPPORTED_MODELS = {
+  openai: {
+    name: "OpenAI",
+    models: [
+      // Chat models
+      "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo",
+      // Reasoning models
+      "o1-preview", "o1-mini", "o4-mini",
+      // Future models (pricing ready)
+      "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano",
+      "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-pro",
+      // Realtime models
+      "gpt-realtime", "gpt-realtime-mini", "gpt-realtime-audio", "gpt-realtime-mini-audio",
+      // Embeddings
+      "text-embedding-3-small", "text-embedding-3-large", "text-embedding-ada-002",
+      // Audio
+      "whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe", "gpt-4o-mini-tts", "tts-1", "tts-1-hd",
+      // Image
+      "dall-e-3", "dall-e-2", "gpt-image-1", "gpt-image-1-mini",
+      // Video
+      "sora-2", "sora-2-pro-720", "sora-2-pro-1024",
+    ]
+  },
+  anthropic: {
+    name: "Anthropic",
+    models: [
+      "claude-3.5-sonnet", "claude-3-opus", "claude-3-sonnet", "claude-3-haiku"
+    ]
+  },
+  google: {
+    name: "Google",
+    models: [
+      "gemini-2.0-flash", "gemini-2.0-flash-live", "gemini-2.5-flash-live",
+      "gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"
+    ]
+  },
+  cohere: {
+    name: "Cohere",
+    models: [
+      "command", "command-light", "command-r", "command-r-plus", "embed-english-v3.0"
+    ]
+  },
+  mistral: {
+    name: "Mistral",
+    models: [
+      "mistral-large-latest", "mistral-large", "mistral-small-latest", 
+      "mistral-tiny", "mistral-7b", "mixtral-8x7b"
+    ]
+  },
+  meta: {
+    name: "Meta (Llama)",
+    models: [
+      "llama-3.1-405b", "llama-3.1-70b", "llama-3.1-8b",
+      "llama-3.2-3b", "llama-3.2-1b"
+    ]
+  },
+  groq: {
+    name: "Groq",
+    models: [
+      "llama-3.1-405b", "llama-3.1-70b", "llama-3.1-8b", "mixtral-8x7b"
+    ]
+  },
+  deepseek: {
+    name: "DeepSeek",
+    models: [
+      "deepseek-chat", "deepseek-coder", "deepseek-r1"
+    ]
+  },
+  qwen: {
+    name: "Qwen",
+    models: [
+      "qwen-2.5-72b", "qwen-2.5-7b", "qwen-2.5-3b",
+      "qwen-2-72b", "qwen-2-7b"
+    ]
+  },
+  together: {
+    name: "Together AI",
+    models: [
+      "llama-3-70b", "mixtral-8x22b"
+    ]
+  },
+  perplexity: {
+    name: "Perplexity",
+    models: [
+      "pplx-70b-online", "pplx-7b-online"
+    ]
+  },
+  ai21: {
+    name: "AI21",
+    models: [
+      "j2-ultra", "j2-mid"
+    ]
+  },
+  voyage: {
+    name: "Voyage AI",
+    models: [
+      "voyage-2", "voyage-lite-02"
+    ]
+  },
+  pinecone: {
+    name: "Pinecone",
+    models: [
+      "query", "upsert", "delete", "fetch", "list",
+      "llama-text-embed-v2", "multilingual-e5-large", "pinecone-sparse-english-v0",
+      "pinecone-rerank-v0", "bge-reranker-v2-m3", "cohere-rerank-v3.5"
+    ]
+  },
+  azure_openai: {
+    name: "Azure OpenAI",
+    models: [
+      "gpt-4", "gpt-35-turbo"
+    ]
+  },
+  aws_bedrock: {
+    name: "AWS Bedrock",
+    models: [
+      "claude-3-opus", "claude-3-sonnet", "llama-3-70b"
+    ]
+  },
+};
+
 export default function ApiDocsPage() {
     const [activeTab, setActiveTab] = useState<"python" | "node">("python");
+    const [expandedProviders, setExpandedProviders] = useState<string[]>(["openai", "anthropic"]);
+
+    const toggleProvider = (provider: string) => {
+        setExpandedProviders(prev => 
+            prev.includes(provider) 
+                ? prev.filter(p => p !== provider)
+                : [...prev, provider]
+        );
+    };
 
     return (
         <div className="p-8 max-w-5xl mx-auto space-y-12">
@@ -122,17 +253,17 @@ export default function ApiDocsPage() {
                     <Card
                         icon={<Layers className="h-5 w-5" />}
                         title="Zero-Config Tracking"
-                        description="We patch HTTP clients (httpx, requests, aiohttp, fetch) to inject tracking headers. Works with ANY HTTP-based API."
+                        description="We patch HTTP clients to automatically capture API calls. Works with any provider that uses standard HTTP."
                     />
                     <Card
                         icon={<Code2 className="h-5 w-5" />}
-                        title="Optional Labeling"
-                        description="Use section() context managers or @trace decorators to organize costs by feature, agent, or customer."
+                        title="Section Labels"
+                        description="Use section() context managers to organize costs by feature, agent, or workflow."
                     />
                     <Card
                         icon={<Settings className="h-5 w-5" />}
-                        title="Multi-Language Support"
-                        description="Available for Python and Node.js/TypeScript. Same API, same dashboard, same powerful tracking."
+                        title="Multi-Language"
+                        description="Available for Python and Node.js. Same API, same dashboard, same powerful tracking."
                     />
                 </div>
             </section>
@@ -152,13 +283,11 @@ export default function ApiDocsPage() {
                         </div>
                         <div className="p-6 overflow-x-auto">
                             <pre className="font-mono text-sm leading-relaxed text-slate-300">
-                                <span className="text-slate-500"># Step 1: Initialize llmobserve (add at the top of your main file)</span>{"\n"}
                                 <span className="text-purple-400">import</span> llmobserve{"\n"}
-                                <span className="text-purple-400">from</span> llmobserve <span className="text-purple-400">import</span> section, set_customer_id{"\n\n"}
-                                llmobserve.<span className="text-blue-400">observe</span>(api_key=<span className="text-green-400">"llmo_sk_your_key_here"</span>)
-                                {"\n\n"}
-                                <span className="text-slate-500"># Step 2: Use your LLM libraries normally - tracked automatically!</span>{"\n"}
+                                <span className="text-purple-400">from</span> llmobserve <span className="text-purple-400">import</span> section, set_customer_id{"\n"}
                                 <span className="text-purple-400">from</span> openai <span className="text-purple-400">import</span> OpenAI{"\n\n"}
+                                <span className="text-slate-500"># Initialize once at startup</span>{"\n"}
+                                llmobserve.<span className="text-blue-400">observe</span>(api_key=<span className="text-green-400">"llmo_sk_your_key_here"</span>){"\n\n"}
                                 client = OpenAI(){"\n\n"}
                                 <span className="text-slate-500"># Optional: Track costs per customer</span>{"\n"}
                                 set_customer_id(<span className="text-green-400">"customer_123"</span>){"\n\n"}
@@ -185,15 +314,13 @@ export default function ApiDocsPage() {
                         </div>
                         <div className="p-6 overflow-x-auto">
                             <pre className="font-mono text-sm leading-relaxed text-slate-300">
-                                <span className="text-slate-500">// Step 1: Initialize llmobserve (add at the top of your main file)</span>{"\n"}
                                 <span className="text-purple-400">import</span> {"{ observe, section, setCustomerId }"} <span className="text-purple-400">from</span> <span className="text-green-400">'llmobserve'</span>;{"\n"}
                                 <span className="text-purple-400">import</span> OpenAI <span className="text-purple-400">from</span> <span className="text-green-400">'openai'</span>;{"\n\n"}
+                                <span className="text-slate-500">// Initialize once at startup</span>{"\n"}
                                 <span className="text-blue-400">observe</span>({"{\n"}
                                 {"  "}collectorUrl: <span className="text-green-400">'https://llmobserve-api-production-d791.up.railway.app'</span>,{"\n"}
                                 {"  "}apiKey: <span className="text-green-400">'llmo_sk_your_key_here'</span>{"\n"}
-                                {"}"});
-                                {"\n\n"}
-                                <span className="text-slate-500">// Step 2: Use your LLM libraries normally - tracked automatically!</span>{"\n"}
+                                {"}"});{"\n\n"}
                                 <span className="text-purple-400">const</span> openai = <span className="text-purple-400">new</span> OpenAI();{"\n\n"}
                                 <span className="text-slate-500">// Optional: Track costs per customer</span>{"\n"}
                                 <span className="text-blue-400">setCustomerId</span>(<span className="text-green-400">'customer_123'</span>);{"\n\n"}
@@ -223,9 +350,6 @@ export default function ApiDocsPage() {
                                 description="Initialize LLMObserve tracking. Call this once at the start of your application."
                                 params={[
                                     { name: "api_key", type: "str", description: "Your API key from /settings" },
-                                    { name: "collector_url", type: "str", optional: true, description: "Collector URL (defaults to production)" },
-                                    { name: "tenant_id", type: "str", optional: true, description: "Tenant ID for multi-tenant apps" },
-                                    { name: "customer_id", type: "str", optional: true, description: "Default customer ID" },
                                 ]}
                                 example={`import llmobserve
 
@@ -258,25 +382,6 @@ with section("feature:email_summarizer"):
 set_customer_id("customer_123")
 # All subsequent API calls are associated with this customer`}
                             />
-
-                            <ApiMethod
-                                name="@trace()"
-                                description="Decorator to automatically track function calls with custom labels."
-                                params={[
-                                    { name: "agent", type: "str", optional: true, description: "Label this function as an agent" },
-                                    { name: "tool", type: "str", optional: true, description: "Label this function as a tool" },
-                                    { name: "step", type: "str", optional: true, description: "Label this function as a step" },
-                                ]}
-                                example={`from llmobserve import trace
-
-@trace(agent="researcher")
-def run_research(query):
-    return client.chat.completions.create(...)
-
-@trace(tool="web_search")
-def search_web(query):
-    return search_api.query(query)`}
-                            />
                         </>
                     ) : (
                         <>
@@ -286,8 +391,6 @@ def search_web(query):
                                 params={[
                                     { name: "collectorUrl", type: "string", description: "URL of the collector server" },
                                     { name: "apiKey", type: "string", description: "Your API key from /settings" },
-                                    { name: "tenantId", type: "string", optional: true, description: "Tenant ID for multi-tenant apps" },
-                                    { name: "customerId", type: "string", optional: true, description: "Default customer ID" },
                                     { name: "enableCaps", type: "boolean", optional: true, description: "Enable spending cap enforcement (default: true)" },
                                 ]}
                                 example={`import { observe } from 'llmobserve';
@@ -309,9 +412,7 @@ observe({
 // Tag costs with the "email_summarizer" feature
 await section('feature:email_summarizer').run(async () => {
   const response = await openai.chat.completions.create(...);
-});
-
-// Now you can see "email_summarizer" costs in your Features tab!`}
+});`}
                             />
 
                             <ApiMethod
@@ -341,7 +442,7 @@ process.exit(0);`}
                 </div>
             </section>
 
-            {/* Spending Caps & Alerts - NEW SECTION */}
+            {/* Spending Caps & Alerts */}
             <section className="space-y-6">
                 <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">
@@ -365,11 +466,6 @@ process.exit(0);`}
                             Get email notifications when spending reaches thresholds (80%, 95%, 100%). 
                             API calls continue to work.
                         </p>
-                        <ul className="text-sm text-gray-600 space-y-1">
-                            <li>• Early warning at 80%</li>
-                            <li>• Urgent alert at 95%</li>
-                            <li>• Cap reached at 100%</li>
-                        </ul>
                     </div>
 
                     <div className="p-6 rounded-xl border border-gray-200 bg-white">
@@ -379,14 +475,8 @@ process.exit(0);`}
                         </div>
                         <p className="text-sm text-gray-600 mb-3">
                             Block API calls when caps are exceeded. The SDK throws a{" "}
-                            <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">BudgetExceededError</code>{" "}
-                            before the request is made.
+                            <code className="text-xs bg-gray-100 px-1 py-0.5 rounded">BudgetExceededError</code>.
                         </p>
-                        <ul className="text-sm text-gray-600 space-y-1">
-                            <li>• Prevents overspending</li>
-                            <li>• Checked before each API call</li>
-                            <li>• Handle gracefully in code</li>
-                        </ul>
                     </div>
                 </div>
 
@@ -399,230 +489,127 @@ process.exit(0);`}
                     </div>
                     <div className="p-4 rounded-lg border border-gray-200 bg-white">
                         <h4 className="font-medium text-gray-900 mb-1">Provider</h4>
-                        <p className="text-xs text-gray-600">Limit spending per provider (OpenAI, Anthropic)</p>
+                        <p className="text-xs text-gray-600">Limit spending per provider</p>
                     </div>
                     <div className="p-4 rounded-lg border border-gray-200 bg-white">
                         <h4 className="font-medium text-gray-900 mb-1">Model</h4>
-                        <p className="text-xs text-gray-600">Limit spending per model (gpt-4o, claude-3)</p>
+                        <p className="text-xs text-gray-600">Limit spending per model</p>
                     </div>
                     <div className="p-4 rounded-lg border border-gray-200 bg-white">
                         <h4 className="font-medium text-gray-900 mb-1">Customer</h4>
-                        <p className="text-xs text-gray-600">Limit spending per customer (for SaaS)</p>
+                        <p className="text-xs text-gray-600">Limit spending per customer</p>
                     </div>
                 </div>
 
-                <h3 className="text-lg font-semibold text-gray-900 mt-8">Handling Hard Caps in Code</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mt-8">Handling Hard Caps</h3>
 
                 {activeTab === "python" ? (
-                    <div className="bg-slate-950 rounded-xl overflow-hidden border border-slate-800 shadow-2xl">
-                        <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
-                            <div className="flex gap-1.5">
-                                <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50" />
-                                <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/50" />
-                                <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50" />
-                            </div>
-                            <span className="text-xs font-medium text-slate-500">python</span>
-                        </div>
+                    <div className="bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
                         <div className="p-6 overflow-x-auto">
                             <pre className="font-mono text-sm leading-relaxed text-slate-300">
-                                <span className="text-purple-400">from</span> llmobserve <span className="text-purple-400">import</span> observe, BudgetExceededError{"\n"}
-                                <span className="text-purple-400">from</span> openai <span className="text-purple-400">import</span> OpenAI{"\n\n"}
-                                observe(api_key=<span className="text-green-400">"llmo_sk_..."</span>){"\n"}
-                                client = OpenAI(){"\n\n"}
+                                <span className="text-purple-400">from</span> llmobserve <span className="text-purple-400">import</span> observe, BudgetExceededError{"\n\n"}
+                                observe(api_key=<span className="text-green-400">"llmo_sk_..."</span>){"\n\n"}
                                 <span className="text-purple-400">try</span>:{"\n"}
-                                {"    "}response = client.chat.completions.<span className="text-blue-400">create</span>({"(\n"}
-                                {"        "}model=<span className="text-green-400">"gpt-4o"</span>,{"\n"}
-                                {"        "}messages=[{"{\"role\": \"user\", \"content\": \"Hello\"}"}]{"\n"}
-                                {"    "}){"\n"}
+                                {"    "}response = client.chat.completions.<span className="text-blue-400">create</span>(...){"\n"}
                                 <span className="text-purple-400">except</span> BudgetExceededError <span className="text-purple-400">as</span> e:{"\n"}
-                                {"    "}<span className="text-slate-500"># Handle cap exceeded - request was blocked!</span>{"\n"}
-                                {"    "}<span className="text-blue-400">print</span>(<span className="text-green-400">f"Spending cap exceeded: </span>{"{e}"}<span className="text-green-400">"</span>){"\n"}
-                                {"    "}<span className="text-purple-400">for</span> cap <span className="text-purple-400">in</span> e.exceeded_caps:{"\n"}
-                                {"        "}<span className="text-blue-400">print</span>(<span className="text-green-400">f"  - </span>{"{cap['cap_type']}"}<span className="text-green-400">: $</span>{"{cap['current']:.2f}"}<span className="text-green-400">/$</span>{"{cap['limit']:.2f}"}<span className="text-green-400">"</span>){"\n"}
-                                {"    "}{"\n"}
-                                {"    "}<span className="text-slate-500"># Optional: Fall back to a cheaper model</span>{"\n"}
-                                {"    "}response = client.chat.completions.<span className="text-blue-400">create</span>({"(\n"}
-                                {"        "}model=<span className="text-green-400">"gpt-4o-mini"</span>,  <span className="text-slate-500"># Cheaper alternative</span>{"\n"}
-                                {"        "}messages=[{"{\"role\": \"user\", \"content\": \"Hello\"}"}]{"\n"}
-                                {"    "})
+                                {"    "}<span className="text-blue-400">print</span>(<span className="text-green-400">f"Cap exceeded: </span>{"{e}"}<span className="text-green-400">"</span>){"\n"}
+                                {"    "}<span className="text-slate-500"># Handle gracefully - switch to cheaper model, etc.</span>
                             </pre>
                         </div>
                     </div>
                 ) : (
-                    <div className="bg-slate-950 rounded-xl overflow-hidden border border-slate-800 shadow-2xl">
-                        <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
-                            <div className="flex gap-1.5">
-                                <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50" />
-                                <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/50" />
-                                <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50" />
-                            </div>
-                            <span className="text-xs font-medium text-slate-500">typescript</span>
-                        </div>
+                    <div className="bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
                         <div className="p-6 overflow-x-auto">
                             <pre className="font-mono text-sm leading-relaxed text-slate-300">
-                                <span className="text-purple-400">import</span> {"{ observe, BudgetExceededError }"} <span className="text-purple-400">from</span> <span className="text-green-400">'llmobserve'</span>;{"\n"}
-                                <span className="text-purple-400">import</span> OpenAI <span className="text-purple-400">from</span> <span className="text-green-400">'openai'</span>;{"\n\n"}
-                                <span className="text-blue-400">observe</span>({"{\n"}
-                                {"  "}collectorUrl: <span className="text-green-400">'https://llmobserve-api-production-d791.up.railway.app'</span>,{"\n"}
-                                {"  "}apiKey: <span className="text-green-400">'llmo_sk_...'</span>,{"\n"}
-                                {"  "}enableCaps: <span className="text-yellow-400">true</span>  <span className="text-slate-500">// Default: true</span>{"\n"}
-                                {"}"});{"\n\n"}
-                                <span className="text-purple-400">const</span> openai = <span className="text-purple-400">new</span> OpenAI();{"\n\n"}
+                                <span className="text-purple-400">import</span> {"{ observe, BudgetExceededError }"} <span className="text-purple-400">from</span> <span className="text-green-400">'llmobserve'</span>;{"\n\n"}
                                 <span className="text-purple-400">try</span> {"{\n"}
-                                {"  "}<span className="text-purple-400">const</span> response = <span className="text-purple-400">await</span> openai.chat.completions.<span className="text-blue-400">create</span>({"{\n"}
-                                {"    "}model: <span className="text-green-400">'gpt-4o'</span>,{"\n"}
-                                {"    "}messages: [{"{ "}role: <span className="text-green-400">'user'</span>, content: <span className="text-green-400">'Hello'</span> {"}"}]{"\n"}
-                                {"  "}{"}"});{"\n"}
+                                {"  "}<span className="text-purple-400">const</span> response = <span className="text-purple-400">await</span> openai.chat.completions.<span className="text-blue-400">create</span>(...);{"\n"}
                                 {"}"} <span className="text-purple-400">catch</span> (error) {"{\n"}
                                 {"  "}<span className="text-purple-400">if</span> (error <span className="text-purple-400">instanceof</span> BudgetExceededError) {"{\n"}
-                                {"    "}<span className="text-slate-500">// Handle cap exceeded - request was blocked!</span>{"\n"}
                                 {"    "}console.<span className="text-blue-400">error</span>(<span className="text-green-400">'Budget exceeded!'</span>, error.exceededCaps);{"\n"}
-                                {"    "}<span className="text-purple-400">for</span> (<span className="text-purple-400">const</span> cap <span className="text-purple-400">of</span> error.exceededCaps) {"{\n"}
-                                {"      "}console.<span className="text-blue-400">log</span>(<span className="text-green-400">`  - ${"${cap.cap_type}"}: $${"${cap.current.toFixed(2)}"}/$$${"${cap.limit.toFixed(2)}"}`</span>);{"\n"}
-                                {"    "}{"}\n"}
                                 {"  "}{"}\n"}
-                                {"  "}<span className="text-purple-400">throw</span> error;{"\n"}
                                 {"}"}
                             </pre>
                         </div>
                     </div>
                 )}
+            </section>
 
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-blue-800">
-                        <strong>💡 Tip:</strong> Hard caps check spending before each API call. If the backend is unreachable, 
-                        the SDK "fails open" by default (allows the request). Set <code className="bg-blue-100 px-1 py-0.5 rounded">LLMOBSERVE_STRICT_CAPS=true</code> to 
-                        block requests when cap checks fail.
-                    </p>
+            {/* Supported Providers & Models */}
+            <section className="space-y-6">
+                <h2 className="text-2xl font-semibold text-gray-900">Supported Providers & Models</h2>
+                
+                <p className="text-gray-600">
+                    We track costs for {Object.values(SUPPORTED_MODELS).reduce((acc, p) => acc + p.models.length, 0)}+ models across {Object.keys(SUPPORTED_MODELS).length} providers.
+                    Click to expand and see all supported models.
+                </p>
+
+                <div className="space-y-2">
+                    {Object.entries(SUPPORTED_MODELS).map(([key, provider]) => (
+                        <div key={key} className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                            <button
+                                onClick={() => toggleProvider(key)}
+                                className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <span className="font-medium text-gray-900">{provider.name}</span>
+                                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                        {provider.models.length} models
+                                    </span>
+                                </div>
+                                {expandedProviders.includes(key) ? (
+                                    <ChevronDown className="h-4 w-4 text-gray-400" />
+                                ) : (
+                                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                                )}
+                            </button>
+                            {expandedProviders.includes(key) && (
+                                <div className="px-4 pb-4 pt-1 border-t border-gray-100">
+                                    <div className="flex flex-wrap gap-2">
+                                        {provider.models.map((model) => (
+                                            <code 
+                                                key={model} 
+                                                className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded font-mono"
+                                            >
+                                                {model}
+                                            </code>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                {/* Coming Soon */}
+                <div className="mt-8 grid gap-4 md:grid-cols-2">
+                    <div className="p-6 rounded-xl border border-dashed border-gray-300 bg-gray-50">
+                        <div className="flex items-center gap-2 mb-3">
+                            <h3 className="font-semibold text-gray-900">🎙️ Voice & Audio</h3>
+                            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-medium">Coming Soon</span>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                            Deepgram, ElevenLabs, Cartesia, PlayHT, Azure Speech, AssemblyAI, and more.
+                        </p>
+                    </div>
+
+                    <div className="p-6 rounded-xl border border-dashed border-gray-300 bg-gray-50">
+                        <div className="flex items-center gap-2 mb-3">
+                            <h3 className="font-semibold text-gray-900">🔧 Infrastructure</h3>
+                            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-medium">Coming Soon</span>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                            Weaviate, Qdrant, Milvus, Chroma, MongoDB Atlas Vector, and more vector DBs.
+                        </p>
+                    </div>
                 </div>
             </section>
 
-            {/* Advanced Features */}
+            {/* Metrics Collected */}
             <section className="space-y-6">
-                <h2 className="text-2xl font-semibold text-gray-900">Advanced Features</h2>
+                <h2 className="text-2xl font-semibold text-gray-900">Metrics Collected</h2>
                 
-                <div className="grid gap-6 md:grid-cols-2">
-                    <FeatureCard
-                        title="Multi-Tenant Tracking"
-                        description="Track costs per customer for SaaS applications"
-                        example={activeTab === "python" 
-                            ? `from llmobserve import set_customer_id
-
-# In your request handler
-set_customer_id(request.user.id)
-
-# All API calls now tagged with customer ID
-response = client.chat.completions.create(...)`
-                            : `import { setCustomerId } from 'llmobserve';
-
-// In your request handler
-setCustomerId(request.user.id);
-
-// All API calls now tagged with customer ID
-const response = await openai.chat.completions.create(...);`}
-                    />
-
-                    <FeatureCard
-                        title="Tag Features"
-                        description="Tag LLM calls by feature to see cost breakdown"
-                        example={activeTab === "python"
-                            ? `with section("feature:email_processing"):
-    # All LLM calls here tagged as email_processing
-    response = summarize(email)
-    
-with section("feature:chat_bot"):
-    # This one tagged as chat_bot
-    response = chat(query)`
-                            : `await section('feature:email_processing').run(async () => {
-  // All LLM calls here tagged as email_processing
-  const response = await summarize(email);
-});
-
-await section('feature:chat_bot').run(async () => {
-  // This one tagged as chat_bot
-  const response = await chat(query);
-});`}
-                    />
-
-                    <FeatureCard
-                        title="Context Export/Import"
-                        description="Pass tracking context to background workers"
-                        example={activeTab === "python"
-                            ? `from llmobserve import export_context, import_context
-
-# In main process
-context = export_context()
-task.delay(context)
-
-# In worker
-import_context(context)
-# Tracking continues seamlessly`
-                            : `// Context is automatically maintained
-// across async operations in Node.js
-
-await section('background_task').run(async () => {
-  // All calls in this async context are tracked
-  await processInBackground();
-});`}
-                    />
-
-                    <FeatureCard
-                        title="Framework Integration"
-                        description="Works with all major AI frameworks"
-                        example={`# Works automatically with:
-# - LangChain
-# - CrewAI  
-# - AutoGen
-# - LlamaIndex
-# - Any HTTP-based API`}
-                    />
-                </div>
-            </section>
-
-            {/* What Gets Tracked */}
-            <section className="space-y-6">
-                <h2 className="text-2xl font-semibold text-gray-900">Supported Providers</h2>
-                
-                <div className="grid gap-4 md:grid-cols-3">
-                    <div className="p-6 rounded-xl border border-gray-200 bg-white">
-                        <h3 className="font-semibold text-gray-900 mb-4">🤖 LLM Providers</h3>
-                        <ul className="space-y-2 text-sm text-gray-600">
-                            <li>• OpenAI (GPT-4o, GPT-4, GPT-3.5)</li>
-                            <li>• Anthropic (Claude 3.5, Claude 3)</li>
-                            <li>• Google (Gemini Pro, Flash)</li>
-                            <li>• Cohere (Command, Embed)</li>
-                            <li>• Together AI, Groq, Mistral</li>
-                            <li>• Perplexity, Hugging Face</li>
-                        </ul>
-                    </div>
-
-                    <div className="p-6 rounded-xl border border-gray-200 bg-white">
-                        <h3 className="font-semibold text-gray-900 mb-4">🎙️ Voice & Audio</h3>
-                        <ul className="space-y-2 text-sm text-gray-600">
-                            <li>• Deepgram (STT)</li>
-                            <li>• ElevenLabs (TTS)</li>
-                            <li>• Cartesia (TTS)</li>
-                            <li>• PlayHT (TTS)</li>
-                            <li>• OpenAI Whisper (STT)</li>
-                            <li>• Azure Speech</li>
-                        </ul>
-                    </div>
-
-                    <div className="p-6 rounded-xl border border-gray-200 bg-white">
-                        <h3 className="font-semibold text-gray-900 mb-4">🔧 Infrastructure</h3>
-                        <ul className="space-y-2 text-sm text-gray-600">
-                            <li>• Pinecone (Vector DB)</li>
-                            <li>• Voyage AI (Embeddings)</li>
-                            <li>• Vapi, Retell (Voice AI)</li>
-                            <li>• Twilio, Telnyx, Vonage</li>
-                            <li>• LiveKit, Bland AI</li>
-                            <li>• And 40+ more!</li>
-                        </ul>
-                    </div>
-                </div>
-
                 <div className="p-6 rounded-xl border border-gray-200 bg-white">
-                    <h3 className="font-semibold text-gray-900 mb-4">📊 Metrics Collected</h3>
                     <div className="grid md:grid-cols-3 gap-4 text-sm text-gray-600">
                         <ul className="space-y-2">
                             <li>• <strong>Cost (USD)</strong> - calculated automatically</li>
@@ -634,7 +621,7 @@ await section('background_task').run(async () => {
                         </ul>
                         <ul className="space-y-2">
                             <li>• <strong>Status</strong> - success/error/rate-limited</li>
-                            <li>• <strong>Custom labels</strong> - sections & agents</li>
+                            <li>• <strong>Section labels</strong> - custom tags</li>
                         </ul>
                     </div>
                 </div>
@@ -645,7 +632,7 @@ await section('background_task').run(async () => {
                 <h2 className="text-2xl font-semibold text-gray-900">Environment Variables</h2>
                 
                 <p className="text-gray-600">
-                    You can configure the SDK via environment variables instead of code:
+                    Configure the SDK via environment variables (Python only):
                 </p>
 
                 <div className="bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
@@ -654,7 +641,6 @@ await section('background_task').run(async () => {
                             <span className="text-slate-500"># Required</span>{"\n"}
                             <span className="text-blue-400">LLMOBSERVE_API_KEY</span>=llmo_sk_your_key_here{"\n\n"}
                             <span className="text-slate-500"># Optional</span>{"\n"}
-                            <span className="text-blue-400">LLMOBSERVE_COLLECTOR_URL</span>=https://llmobserve-api-production-d791.up.railway.app{"\n"}
                             <span className="text-blue-400">LLMOBSERVE_TENANT_ID</span>=my-tenant{"\n"}
                             <span className="text-blue-400">LLMOBSERVE_CUSTOMER_ID</span>=customer-123{"\n"}
                             <span className="text-blue-400">LLMOBSERVE_STRICT_CAPS</span>=true  <span className="text-slate-500"># Block requests when cap check fails</span>
@@ -666,19 +652,14 @@ await section('background_task').run(async () => {
     );
 }
 
-function Card({ title, description, code, icon }: { title: string; description: string; code?: string; icon?: React.ReactNode }) {
+function Card({ title, description, icon }: { title: string; description: string; icon?: React.ReactNode }) {
     return (
-        <div className="p-6 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow">
+        <div className="p-6 rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="flex items-center gap-2 mb-2">
                 {icon && <div className="text-indigo-600">{icon}</div>}
                 <h3 className="font-semibold text-gray-900">{title}</h3>
             </div>
-            <p className="text-sm text-gray-600 mb-4">{description}</p>
-            {code && (
-                <div className="bg-gray-50 rounded-lg p-2 font-mono text-xs text-gray-800 border border-gray-100">
-                    {code}
-                </div>
-            )}
+            <p className="text-sm text-gray-600">{description}</p>
         </div>
     );
 }
@@ -719,22 +700,6 @@ function ApiMethod({ name, description, params, example }: {
                         <CopyButton text={example} />
                     </div>
                 </div>
-            </div>
-        </div>
-    );
-}
-
-function FeatureCard({ title, description, example }: { title: string; description: string; example: string }) {
-    return (
-        <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
-            <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="font-semibold text-gray-900">{title}</h3>
-                <p className="text-sm text-gray-600 mt-1">{description}</p>
-            </div>
-            <div className="p-4">
-                <pre className="bg-slate-950 text-slate-300 rounded-lg p-4 text-xs font-mono overflow-x-auto">
-                    {example}
-                </pre>
             </div>
         </div>
     );
