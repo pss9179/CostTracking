@@ -857,7 +857,7 @@ async def get_section_detail(
             "hours": hours
         }
     
-    # Breakdown by provider
+    # Breakdown by provider - include NULL but exclude "internal"
     provider_stmt = (
         select(
             TraceEvent.provider,
@@ -868,12 +868,17 @@ async def get_section_detail(
             user_filter,
             TraceEvent.section == section,
             TraceEvent.created_at >= cutoff,
-            TraceEvent.provider != "internal"
+            or_(
+                TraceEvent.provider.is_(None),
+                TraceEvent.provider != "internal"
+            )
         ))
         .group_by(TraceEvent.provider)
         .order_by(func.sum(TraceEvent.cost_usd).desc())
     )
     providers = session.exec(provider_stmt).all()
+    # Filter out None providers from results (we want to know they exist but not show them)
+    providers = [p for p in providers if p.provider]
     print(f"[Section Detail] Found {len(providers)} providers: {[p.provider for p in providers]}")
     
     # Breakdown by model
