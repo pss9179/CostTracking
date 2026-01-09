@@ -846,6 +846,18 @@ async def get_section_detail(
     
     print(f"[Section Detail] Section: {section}, Stats: total_cost={stats.total_cost if stats else None}, call_count={stats.call_count if stats else None}")
     
+    # DEBUG: Check what providers/models exist for this section
+    debug_stmt = select(
+        TraceEvent.provider,
+        TraceEvent.model
+    ).where(and_(
+        user_filter,
+        TraceEvent.section == section,
+        TraceEvent.created_at >= cutoff
+    )).limit(5)
+    debug_results = session.exec(debug_stmt).all()
+    print(f"[Section Detail] DEBUG - Sample data: {[(r.provider, r.model) for r in debug_results]}")
+    
     if not stats or not stats.total_cost:
         return {
             "section": section,
