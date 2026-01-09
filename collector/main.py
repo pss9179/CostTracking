@@ -310,11 +310,11 @@ async def debug_jwt_decode(authorization: Optional[str] = Header(None, alias="Au
     except Exception as e:
         return {"error": str(e)}
 
-# Health check
-@app.get("/health", tags=["health"])
+# Health check - supports both GET and HEAD for UptimeRobot monitoring
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["health"])
 def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "service": "llmobserve-collector", "version": "0.3.4-fix-dashboard"}
+    return {"status": "ok", "service": "llmobserve-collector", "version": "0.3.6-uptimerobot"}
 
 @app.get("/debug/auth-test", tags=["debug"])
 async def debug_auth_test(request: Request):
