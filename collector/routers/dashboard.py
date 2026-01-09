@@ -10,7 +10,8 @@ from sqlmodel import Session, select, func, and_, or_
 from uuid import UUID
 from db import get_session
 from models import TraceEvent
-from auth import get_current_user_id, get_current_clerk_user
+from auth import get_current_user_id
+from clerk_auth import get_current_clerk_user
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
