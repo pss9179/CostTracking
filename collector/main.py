@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Skyline Collector",
     description="Cost observability collector for LLM and API usage",
-    version="0.3.9-section-detail"  # Add section detail endpoint for feature breakdown
+    version="0.3.10-email-custom-data"  # Allow custom data in test-email endpoint
 )
 
 # CORS middleware - configure based on environment
