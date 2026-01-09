@@ -60,11 +60,36 @@ def init_db():
 
 def run_migrations():
     """Run database migrations for existing DBs."""
-    # For PostgreSQL/Supabase, migrations are handled via SQL scripts
-    # For SQLite, we can run migrations inline
     
     if not DATABASE_URL.startswith("sqlite"):
-        print("[Migration] Using PostgreSQL - tables created via SQLModel")
+        # PostgreSQL migrations
+        print("[Migration] Running PostgreSQL migrations...")
+        try:
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                # Check and add sub_scope column to spending_caps
+                result = conn.execute(text("""
+                    SELECT column_name FROM information_schema.columns 
+                    WHERE table_name = 'spending_caps' AND column_name = 'sub_scope'
+                """))
+                if not result.fetchone():
+                    conn.execute(text("ALTER TABLE spending_caps ADD COLUMN sub_scope VARCHAR NULL"))
+                    conn.commit()
+                    print("[Migration] Added sub_scope column to spending_caps")
+                
+                # Check and add sub_target column to spending_caps
+                result = conn.execute(text("""
+                    SELECT column_name FROM information_schema.columns 
+                    WHERE table_name = 'spending_caps' AND column_name = 'sub_target'
+                """))
+                if not result.fetchone():
+                    conn.execute(text("ALTER TABLE spending_caps ADD COLUMN sub_target VARCHAR NULL"))
+                    conn.commit()
+                    print("[Migration] Added sub_target column to spending_caps")
+                    
+            print("[Migration] PostgreSQL migrations complete")
+        except Exception as e:
+            print(f"[Migration] PostgreSQL migration error (may be OK if columns exist): {e}")
         return
     
     # SQLite migrations (legacy)
