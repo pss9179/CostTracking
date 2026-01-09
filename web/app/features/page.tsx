@@ -389,6 +389,7 @@ function FeaturesPageContent() {
   );
   const [selectedFeature, setSelectedFeature] = useState<FeatureRow | null>(null);
   const [featureDetail, setFeatureDetail] = useState<SectionDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [filters, setFilters] = useState<FilterState>({});
   
@@ -475,6 +476,7 @@ function FeaturesPageContent() {
   const handleRowClick = useCallback(async (feature: FeatureRow) => {
     setSelectedFeature(feature);
     setFeatureDetail(null); // Clear previous detail
+    setLoadingDetail(true);
     setDrawerOpen(true);
     
     // Fetch detailed breakdown
@@ -484,6 +486,10 @@ function FeaturesPageContent() {
       setFeatureDetail(detail);
     } catch (err) {
       console.error("[Features] Failed to fetch section detail:", err);
+      // Set empty detail so loading stops
+      setFeatureDetail({ by_provider: [], by_model: [] });
+    } finally {
+      setLoadingDetail(false);
     }
   }, [getToken, hours]);
   
@@ -690,6 +696,7 @@ function FeaturesPageContent() {
               avg_latency_ms: selectedFeature.avg_latency_ms,
               percentage: selectedFeature.percentage,
             }}
+            loading={loadingDetail}
             providerBreakdown={featureDetail?.by_provider?.map(p => ({
               provider: p.provider,
               cost: p.cost,
