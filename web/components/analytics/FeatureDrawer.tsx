@@ -15,6 +15,8 @@ import {
   Line,
   BarChart,
   Bar,
+  PieChart,
+  Pie,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -145,11 +147,61 @@ function BreakdownList<T>({
     [data, topN]
   );
   
+  // Prepare data for pie chart
+  const pieData = useMemo(() => 
+    sorted.map(item => ({
+      name: getName(item),
+      value: getCost(item),
+      color: getStableColor(getName(item)),
+    })),
+    [sorted]
+  );
+  
   if (data.length === 0) return null;
   
   return (
     <div>
       <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">{title}</h4>
+      
+      {/* Mini Donut Chart */}
+      {pieData.length > 0 && (
+        <div className="flex items-center justify-center mb-4">
+          <div className="w-32 h-32">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={30}
+                  outerRadius={50}
+                  paddingAngle={2}
+                  dataKey="value"
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-slate-900 text-white px-3 py-2 rounded-lg shadow-xl text-sm">
+                          <p className="font-medium capitalize">{data.name}</p>
+                          <p className="text-xs">{formatSmartCost(data.value)}</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+      
       <div className="space-y-2">
         {sorted.map((item, i) => {
           const name = getName(item);
