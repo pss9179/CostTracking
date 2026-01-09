@@ -482,7 +482,9 @@ function FeaturesPageContent() {
     // Fetch detailed breakdown
     try {
       const token = await getToken();
+      console.log("[Features] Fetching detail for section:", feature.section);
       const detail = await fetchSectionDetail(feature.section, hours, token || undefined);
+      console.log("[Features] Got detail:", detail);
       setFeatureDetail(detail);
     } catch (err) {
       console.error("[Features] Failed to fetch section detail:", err);

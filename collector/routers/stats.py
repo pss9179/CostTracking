@@ -844,6 +844,8 @@ async def get_section_detail(
     ))
     stats = session.exec(stats_stmt).first()
     
+    print(f"[Section Detail] Section: {section}, Stats: total_cost={stats.total_cost if stats else None}, call_count={stats.call_count if stats else None}")
+    
     if not stats or not stats.total_cost:
         return {
             "section": section,
@@ -872,6 +874,7 @@ async def get_section_detail(
         .order_by(func.sum(TraceEvent.cost_usd).desc())
     )
     providers = session.exec(provider_stmt).all()
+    print(f"[Section Detail] Found {len(providers)} providers: {[p.provider for p in providers]}")
     
     # Breakdown by model
     model_stmt = (
@@ -891,6 +894,7 @@ async def get_section_detail(
         .limit(10)
     )
     models = session.exec(model_stmt).all()
+    print(f"[Section Detail] Found {len(models)} models: {[m.model for m in models]}")
     
     total_cost = stats.total_cost or 0
     
