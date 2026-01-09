@@ -11,3 +11,4 @@ psycopg2-binary>=2.9.0
 sendgrid>=6.10.0
 # Force rebuild 20250108-v4-fix-data-isolation
 
+# Force rebuild Thu Jan  8 19:32:48 CST 2026
