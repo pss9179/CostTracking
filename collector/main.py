@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Skyline Collector",
     description="Cost observability collector for LLM and API usage",
-    version="0.3.8-force-rebuild"  # Force Railway rebuild to pick up data isolation fix
+    version="0.3.9-section-detail"  # Add section detail endpoint for feature breakdown
 )
 
 # CORS middleware - configure based on environment
