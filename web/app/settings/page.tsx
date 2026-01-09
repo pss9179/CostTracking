@@ -40,9 +40,7 @@ import {
   Bell,
   DollarSign,
   AlertTriangle,
-  CreditCard,
 } from "lucide-react";
-import Link from "next/link";
 import type {
   Cap,
   CapCreate,
@@ -502,18 +500,12 @@ export default function SettingsPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-1">
-                  Subscription
+                  Plan
                 </p>
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary">
-                    {user?.subscription_tier || "none"}
+                  <Badge variant="default" className="bg-emerald-500">
+                    Free Forever
                   </Badge>
-                  <Link href="/settings/subscription">
-                    <Button variant="outline" size="sm">
-                      <CreditCard className="w-4 h-4 mr-1" />
-                      Manage
-                    </Button>
-                  </Link>
                 </div>
               </div>
               <div>

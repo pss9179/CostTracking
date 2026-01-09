@@ -26,7 +26,7 @@ interface ChartDataPoint {
   [key: string]: string | number;
 }
 
-type ChartMode = "total" | "stacked" | "lines";
+type ChartMode = "total" | "lines";
 
 interface CostTrendChartProps {
   data: ChartDataPoint[];
@@ -87,7 +87,6 @@ interface ChartModeToggleProps {
 function ChartModeToggle({ mode, onChange, disabled }: ChartModeToggleProps) {
   const options: { value: ChartMode; label: string }[] = [
     { value: "total", label: "Total" },
-    { value: "stacked", label: "Stacked" },
     { value: "lines", label: "By Provider" },
   ];
 

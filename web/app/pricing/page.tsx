@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, ArrowRight, Zap } from "lucide-react";
+import { Check, ArrowRight, Zap, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 export default function PricingPage() {
@@ -32,7 +32,7 @@ export default function PricingPage() {
                 onClick={() => router.push("/sign-up")}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
               >
-                Get Started
+                Get Started Free
               </Button>
             </div>
           </div>
@@ -42,37 +42,41 @@ export default function PricingPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         {/* Header */}
         <div className="text-center mb-16">
+          <div className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
+            <Sparkles className="w-4 h-4" />
+            100% Free Forever
+          </div>
           <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            Simple, transparent pricing
+            Free for everyone
           </h1>
           <p className="text-xl text-gray-600">
-            One plan. All features. No hidden fees.
+            All features included. No credit card required. No limits.
           </p>
         </div>
 
         {/* Pricing Card */}
-        <Card className="border-2 border-indigo-600 shadow-xl">
+        <Card className="border-2 border-emerald-500 shadow-xl">
           <CardHeader className="text-center pb-8 pt-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full mb-4 mx-auto">
-              <Zap className="w-8 h-8 text-indigo-600" />
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 rounded-full mb-4 mx-auto">
+              <Sparkles className="w-8 h-8 text-emerald-600" />
             </div>
-            <CardTitle className="text-3xl font-bold mb-2">Skyline Pro</CardTitle>
+            <CardTitle className="text-3xl font-bold mb-2">Skyline Free</CardTitle>
             <CardDescription className="text-lg">Everything you need to track LLM costs</CardDescription>
             <div className="mt-6">
               <div className="flex items-baseline justify-center gap-2">
-                <span className="text-5xl font-bold text-gray-900">$5</span>
-                <span className="text-xl text-gray-600">/month</span>
+                <span className="text-5xl font-bold text-gray-900">$0</span>
+                <span className="text-xl text-gray-600">/forever</span>
               </div>
-              <p className="text-sm text-gray-500 mt-2">Billed monthly • Cancel anytime</p>
+              <p className="text-sm text-emerald-600 mt-2 font-medium">No credit card required</p>
             </div>
           </CardHeader>
           <CardContent className="pb-12">
             <Button 
               onClick={() => router.push("/sign-up")} 
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white mb-8"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white mb-8"
               size="lg"
             >
-              Get Started Now
+              Get Started Free
               <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
 
@@ -93,19 +97,13 @@ export default function PricingPage() {
                 "Error tracking and alerts",
                 "Historical cost analysis",
                 "Provider comparison insights",
-                "Email support"
+                "Community support"
               ].map((feature, i) => (
                 <div key={i} className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <Check className="w-5 h-5 text-emerald-600 mt-0.5 flex-shrink-0" />
                   <span className="text-gray-700">{feature}</span>
                 </div>
               ))}
-            </div>
-
-            <div className="mt-8 pt-8 border-t border-gray-200">
-              <p className="text-sm text-gray-600 text-center">
-                Have a promo code? Apply it after signing up in Settings → Subscription
-              </p>
             </div>
           </CardContent>
         </Card>
@@ -119,44 +117,22 @@ export default function PricingPage() {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Can I cancel anytime?</CardTitle>
+                <CardTitle className="text-lg">Is it really free?</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Yes! You can cancel your subscription at any time from the Settings page. No questions asked, no cancellation fees.
+                  Yes! Skyline is completely free with no hidden costs. All features are included at no charge.
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">What happens to my data if I cancel?</CardTitle>
+                <CardTitle className="text-lg">Are there any usage limits?</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Your data remains accessible for 30 days after cancellation. You can export all your data to CSV/JSON before canceling. After 30 days, your data is permanently deleted.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Do you offer refunds?</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Yes, we offer a full refund within 7 days of your first payment if you're not satisfied. Just email us at support@llmobserve.com.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Is there a limit on API calls or data?</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  No limits! Track unlimited API calls, customers, and agents. The $5/month price covers everything.
+                  No limits! Track unlimited API calls, customers, and agents. Everything is included for free.
                 </p>
               </CardContent>
             </Card>
@@ -171,17 +147,6 @@ export default function PricingPage() {
                 </p>
                 <p className="text-gray-700 font-medium">
                   OpenAI, Anthropic, Google (Gemini), Cohere, Together AI, Replicate, Hugging Face, Perplexity, Groq, Mistral, and many more.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Do you offer enterprise plans?</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  For now, we only offer the $5/month plan. If you need enterprise features like SSO, dedicated support, or on-premise deployment, email us at enterprise@llmobserve.com.
                 </p>
               </CardContent>
             </Card>
@@ -208,9 +173,9 @@ export default function PricingPage() {
           <Button 
             onClick={() => router.push("/sign-up")} 
             size="lg"
-            className="bg-indigo-600 hover:bg-indigo-700"
+            className="bg-emerald-600 hover:bg-emerald-700"
           >
-            Get Started - $5/month
+            Get Started Free
             <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
         </div>
@@ -218,4 +183,3 @@ export default function PricingPage() {
     </div>
   );
 }
-
