@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Skyline Collector",
     description="Cost observability collector for LLM and API usage",
-    version="0.3.5-fix-data-isolation"  # Fix critical data isolation bug - users were seeing other users' data
+    version="0.3.6-complete-data-isolation"  # Complete data isolation fix - all endpoints now use tenant_id/clerk_user_id filtering
 )
 
 # CORS middleware - configure based on environment

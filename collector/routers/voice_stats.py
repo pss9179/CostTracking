@@ -17,6 +17,22 @@ from clerk_auth import get_current_clerk_user
 
 router = APIRouter(prefix="/stats/voice", tags=["voice-stats"])
 
+
+def build_user_filter(current_user, user_id):
+    """Build consistent user filter for data isolation."""
+    clerk_user_id = current_user.clerk_user_id
+    if clerk_user_id:
+        return or_(
+            TraceEvent.tenant_id == clerk_user_id,
+            TraceEvent.user_id == user_id
+        )
+    else:
+        return and_(
+            TraceEvent.user_id == user_id,
+            TraceEvent.user_id.isnot(None)
+        )
+
+
 # Voice AI providers
 VOICE_PROVIDERS = [
     "vapi", "retell", "bland", "livekit",  # Full platforms
@@ -46,6 +62,7 @@ async def get_voice_calls(
     for each voice agent interaction.
     """
     user_id = current_user.id
+    user_filter = build_user_filter(current_user, user_id)
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
     # Get all voice calls with segment breakdown
@@ -62,8 +79,7 @@ async def get_voice_calls(
     ).where(
         and_(
             TraceEvent.created_at >= cutoff,
-            TraceEvent.user_id == user_id,
-            TraceEvent.user_id.isnot(None),
+            user_filter,
             TraceEvent.voice_call_id.isnot(None),
         )
     ).group_by(
@@ -136,6 +152,7 @@ async def get_voice_costs_by_platform(
     in one unified view. Compare cost-per-minute between managed platforms and DIY.
     """
     user_id = current_user.id
+    user_filter = build_user_filter(current_user, user_id)
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
     # Get stats by platform
@@ -149,7 +166,7 @@ async def get_voice_costs_by_platform(
     ).where(
         and_(
             TraceEvent.created_at >= cutoff,
-            TraceEvent.user_id == user_id,
+            user_filter,
             TraceEvent.voice_platform.isnot(None),
         )
     ).group_by(TraceEvent.voice_platform).order_by(func.sum(TraceEvent.cost_usd).desc())
@@ -221,6 +238,7 @@ async def get_voice_costs_by_provider(
     Compare costs between Vapi, Retell, Bland, DIY (Deepgram + ElevenLabs), etc.
     """
     user_id = current_user.id
+    user_filter = build_user_filter(current_user, user_id)
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
     statement = select(
@@ -233,8 +251,7 @@ async def get_voice_costs_by_provider(
     ).where(
         and_(
             TraceEvent.created_at >= cutoff,
-            TraceEvent.user_id == user_id,
-            TraceEvent.user_id.isnot(None),
+            user_filter,
             or_(
                 TraceEvent.provider.in_(VOICE_PROVIDERS),
                 TraceEvent.voice_segment_type.isnot(None),
@@ -278,6 +295,7 @@ async def get_voice_costs_by_segment(
     Shows where the money goes in your voice pipeline.
     """
     user_id = current_user.id
+    user_filter = build_user_filter(current_user, user_id)
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
     statement = select(
@@ -289,8 +307,7 @@ async def get_voice_costs_by_segment(
     ).where(
         and_(
             TraceEvent.created_at >= cutoff,
-            TraceEvent.user_id == user_id,
-            TraceEvent.user_id.isnot(None),
+            user_filter,
             TraceEvent.voice_segment_type.isnot(None),
             TraceEvent.voice_segment_type != "call_summary",  # Exclude summaries
         )
@@ -330,6 +347,7 @@ async def get_voice_cost_per_minute(
     Calculates the effective cost per minute across all voice operations.
     """
     user_id = current_user.id
+    user_filter = build_user_filter(current_user, user_id)
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
     # Get total costs and duration
@@ -341,8 +359,7 @@ async def get_voice_cost_per_minute(
     ).where(
         and_(
             TraceEvent.created_at >= cutoff,
-            TraceEvent.user_id == user_id,
-            TraceEvent.user_id.isnot(None),
+            user_filter,
             or_(
                 TraceEvent.provider.in_(VOICE_PROVIDERS),
                 TraceEvent.voice_segment_type.isnot(None),
@@ -386,6 +403,7 @@ async def get_voice_forecast(
     Uses last 7 days of data to project monthly costs.
     """
     user_id = current_user.id
+    user_filter = build_user_filter(current_user, user_id)
     
     # Get last 7 days of data for projection
     week_cutoff = datetime.utcnow() - timedelta(days=7)
@@ -397,8 +415,7 @@ async def get_voice_forecast(
     ).where(
         and_(
             TraceEvent.created_at >= week_cutoff,
-            TraceEvent.user_id == user_id,
-            TraceEvent.user_id.isnot(None),
+            user_filter,
             or_(
                 TraceEvent.provider.in_(VOICE_PROVIDERS),
                 TraceEvent.voice_segment_type.isnot(None),
@@ -458,6 +475,7 @@ async def get_voice_costs_by_customer(
     Track which customers are driving voice agent costs.
     """
     user_id = current_user.id
+    user_filter = build_user_filter(current_user, user_id)
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
     statement = select(
@@ -469,8 +487,7 @@ async def get_voice_costs_by_customer(
     ).where(
         and_(
             TraceEvent.created_at >= cutoff,
-            TraceEvent.user_id == user_id,
-            TraceEvent.user_id.isnot(None),
+            user_filter,
             TraceEvent.customer_id.isnot(None),
             or_(
                 TraceEvent.provider.in_(VOICE_PROVIDERS),
@@ -544,6 +561,7 @@ async def get_alternative_costs(
     alternative costs - not just per-minute estimates.
     """
     user_id = current_user.id
+    user_filter = build_user_filter(current_user, user_id)
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     
     # Get aggregated usage by segment type
@@ -557,7 +575,7 @@ async def get_alternative_costs(
     ).where(
         and_(
             TraceEvent.created_at >= cutoff,
-            TraceEvent.user_id == user_id,
+            user_filter,
             TraceEvent.voice_segment_type.isnot(None),
         )
     ).group_by(TraceEvent.voice_segment_type)

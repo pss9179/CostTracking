@@ -165,31 +165,44 @@ async def get_latest_runs(
 
 
 @router.get("/sections/top")
-def get_top_sections(
+async def get_top_sections(
     hours: int = Query(24, description="Time window in hours"),
     limit: int = Query(10, description="Number of sections to return"),
-    user_id: Optional[UUID] = None,  # Made optional for MVP
-    tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user)  # Require Clerk authentication
 ) -> List[Dict[str, Any]]:
     """
     Get top sections (agent/tool/step level) aggregated by cost.
     
-    For MVP: Returns all data if no user_id or tenant_id provided.
-    Returns agent-level sections like "agent:research_assistant",
+    Requires Clerk authentication. Returns agent-level sections like "agent:research_assistant",
     NOT internal retry/test sections.
     """
     from datetime import datetime, timedelta
     
+    user_id = current_user.id
+    clerk_user_id = current_user.clerk_user_id
     cutoff_time = datetime.utcnow() - timedelta(hours=hours)
     
+    # Build user filter for data isolation
+    if clerk_user_id:
+        user_filter = or_(
+            TraceEvent.tenant_id == clerk_user_id,
+            TraceEvent.user_id == user_id
+        )
+    else:
+        user_filter = and_(
+            TraceEvent.user_id == user_id,
+            TraceEvent.user_id.isnot(None)
+        )
+    
     # Get all events in timeframe
-    statement = select(TraceEvent).where(TraceEvent.created_at >= cutoff_time).where(TraceEvent.section_path.isnot(None))
-    # Filter by tenant_id (preferred) or user_id
-    if tenant_id:
-        statement = statement.where(TraceEvent.tenant_id == tenant_id)
-    elif user_id:
-        statement = statement.where(TraceEvent.user_id == user_id)
+    statement = select(TraceEvent).where(
+        and_(
+            TraceEvent.created_at >= cutoff_time,
+            user_filter,
+            TraceEvent.section_path.isnot(None)
+        )
+    )
     
     events = session.exec(statement).all()
     
@@ -233,7 +246,6 @@ def get_top_sections(
 @router.get("/{run_id}")
 async def get_run_detail(
     run_id: str,
-    tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
     session: Session = Depends(get_session),
     current_user = Depends(get_current_clerk_user)  # Require Clerk authentication
 ) -> Dict[str, Any]:
@@ -243,20 +255,27 @@ async def get_run_detail(
     Requires Clerk authentication. Returns breakdown by section, provider, and model with percentages.
     """
     user_id = current_user.id
-    # Check if run exists
-    statement = select(TraceEvent).where(TraceEvent.run_id == run_id)
-    # Filter by tenant_id (preferred) or user_id
-    # IMPORTANT: Exclude events with NULL user_id to prevent data leakage between users
-    if tenant_id:
-        statement = statement.where(TraceEvent.tenant_id == tenant_id)
-    elif user_id:
-        statement = statement.where(
-            and_(
-                TraceEvent.user_id == user_id,
-                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
-            )
+    clerk_user_id = current_user.clerk_user_id
+    
+    # Build user filter for data isolation
+    if clerk_user_id:
+        user_filter = or_(
+            TraceEvent.tenant_id == clerk_user_id,
+            TraceEvent.user_id == user_id
         )
-    statement = statement.limit(1)
+    else:
+        user_filter = and_(
+            TraceEvent.user_id == user_id,
+            TraceEvent.user_id.isnot(None)
+        )
+    
+    # Check if run exists
+    statement = select(TraceEvent).where(
+        and_(
+            TraceEvent.run_id == run_id,
+            user_filter
+        )
+    ).limit(1)
     
     exists = session.exec(statement).first()
     
@@ -264,16 +283,12 @@ async def get_run_detail(
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
     
     # Get total cost for percentage calculations
-    total_statement = select(func.sum(TraceEvent.cost_usd)).where(TraceEvent.run_id == run_id)
-    if tenant_id:
-        total_statement = total_statement.where(TraceEvent.tenant_id == tenant_id)
-    elif user_id:
-        total_statement = total_statement.where(
-            and_(
-                TraceEvent.user_id == user_id,
-                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
-            )
+    total_statement = select(func.sum(TraceEvent.cost_usd)).where(
+        and_(
+            TraceEvent.run_id == run_id,
+            user_filter
         )
+    )
     total_cost = session.exec(total_statement).one() or 0.0
     
     # Breakdown by section
@@ -281,17 +296,12 @@ async def get_run_detail(
         TraceEvent.section,
         func.sum(TraceEvent.cost_usd).label("cost"),
         func.count(TraceEvent.id).label("count")
-    ).where(TraceEvent.run_id == run_id)
-    if tenant_id:
-        section_statement = section_statement.where(TraceEvent.tenant_id == tenant_id)
-    elif user_id:
-        section_statement = section_statement.where(
-            and_(
-                TraceEvent.user_id == user_id,
-                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
-            )
+    ).where(
+        and_(
+            TraceEvent.run_id == run_id,
+            user_filter
         )
-    section_statement = section_statement.group_by(TraceEvent.section).order_by(func.sum(TraceEvent.cost_usd).desc())
+    ).group_by(TraceEvent.section).order_by(func.sum(TraceEvent.cost_usd).desc())
     section_results = session.exec(section_statement).all()
     
     sections = [
@@ -309,17 +319,12 @@ async def get_run_detail(
         TraceEvent.provider,
         func.sum(TraceEvent.cost_usd).label("cost"),
         func.count(TraceEvent.id).label("count")
-    ).where(TraceEvent.run_id == run_id)
-    if tenant_id:
-        provider_statement = provider_statement.where(TraceEvent.tenant_id == tenant_id)
-    elif user_id:
-        provider_statement = provider_statement.where(
-            and_(
-                TraceEvent.user_id == user_id,
-                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
-            )
+    ).where(
+        and_(
+            TraceEvent.run_id == run_id,
+            user_filter
         )
-    provider_statement = provider_statement.group_by(TraceEvent.provider).order_by(func.sum(TraceEvent.cost_usd).desc())
+    ).group_by(TraceEvent.provider).order_by(func.sum(TraceEvent.cost_usd).desc())
     provider_results = session.exec(provider_statement).all()
     
     providers = [
@@ -337,17 +342,13 @@ async def get_run_detail(
         TraceEvent.model,
         func.sum(TraceEvent.cost_usd).label("cost"),
         func.count(TraceEvent.id).label("count")
-    ).where(TraceEvent.run_id == run_id).where(TraceEvent.model.isnot(None))
-    if tenant_id:
-        model_statement = model_statement.where(TraceEvent.tenant_id == tenant_id)
-    elif user_id:
-        model_statement = model_statement.where(
-            and_(
-                TraceEvent.user_id == user_id,
-                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
-            )
+    ).where(
+        and_(
+            TraceEvent.run_id == run_id,
+            user_filter,
+            TraceEvent.model.isnot(None)
         )
-    model_statement = model_statement.group_by(TraceEvent.model).order_by(func.sum(TraceEvent.cost_usd).desc())
+    ).group_by(TraceEvent.model).order_by(func.sum(TraceEvent.cost_usd).desc())
     model_results = session.exec(model_statement).all()
     
     models = [
@@ -361,17 +362,12 @@ async def get_run_detail(
     ]
     
     # Get individual events (latest 50)
-    events_statement = select(TraceEvent).where(TraceEvent.run_id == run_id)
-    if tenant_id:
-        events_statement = events_statement.where(TraceEvent.tenant_id == tenant_id)
-    elif user_id:
-        events_statement = events_statement.where(
-            and_(
-                TraceEvent.user_id == user_id,
-                TraceEvent.user_id.isnot(None)  # Exclude NULL user_id events
-            )
+    events_statement = select(TraceEvent).where(
+        and_(
+            TraceEvent.run_id == run_id,
+            user_filter
         )
-    events_statement = events_statement.order_by(TraceEvent.created_at.desc()).limit(50)
+    ).order_by(TraceEvent.created_at.desc()).limit(50)
     events = session.exec(events_statement).all()
     
     events_list = [

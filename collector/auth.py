@@ -177,15 +177,25 @@ async def get_current_user_id(
 ) -> Optional[UUID]:
     """
     Convenience dependency to get user ID from API key or Clerk token.
-    Returns None if no authorization provided (MVP mode).
-    """
-    # MVP mode: Allow unauthenticated access if no header
-    if not authorization:
-        return None
     
-    try:
-        user = await get_current_user(request, authorization, session)
-        return user.id
-    except HTTPException:
-        # Invalid key - return None instead of raising (fail-open for MVP)
-        return None
+    CRITICAL: Returns None ONLY if no authorization header provided.
+    If an invalid auth is provided, the exception is raised to reject the request.
+    This ensures:
+    1. Valid auth = events stored with correct user_id
+    2. Invalid auth = request rejected (no data stored)
+    3. No auth = request rejected (API key required for event ingestion)
+    """
+    # SECURITY: Require authentication for event ingestion
+    # Previously this was "MVP mode" allowing unauthenticated access, 
+    # but that caused events to go into "default_tenant" bucket without user_id
+    if not authorization:
+        logger.warning("[AUTH] No authorization header - rejecting request")
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization required. Provide API key: Authorization: Bearer llmo_sk_...",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Get user - let HTTPException propagate (don't fail-open!)
+    user = await get_current_user(request, authorization, session)
+    return user.id

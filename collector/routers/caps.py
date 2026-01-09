@@ -91,11 +91,25 @@ def calculate_current_spend(
     target_name: Optional[str],
     period_start: datetime,
     period_end: datetime,
+    clerk_user_id: Optional[str] = None,
 ) -> float:
-    """Calculate current spend for a cap."""
+    """Calculate current spend for a cap.
+    
+    Uses tenant_id (clerk_user_id) OR user_id for proper data isolation.
+    Events are stored with tenant_id = clerk_user_id when ingested via API key.
+    """
+    # Build user filter - match by tenant_id OR user_id
+    if clerk_user_id:
+        user_filter = or_(
+            TraceEvent.tenant_id == clerk_user_id,
+            TraceEvent.user_id == user_id
+        )
+    else:
+        user_filter = TraceEvent.user_id == user_id
+    
     query = select(func.sum(TraceEvent.cost_usd)).where(
         and_(
-            TraceEvent.user_id == user_id,
+            user_filter,
             TraceEvent.created_at >= period_start,
             TraceEvent.created_at < period_end,
         )
@@ -105,9 +119,9 @@ def calculate_current_spend(
     if cap_type == "provider" and target_name:
         query = query.where(TraceEvent.provider == target_name)
     elif cap_type == "model" and target_name:
-        query = query.where(TraceEvent.model_id == target_name)
+        query = query.where(TraceEvent.model == target_name)
     elif cap_type == "agent" and target_name:
-        query = query.where(TraceEvent.agent == target_name)
+        query = query.where(TraceEvent.section == target_name)  # Agents are stored in section
     elif cap_type == "customer" and target_name:
         query = query.where(TraceEvent.customer_id == target_name)
     # 'global' doesn't add any filter
@@ -157,7 +171,8 @@ async def create_cap(
     # Calculate current spend
     period_start, period_end = get_period_dates(cap.period)
     current_spend = calculate_current_spend(
-        session, user.id, cap.cap_type, cap.target_name, period_start, period_end
+        session, user.id, cap.cap_type, cap.target_name, period_start, period_end,
+        clerk_user_id=user.clerk_user_id
     )
     
     logger.info(f"Created spending cap: {cap.cap_type} ${cap.limit_amount}/{cap.period} for user {user.email}")
@@ -194,7 +209,8 @@ async def list_caps(
     for cap in caps:
         period_start, period_end = get_period_dates(cap.period)
         current_spend = calculate_current_spend(
-            session, user.id, cap.cap_type, cap.target_name, period_start, period_end
+            session, user.id, cap.cap_type, cap.target_name, period_start, period_end,
+            clerk_user_id=user.clerk_user_id
         )
         
         result.append(CapResponse(
@@ -448,7 +464,8 @@ async def check_caps(
         
         # Calculate current spend for this cap
         current_spend = calculate_current_spend(
-            session, user.id, cap.cap_type, cap.target_name, period_start, period_end
+            session, user.id, cap.cap_type, cap.target_name, period_start, period_end,
+            clerk_user_id=user.clerk_user_id
         )
         
         # Check if exceeded
@@ -538,7 +555,8 @@ async def get_cap(
     
     period_start, period_end = get_period_dates(cap.period)
     current_spend = calculate_current_spend(
-        session, user.id, cap.cap_type, cap.target_name, period_start, period_end
+        session, user.id, cap.cap_type, cap.target_name, period_start, period_end,
+        clerk_user_id=user.clerk_user_id
     )
     
     return CapResponse(
@@ -591,7 +609,8 @@ async def update_cap(
     
     period_start, period_end = get_period_dates(cap.period)
     current_spend = calculate_current_spend(
-        session, user.id, cap.cap_type, cap.target_name, period_start, period_end
+        session, user.id, cap.cap_type, cap.target_name, period_start, period_end,
+        clerk_user_id=user.clerk_user_id
     )
     
     logger.info(f"Updated spending cap {cap_id} for user {user.email}")

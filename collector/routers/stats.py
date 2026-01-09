@@ -165,7 +165,20 @@ async def get_llm_stats(
     Returns breakdown of costs, tokens, calls, latency per model.
     """
     user_id = current_user.id
+    clerk_user_id = current_user.clerk_user_id  # Use Clerk user ID for tenant filtering
     cutoff = datetime.utcnow() - timedelta(hours=hours)
+    
+    # Build user filter - match by tenant_id OR user_id for data isolation
+    if clerk_user_id:
+        user_filter = or_(
+            TraceEvent.tenant_id == clerk_user_id,
+            TraceEvent.user_id == user_id
+        )
+    else:
+        user_filter = and_(
+            TraceEvent.user_id == user_id,
+            TraceEvent.user_id.isnot(None)
+        )
     
     # Aggregate by provider + model
     statement = select(
@@ -180,8 +193,7 @@ async def get_llm_stats(
     ).where(
         and_(
             TraceEvent.created_at >= cutoff,
-            TraceEvent.user_id == user_id,
-            TraceEvent.user_id.isnot(None),
+            user_filter,
             TraceEvent.model.isnot(None),  # Only include events with model info
             TraceEvent.provider.notin_(["internal", "websocket", "unknown"])  # Filter out non-LLM providers
         )
@@ -217,7 +229,20 @@ async def get_infrastructure_stats(
     Returns breakdown of costs, calls, latency for non-LLM services.
     """
     user_id = current_user.id
+    clerk_user_id = current_user.clerk_user_id  # Use Clerk user ID for tenant filtering
     cutoff = datetime.utcnow() - timedelta(hours=hours)
+    
+    # Build user filter - match by tenant_id OR user_id for data isolation
+    if clerk_user_id:
+        user_filter = or_(
+            TraceEvent.tenant_id == clerk_user_id,
+            TraceEvent.user_id == user_id
+        )
+    else:
+        user_filter = and_(
+            TraceEvent.user_id == user_id,
+            TraceEvent.user_id.isnot(None)
+        )
     
     # Aggregate infrastructure services (non-LLM providers)
     # Infrastructure providers: pinecone, redis, postgres, mongodb, elasticsearch, etc.
@@ -233,8 +258,7 @@ async def get_infrastructure_stats(
     ).where(
         and_(
             TraceEvent.created_at >= cutoff,
-            TraceEvent.user_id == user_id,
-            TraceEvent.user_id.isnot(None),
+            user_filter,
             TraceEvent.provider.in_(infrastructure_providers)
         )
     ).group_by(TraceEvent.provider, TraceEvent.endpoint).order_by(func.sum(TraceEvent.cost_usd).desc())
