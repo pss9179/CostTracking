@@ -287,3 +287,55 @@ def migrate_performance_indexes(session: Session = Depends(get_session)):
     except Exception as e:
         logger.error(f"Performance indexes migration failed: {e}")
         raise HTTPException(status_code=500, detail=f"Migration failed: {str(e)}")
+
+
+@router.post("/fix-clerk-user-id")
+def fix_clerk_user_id(
+    old_clerk_id: str,
+    new_clerk_id: str,
+    session: Session = Depends(get_session)
+):
+    """
+    Fix clerk_user_id mismatch by updating:
+    1. The User record's clerk_user_id
+    2. All trace_events tenant_id to match the new clerk_user_id
+    
+    Use this when a user's Clerk ID has changed (e.g., after re-creating account).
+    """
+    try:
+        logger.info(f"Fixing clerk_user_id: {old_clerk_id} -> {new_clerk_id}")
+        
+        results = {}
+        
+        with engine.connect() as conn:
+            trans = conn.begin()
+            try:
+                # 1. Update User record
+                user_sql = text("""
+                    UPDATE users 
+                    SET clerk_user_id = :new_id 
+                    WHERE clerk_user_id = :old_id
+                """)
+                user_result = conn.execute(user_sql, {"old_id": old_clerk_id, "new_id": new_clerk_id})
+                results["users_updated"] = user_result.rowcount
+                logger.info(f"Updated {user_result.rowcount} user records")
+                
+                # 2. Update trace_events tenant_id
+                events_sql = text("""
+                    UPDATE trace_events 
+                    SET tenant_id = :new_id 
+                    WHERE tenant_id = :old_id
+                """)
+                events_result = conn.execute(events_sql, {"old_id": old_clerk_id, "new_id": new_clerk_id})
+                results["events_updated"] = events_result.rowcount
+                logger.info(f"Updated {events_result.rowcount} trace events")
+                
+                trans.commit()
+                logger.info("✅ clerk_user_id fix completed")
+                return {"status": "success", "old_clerk_id": old_clerk_id, "new_clerk_id": new_clerk_id, **results}
+            except Exception as e:
+                trans.rollback()
+                raise
+    except Exception as e:
+        logger.error(f"clerk_user_id fix failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Migration failed: {str(e)}")
