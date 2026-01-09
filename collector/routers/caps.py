@@ -467,6 +467,8 @@ async def check_caps(
         
         # Check if this cap applies to the current request context
         applies = False
+        cap_sub_scope = getattr(cap, 'sub_scope', None)
+        cap_sub_target = getattr(cap, 'sub_target', None)
         
         if cap.cap_type == "global":
             applies = True
@@ -475,7 +477,16 @@ async def check_caps(
         elif cap.cap_type == "model" and model and cap.target_name == model:
             applies = True
         elif cap.cap_type == "customer" and customer_id and cap.target_name == customer_id:
-            applies = True
+            # For customer caps, also check sub_scope/sub_target if set
+            if cap_sub_scope == "provider" and cap_sub_target:
+                # Customer + specific provider cap
+                applies = (provider == cap_sub_target)
+            elif cap_sub_scope == "model" and cap_sub_target:
+                # Customer + specific model cap
+                applies = (model == cap_sub_target)
+            else:
+                # Customer global cap (all usage for this customer)
+                applies = True
         elif cap.cap_type == "agent" and agent and cap.target_name == agent:
             applies = True
         
@@ -485,7 +496,9 @@ async def check_caps(
         # Calculate current spend for this cap
         current_spend = calculate_current_spend(
             session, user.id, cap.cap_type, cap.target_name, period_start, period_end,
-            clerk_user_id=user.clerk_user_id
+            clerk_user_id=user.clerk_user_id,
+            sub_scope=cap_sub_scope,
+            sub_target=cap_sub_target,
         )
         
         # Check if exceeded

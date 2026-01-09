@@ -256,26 +256,32 @@ function CreateCapDialog({ open, onOpenChange, onSubmit, providers, models, feat
                 <Label htmlFor="target" className="text-right">
                   {capType === "customer" ? "Customer" : "Target"}
                 </Label>
-                {targetOptions.length > 0 ? (
-                  <Select value={targetName} onValueChange={setTargetName}>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder={`Select ${capType}...`} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {targetOptions.map((opt) => (
-                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    id="target"
-                    value={targetName}
-                    onChange={(e) => setTargetName(e.target.value)}
-                    placeholder={`Enter ${capType} name...`}
-                    className="col-span-3"
-                  />
-                )}
+                <div className="col-span-3 space-y-1">
+                  {targetOptions.length > 0 ? (
+                    <Select value={targetName} onValueChange={setTargetName}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={`Select ${capType}...`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {targetOptions.map((opt) => (
+                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="target"
+                      value={targetName}
+                      onChange={(e) => setTargetName(e.target.value)}
+                      placeholder={capType === "customer" ? "e.g., customer_123" : `Enter ${capType} name...`}
+                    />
+                  )}
+                  {capType === "customer" && targetOptions.length === 0 && (
+                    <p className="text-xs text-gray-500">
+                      No customers tracked yet. Enter the customer_id you&apos;ll use in your SDK.
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
