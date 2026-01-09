@@ -75,7 +75,11 @@ async def check_single_cap(session: Session, cap: SpendingCap):
     # Calculate period dates
     period_start, period_end = get_period_dates(cap.period)
     
-    # Calculate current spend
+    # Look up user to get clerk_user_id for proper data isolation
+    user = session.get(User, cap.user_id)
+    clerk_user_id = user.clerk_user_id if user else None
+    
+    # Calculate current spend with clerk_user_id for proper filtering
     current_spend = calculate_current_spend(
         session,
         cap.user_id,
@@ -83,6 +87,9 @@ async def check_single_cap(session: Session, cap: SpendingCap):
         cap.target_name,
         period_start,
         period_end,
+        clerk_user_id=clerk_user_id,
+        sub_scope=getattr(cap, 'sub_scope', None),
+        sub_target=getattr(cap, 'sub_target', None),
     )
     
     # Calculate percentage

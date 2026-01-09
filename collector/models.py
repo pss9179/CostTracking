@@ -111,6 +111,10 @@ class SpendingCap(SQLModel, table=True):
     cap_type: str = Field(description="Type: 'global', 'provider', 'model', 'agent', 'customer'")
     target_name: Optional[str] = Field(default=None, description="Target name (e.g., 'openai', 'gpt-4', 'research_agent', 'customer_123')")
     
+    # Nested scope for customer caps (e.g., customer + specific provider/model)
+    sub_scope: Optional[str] = Field(default=None, description="Sub-scope for customer caps: 'provider', 'model', or null for all usage")
+    sub_target: Optional[str] = Field(default=None, description="Sub-target name (e.g., 'openai', 'gpt-4' when sub_scope is set)")
+    
     # Cap limits
     limit_amount: float = Field(description="Dollar amount cap (e.g., 100.00 for $100)")
     period: str = Field(description="Period: 'daily', 'weekly', 'monthly'")
@@ -174,6 +178,8 @@ class CapCreate(SQLModel):
     """Schema for creating a spending cap."""
     cap_type: str
     target_name: Optional[str] = None
+    sub_scope: Optional[str] = None  # For customer caps: 'provider', 'model', or null
+    sub_target: Optional[str] = None  # e.g., 'openai', 'gpt-4'
     limit_amount: float
     period: str
     enforcement: str = "alert"  # 'alert' or 'hard_block'
@@ -195,6 +201,8 @@ class CapResponse(SQLModel):
     id: UUID
     cap_type: str
     target_name: Optional[str] = None
+    sub_scope: Optional[str] = None  # For customer caps: 'provider', 'model', or null
+    sub_target: Optional[str] = None  # e.g., 'openai', 'gpt-4'
     limit_amount: float
     period: str
     enforcement: str = "alert"

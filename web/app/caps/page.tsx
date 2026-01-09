@@ -65,6 +65,7 @@ import {
   fetchProviderStats,
   fetchModelStats,
   fetchSectionStats,
+  fetchCustomerList,
   type Cap,
   type Alert,
   type CapCreate,
@@ -118,11 +119,16 @@ interface CreateCapDialogProps {
   providers: string[];
   models: string[];
   features: string[];
+  customers: string[];
 }
 
-function CreateCapDialog({ open, onOpenChange, onSubmit, providers, models, features }: CreateCapDialogProps) {
+type SubScope = "all" | "provider" | "model";
+
+function CreateCapDialog({ open, onOpenChange, onSubmit, providers, models, features, customers }: CreateCapDialogProps) {
   const [capType, setCapType] = useState<CapType>("global");
   const [targetName, setTargetName] = useState("");
+  const [subScope, setSubScope] = useState<SubScope>("all");  // For customer caps
+  const [subTarget, setSubTarget] = useState("");  // Provider/model for customer caps
   const [limitAmount, setLimitAmount] = useState("100");
   const [period, setPeriod] = useState<Period>("monthly");
   const [enforcement, setEnforcement] = useState<Enforcement>("alert");
@@ -134,11 +140,18 @@ function CreateCapDialog({ open, onOpenChange, onSubmit, providers, models, feat
   const targetOptions = capType === "provider" ? providers 
     : capType === "model" ? models 
     : capType === "feature" || capType === "agent" ? features
+    : capType === "customer" ? customers
+    : [];
+
+  const subTargetOptions = subScope === "provider" ? providers
+    : subScope === "model" ? models
     : [];
 
   const resetForm = () => {
     setCapType("global");
     setTargetName("");
+    setSubScope("all");
+    setSubTarget("");
     setLimitAmount("100");
     setPeriod("monthly");
     setEnforcement("alert");
@@ -161,6 +174,12 @@ function CreateCapDialog({ open, onOpenChange, onSubmit, providers, models, feat
       return;
     }
 
+    // Validate sub_target for customer caps with specific scope
+    if (capType === "customer" && subScope !== "all" && !subTarget) {
+      setError(`Please select a ${subScope}`);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -171,6 +190,8 @@ function CreateCapDialog({ open, onOpenChange, onSubmit, providers, models, feat
       const capData: CapCreate = {
         cap_type: backendCapType,
         target_name: capType === "global" ? null : targetName,
+        sub_scope: capType === "customer" && subScope !== "all" ? subScope : null,
+        sub_target: capType === "customer" && subScope !== "all" ? subTarget : null,
         limit_amount: parseFloat(limitAmount),
         period,
         enforcement,
@@ -232,7 +253,9 @@ function CreateCapDialog({ open, onOpenChange, onSubmit, providers, models, feat
             {/* Target (if not global) */}
             {capType !== "global" && (
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="target" className="text-right">Target</Label>
+                <Label htmlFor="target" className="text-right">
+                  {capType === "customer" ? "Customer" : "Target"}
+                </Label>
                 {targetOptions.length > 0 ? (
                   <Select value={targetName} onValueChange={setTargetName}>
                     <SelectTrigger className="col-span-3">
@@ -254,6 +277,54 @@ function CreateCapDialog({ open, onOpenChange, onSubmit, providers, models, feat
                   />
                 )}
               </div>
+            )}
+
+            {/* Sub-scope for customer caps */}
+            {capType === "customer" && (
+              <>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="sub-scope" className="text-right">Scope</Label>
+                  <Select value={subScope} onValueChange={(v) => { setSubScope(v as SubScope); setSubTarget(""); }}>
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Usage (total for customer)</SelectItem>
+                      <SelectItem value="provider">Specific Provider</SelectItem>
+                      <SelectItem value="model">Specific Model</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Sub-target (provider/model) for customer caps */}
+                {subScope !== "all" && (
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="sub-target" className="text-right">
+                      {subScope === "provider" ? "Provider" : "Model"}
+                    </Label>
+                    {subTargetOptions.length > 0 ? (
+                      <Select value={subTarget} onValueChange={setSubTarget}>
+                        <SelectTrigger className="col-span-3">
+                          <SelectValue placeholder={`Select ${subScope}...`} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {subTargetOptions.map((opt) => (
+                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id="sub-target"
+                        value={subTarget}
+                        onChange={(e) => setSubTarget(e.target.value)}
+                        placeholder={`Enter ${subScope} name...`}
+                        className="col-span-3"
+                      />
+                    )}
+                  </div>
+                )}
+              </>
             )}
 
             {/* Limit Amount */}
@@ -322,15 +393,15 @@ function CreateCapDialog({ open, onOpenChange, onSubmit, providers, models, feat
               />
             </div>
 
-            {/* Alert Email */}
+            {/* Send Alerts To (renamed from Alert Email for clarity) */}
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="email" className="text-right">Alert Email</Label>
+              <Label htmlFor="email" className="text-right text-sm">Send Alerts To</Label>
               <Input
                 id="email"
                 type="email"
                 value={alertEmail}
                 onChange={(e) => setAlertEmail(e.target.value)}
-                placeholder="alerts@example.com (optional)"
+                placeholder="your-email@example.com"
                 className="col-span-3"
               />
             </div>
@@ -437,9 +508,17 @@ function CapsTable({ caps, onDelete, onToggle }: CapsTableProps) {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <span className="font-mono text-sm text-gray-700">
-                    {cap.target_name || "All"}
-                  </span>
+                  <div className="space-y-0.5">
+                    <span className="font-mono text-sm text-gray-700">
+                      {cap.target_name || "All"}
+                    </span>
+                    {/* Show sub-scope for customer caps */}
+                    {cap.cap_type === "customer" && cap.sub_scope && cap.sub_target && (
+                      <div className="text-xs text-gray-500">
+                        {cap.sub_scope}: {cap.sub_target}
+                      </div>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="text-right font-semibold tabular-nums">
                   {formatSmartCost(cap.limit_amount)}
@@ -587,6 +666,7 @@ interface CapsCacheData {
   providers: string[];
   models: string[];
   features: string[];
+  customers: string[];
 }
 
 const CAPS_CACHE_KEY = "caps-data";
@@ -647,6 +727,11 @@ export default function CapsPage() {
   const [features, setFeatures] = useState<string[]>(() => {
     if (typeof window === 'undefined') return [];
     return getCached<CapsCacheData>(CAPS_CACHE_KEY)?.features ?? [];
+  });
+  
+  const [customers, setCustomers] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    return getCached<CapsCacheData>(CAPS_CACHE_KEY)?.customers ?? [];
   });
   
   const [loading, setLoading] = useState(() => {
@@ -765,12 +850,13 @@ export default function CapsPage() {
       
       // Track whether each fetch succeeded (200) vs failed (error caught)
       let fetchSucceeded = true;
-      const [capsData, alertsData, providersData, modelsData, sectionsData] = await Promise.all([
+      const [capsData, alertsData, providersData, modelsData, sectionsData, customersData] = await Promise.all([
         fetchCaps(token).catch((err) => { console.error("[Caps] fetchCaps error:", err.message); fetchSucceeded = false; return []; }),
         fetchAlerts(100, token).catch((err) => { console.error("[Caps] fetchAlerts error:", err.message); fetchSucceeded = false; return []; }),
         fetchProviderStats(24 * 30, null, null, token).catch((e) => { console.error('[Caps] fetchProviderStats error:', e.message); return []; }), // Stats failures are OK
         fetchModelStats(24 * 30, null, null, token).catch((e) => { console.error('[Caps] fetchModelStats error:', e.message); return []; }),
         fetchSectionStats(24 * 30, null, null, token).catch((e) => { console.error('[Caps] fetchSectionStats error:', e.message); return []; }),
+        fetchCustomerList(token).catch((e) => { console.error('[Caps] fetchCustomerList error:', e.message); return []; }),
       ]);
       console.log('[Caps] Fetch complete:', { 
         fetchSucceeded,
@@ -778,7 +864,8 @@ export default function CapsPage() {
         alerts: alertsData?.length ?? 0,
         providers: providersData?.length ?? 0,
         models: modelsData?.length ?? 0,
-        sections: sectionsData?.length ?? 0 
+        sections: sectionsData?.length ?? 0,
+        customers: customersData?.length ?? 0,
       });
       measure('caps-fetch');
       
@@ -787,6 +874,7 @@ export default function CapsPage() {
       const modelsList = [...new Set(modelsData.map(m => m.model))];
       const featuresList = [...new Set(sectionsData.map(s => s.section))]
         .filter(s => s !== "main" && s !== "default");
+      const customersList = customersData.filter(c => c !== null && c !== "");
       
       // E) FIX: Check mounted before setState
       if (!mountedRef.current) return false;
@@ -796,6 +884,7 @@ export default function CapsPage() {
       setProviders(providersList);
       setModels(modelsList);
       setFeatures(featuresList);
+      setCustomers(customersList);
       setLastRefresh(new Date());
       setError(null);
       
@@ -812,8 +901,9 @@ export default function CapsPage() {
         providers: providersList,
         models: modelsList,
         features: featuresList,
+        customers: customersList,
       });
-        console.log('[Caps] Cache written:', { caps: capsData.length, alerts: alertsData.length });
+        console.log('[Caps] Cache written:', { caps: capsData.length, alerts: alertsData.length, customers: customersList.length });
       } else {
         console.log('[Caps] NOT caching - fetch failed');
       }
@@ -1075,6 +1165,7 @@ export default function CapsPage() {
           providers={providers}
           models={models}
           features={features}
+          customers={customers}
         />
       </div>
     </ProtectedLayout>

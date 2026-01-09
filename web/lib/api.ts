@@ -88,6 +88,8 @@ export interface Cap {
   id: string;
   cap_type: string;
   target_name: string | null;
+  sub_scope: string | null;  // For customer caps: 'provider', 'model', or null
+  sub_target: string | null;  // e.g., 'openai', 'gpt-4'
   limit_amount: number;
   period: string;
   enforcement: string;
@@ -103,6 +105,8 @@ export interface Cap {
 export interface CapCreate {
   cap_type: string;
   target_name?: string | null;
+  sub_scope?: string | null;  // For customer caps: 'provider', 'model', or null
+  sub_target?: string | null;  // e.g., 'openai', 'gpt-4'
   limit_amount: number;
   period: string;
   enforcement?: string;
@@ -487,6 +491,12 @@ export async function fetchCustomerStats(hours: number = 720, tenantId?: string 
     console.warn("Error fetching customer stats, returning empty list:", error);
     return [];
   }
+}
+
+// Helper to get just customer IDs for dropdowns
+export async function fetchCustomerList(token?: string): Promise<string[]> {
+  const customers = await fetchCustomerStats(720, null, token);
+  return customers.map(c => c.customer_id).filter(Boolean);
 }
 
 export async function fetchInsights(tenantId?: string | null, token?: string): Promise<Insight[]> {

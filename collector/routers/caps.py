@@ -92,11 +92,15 @@ def calculate_current_spend(
     period_start: datetime,
     period_end: datetime,
     clerk_user_id: Optional[str] = None,
+    sub_scope: Optional[str] = None,
+    sub_target: Optional[str] = None,
 ) -> float:
     """Calculate current spend for a cap.
     
     Uses tenant_id (clerk_user_id) OR user_id for proper data isolation.
     Events are stored with tenant_id = clerk_user_id when ingested via API key.
+    
+    For customer caps with sub_scope/sub_target, filters by customer AND provider/model.
     """
     # Build user filter - match by tenant_id OR user_id
     if clerk_user_id:
@@ -123,7 +127,13 @@ def calculate_current_spend(
     elif cap_type == "agent" and target_name:
         query = query.where(TraceEvent.section == target_name)  # Agents are stored in section
     elif cap_type == "customer" and target_name:
+        # Filter by customer
         query = query.where(TraceEvent.customer_id == target_name)
+        # Apply sub_scope filters for nested customer caps
+        if sub_scope == "provider" and sub_target:
+            query = query.where(TraceEvent.provider == sub_target)
+        elif sub_scope == "model" and sub_target:
+            query = query.where(TraceEvent.model == sub_target)
     # 'global' doesn't add any filter
     
     result = session.exec(query).first()
@@ -157,6 +167,8 @@ async def create_cap(
         user_id=user.id,
         cap_type=cap_data.cap_type,
         target_name=cap_data.target_name,
+        sub_scope=cap_data.sub_scope,
+        sub_target=cap_data.sub_target,
         limit_amount=cap_data.limit_amount,
         period=cap_data.period,
         enforcement=cap_data.enforcement,
@@ -172,7 +184,9 @@ async def create_cap(
     period_start, period_end = get_period_dates(cap.period)
     current_spend = calculate_current_spend(
         session, user.id, cap.cap_type, cap.target_name, period_start, period_end,
-        clerk_user_id=user.clerk_user_id
+        clerk_user_id=user.clerk_user_id,
+        sub_scope=cap.sub_scope,
+        sub_target=cap.sub_target,
     )
     
     logger.info(f"Created spending cap: {cap.cap_type} ${cap.limit_amount}/{cap.period} for user {user.email}")
@@ -181,6 +195,8 @@ async def create_cap(
         id=cap.id,
         cap_type=cap.cap_type,
         target_name=cap.target_name,
+        sub_scope=cap.sub_scope,
+        sub_target=cap.sub_target,
         limit_amount=cap.limit_amount,
         period=cap.period,
         enforcement=cap.enforcement,
@@ -210,13 +226,17 @@ async def list_caps(
         period_start, period_end = get_period_dates(cap.period)
         current_spend = calculate_current_spend(
             session, user.id, cap.cap_type, cap.target_name, period_start, period_end,
-            clerk_user_id=user.clerk_user_id
+            clerk_user_id=user.clerk_user_id,
+            sub_scope=getattr(cap, 'sub_scope', None),
+            sub_target=getattr(cap, 'sub_target', None),
         )
         
         result.append(CapResponse(
             id=cap.id,
             cap_type=cap.cap_type,
             target_name=cap.target_name,
+            sub_scope=getattr(cap, 'sub_scope', None),
+            sub_target=getattr(cap, 'sub_target', None),
             limit_amount=cap.limit_amount,
             period=cap.period,
             enforcement=cap.enforcement or "alert",
@@ -556,13 +576,17 @@ async def get_cap(
     period_start, period_end = get_period_dates(cap.period)
     current_spend = calculate_current_spend(
         session, user.id, cap.cap_type, cap.target_name, period_start, period_end,
-        clerk_user_id=user.clerk_user_id
+        clerk_user_id=user.clerk_user_id,
+        sub_scope=getattr(cap, 'sub_scope', None),
+        sub_target=getattr(cap, 'sub_target', None),
     )
     
     return CapResponse(
         id=cap.id,
         cap_type=cap.cap_type,
         target_name=cap.target_name,
+        sub_scope=getattr(cap, 'sub_scope', None),
+        sub_target=getattr(cap, 'sub_target', None),
         limit_amount=cap.limit_amount,
         period=cap.period,
         enforcement=cap.enforcement,
@@ -610,7 +634,9 @@ async def update_cap(
     period_start, period_end = get_period_dates(cap.period)
     current_spend = calculate_current_spend(
         session, user.id, cap.cap_type, cap.target_name, period_start, period_end,
-        clerk_user_id=user.clerk_user_id
+        clerk_user_id=user.clerk_user_id,
+        sub_scope=getattr(cap, 'sub_scope', None),
+        sub_target=getattr(cap, 'sub_target', None),
     )
     
     logger.info(f"Updated spending cap {cap_id} for user {user.email}")
@@ -619,6 +645,8 @@ async def update_cap(
         id=cap.id,
         cap_type=cap.cap_type,
         target_name=cap.target_name,
+        sub_scope=getattr(cap, 'sub_scope', None),
+        sub_target=getattr(cap, 'sub_target', None),
         limit_amount=cap.limit_amount,
         period=cap.period,
         enforcement=cap.enforcement,
