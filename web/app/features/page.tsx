@@ -486,8 +486,7 @@ function FeaturesPageContent() {
       setFeatureDetail(detail);
     } catch (err) {
       console.error("[Features] Failed to fetch section detail:", err);
-      // Set empty detail so loading stops
-      setFeatureDetail({ by_provider: [], by_model: [] });
+      // Leave as null - loading will stop and empty state will show
     } finally {
       setLoadingDetail(false);
     }
