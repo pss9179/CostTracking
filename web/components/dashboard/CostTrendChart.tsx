@@ -4,8 +4,6 @@ import { useMemo, useState, useEffect } from "react";
 import {
   Line,
   LineChart,
-  Area,
-  AreaChart,
   CartesianGrid,
   ResponsiveContainer,
   Tooltip,
@@ -365,13 +363,12 @@ export function CostTrendChart({
     return normalized.filter(d => d && d.date && typeof d.value === 'number');
   }, [data, providers, effectiveMode]);
   
-  // Additional guard: don't render stacked if no valid normalized data
-  const canRenderStacked = effectiveMode === "stacked" && normalizedData.length > 0 && providers.length > 0;
+  // Additional guard: don't render lines if no valid normalized data
   const canRenderLines = effectiveMode === "lines" && normalizedData.length > 0 && providers.length > 0;
   
-  // Auto-fallback to total mode if user selects stacked/lines but data isn't available
+  // Auto-fallback to total mode if user selects lines but data isn't available
   useEffect(() => {
-    if ((mode === "stacked" || mode === "lines") && !hasProviderData) {
+    if (mode === "lines" && !hasProviderData) {
       setMode("total");
     }
   }, [mode, hasProviderData]);
@@ -405,7 +402,7 @@ export function CostTrendChart({
       </div>
 
       {/* Chart */}
-      {(effectiveMode === "stacked" && !canRenderStacked) || (effectiveMode === "lines" && !canRenderLines) ? (
+      {effectiveMode === "lines" && !canRenderLines ? (
         <div 
           className="flex items-center justify-center bg-slate-50 rounded-lg"
           style={{ height }}
@@ -416,160 +413,90 @@ export function CostTrendChart({
         </div>
       ) : (
       <ResponsiveContainer width="100%" height={height}>
-        {canRenderStacked ? (
-          // Stacked Area Chart
-          <AreaChart data={normalizedData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-            <defs>
-              {providers.map((provider) => (
-                <linearGradient
-                  key={`grad-${provider}`}
-                  id={`areaGrad-${provider}`}
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
-                  <stop
-                    offset="0%"
-                    stopColor={getProviderColor(provider)}
-                    stopOpacity={0.4}
-                  />
-                  <stop
-                    offset="100%"
-                    stopColor={getProviderColor(provider)}
-                    stopOpacity={0.05}
-                  />
-                </linearGradient>
-              ))}
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-            <XAxis
-              dataKey="date"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
-              dy={8}
-              minTickGap={60}
-              interval="preserveStartEnd"
-              allowDuplicatedCategory={false}
+        {/* Line Chart (Total or By Provider) */}
+        <LineChart data={effectiveMode === "lines" ? normalizedData : data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+          <defs>
+            <linearGradient id="totalLineGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor={TOTAL_COLOR} stopOpacity={0.8} />
+              <stop offset="100%" stopColor="#0284c7" stopOpacity={1} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+          <XAxis
+            dataKey="date"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "#94a3b8", fontSize: 11 }}
+            dy={8}
+            minTickGap={60}
+            interval="preserveStartEnd"
+            allowDuplicatedCategory={false}
+          />
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "#94a3b8", fontSize: 11 }}
+            tickFormatter={formatAxisCost}
+            domain={yAxisDomain}
+            width={55}
+          />
+          {avgValue > 0 && effectiveMode === "total" && (
+            <ReferenceLine
+              y={avgValue}
+              stroke="#94a3b8"
+              strokeDasharray="4 4"
+              strokeOpacity={0.5}
+              label={{
+                value: `avg`,
+                position: "right",
+                fill: "#94a3b8",
+                fontSize: 10,
+              }}
             />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
-              tickFormatter={formatAxisCost}
-              domain={yAxisDomain}
-              width={55}
-            />
-            <Tooltip
-              content={({ active, payload, label }) => (
-                <CustomTooltip
-                  active={active}
-                  payload={payload as CustomTooltipProps["payload"]}
-                  label={String(label ?? "")}
-                  mode={effectiveMode}
-                  prevValue={getPrevValue(String(label ?? ""))}
-                />
-              )}
-            />
-            {providers.map((provider) => (
-              <Area
+          )}
+          <Tooltip
+            content={({ active, payload, label }) => (
+              <CustomTooltip
+                active={active}
+                payload={payload as CustomTooltipProps["payload"]}
+                label={String(label ?? "")}
+                mode={effectiveMode}
+                prevValue={getPrevValue(String(label ?? ""))}
+              />
+            )}
+          />
+          {canRenderLines ? (
+            // Multiple lines for each provider
+            providers.map((provider) => (
+              <Line
                 key={provider}
                 type="monotone"
                 dataKey={provider}
-                stackId="1"
                 stroke={getProviderColor(provider)}
-                fill={`url(#areaGrad-${provider})`}
-                strokeWidth={1.5}
-              />
-            ))}
-          </AreaChart>
-        ) : (
-          // Line Chart (Total or By Provider)
-          <LineChart data={effectiveMode === "lines" ? normalizedData : data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-            <defs>
-              <linearGradient id="totalLineGrad" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor={TOTAL_COLOR} stopOpacity={0.8} />
-                <stop offset="100%" stopColor="#0284c7" stopOpacity={1} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-            <XAxis
-              dataKey="date"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
-              dy={8}
-              minTickGap={60}
-              interval="preserveStartEnd"
-              allowDuplicatedCategory={false}
-            />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
-              tickFormatter={formatAxisCost}
-              domain={yAxisDomain}
-              width={55}
-            />
-            {avgValue > 0 && effectiveMode === "total" && (
-              <ReferenceLine
-                y={avgValue}
-                stroke="#94a3b8"
-                strokeDasharray="4 4"
-                strokeOpacity={0.5}
-                label={{
-                  value: `avg`,
-                  position: "right",
-                  fill: "#94a3b8",
-                  fontSize: 10,
-                }}
-              />
-            )}
-            <Tooltip
-              content={({ active, payload, label }) => (
-                <CustomTooltip
-                  active={active}
-                  payload={payload as CustomTooltipProps["payload"]}
-                  label={String(label ?? "")}
-                  mode={effectiveMode}
-                  prevValue={getPrevValue(String(label ?? ""))}
-                />
-              )}
-            />
-            {canRenderLines ? (
-              // Multiple lines for each provider
-              providers.map((provider) => (
-                <Line
-                  key={provider}
-                  type="monotone"
-                  dataKey={provider}
-                  stroke={getProviderColor(provider)}
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: getProviderColor(provider), strokeWidth: 0 }}
-                  activeDot={{ r: 5, strokeWidth: 2, fill: "white" }}
-                  connectNulls
-                />
-              ))
-            ) : (
-              // Single total line
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="url(#totalLineGrad)"
-                strokeWidth={2.5}
-                dot={false}
-                activeDot={{
-                  r: 5,
-                  strokeWidth: 2,
-                  fill: "white",
-                  stroke: TOTAL_COLOR,
-                }}
+                strokeWidth={2}
+                dot={{ r: 3, fill: getProviderColor(provider), strokeWidth: 0 }}
+                activeDot={{ r: 5, strokeWidth: 2, fill: "white" }}
                 connectNulls
               />
-            )}
-          </LineChart>
-        )}
+            ))
+          ) : (
+            // Single total line
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke="url(#totalLineGrad)"
+              strokeWidth={2.5}
+              dot={false}
+              activeDot={{
+                r: 5,
+                strokeWidth: 2,
+                fill: "white",
+                stroke: TOTAL_COLOR,
+              }}
+              connectNulls
+            />
+          )}
+        </LineChart>
       </ResponsiveContainer>
       )}
 
