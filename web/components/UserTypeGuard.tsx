@@ -4,6 +4,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useUser, useOrganizationList } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 
+// Auth routes that should bypass the guard entirely
+const AUTH_ROUTES = ["/sign-in", "/sign-up", "/sso-callback"];
+
 export function UserTypeGuard({ children }: { children: React.ReactNode }) {
     const { isLoaded, isSignedIn, user } = useUser();
     const { userMemberships, isLoaded: isOrgListLoaded } = useOrganizationList({
@@ -15,7 +18,16 @@ export function UserTypeGuard({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const [checked, setChecked] = useState(false);
 
+    // Check if current route is an auth route - render immediately without waiting
+    const isAuthRoute = AUTH_ROUTES.some(route => pathname?.startsWith(route));
+
     useEffect(() => {
+        // Auth routes bypass all checks - render immediately
+        if (isAuthRoute) {
+            setChecked(true);
+            return;
+        }
+
         if (!isLoaded || !isOrgListLoaded) return;
 
         // Allow public routes without check
@@ -48,9 +60,14 @@ export function UserTypeGuard({ children }: { children: React.ReactNode }) {
             // All good
             setChecked(true);
         }
-    }, [isLoaded, isOrgListLoaded, isSignedIn, user, userMemberships, pathname, router]);
+    }, [isLoaded, isOrgListLoaded, isSignedIn, user, userMemberships, pathname, router, isAuthRoute]);
 
-    // Optional: Show loading state while checking
+    // Auth routes render immediately without waiting for Clerk
+    if (isAuthRoute) {
+        return <>{children}</>;
+    }
+
+    // Show loading state while checking (only for non-auth routes)
     if (!checked) {
         return null; // or a loading spinner
     }
