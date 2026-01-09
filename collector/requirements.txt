@@ -13,3 +13,4 @@ sendgrid>=6.10.0
 
 # Force rebuild Thu Jan  9 02:17:00 CST 2026 - v0.3.8 data fix
 # Force rebuild Fri Jan  9 04:35:17 CST 2026
+# Cache bust 1767959926
