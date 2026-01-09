@@ -446,7 +446,14 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       if (Array.isArray(prevProvidersData)) setPrevProviderStats(prevProvidersData);
       if (Array.isArray(prevDailyOnly)) setPrevDailyStats(prevDailyOnly);
       setLastRefresh(new Date());
-      setError(null);
+      
+      // Only clear error if fetch actually succeeded, otherwise set a generic error
+      if (fetchSucceeded) {
+        setError(null);
+      } else if (!isBackground && !hasLoadedRef.current) {
+        // Only set error on initial load failure, not background refresh
+        setError("Failed to load data. Check your connection and try again.");
+      }
       
       // B) FIX: Lock loading after first success
       hasLoadedRef.current = true;
@@ -899,8 +906,9 @@ function DashboardPageContent() {
           </div>
         )}
         
-        {/* Empty state for new users - only show if NO data at all (not filtered) */}
-        {!hasData && !loading && !isRefreshing && (
+        {/* Empty state for new users - only show if NO data at all AND no error (not filtered) */}
+        {/* If there's an error, show error state instead of onboarding */}
+        {!hasData && !loading && !isRefreshing && !error && (
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-8 text-center">
             <div className="max-w-md mx-auto">
               <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4">

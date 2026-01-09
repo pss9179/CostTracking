@@ -1102,8 +1102,9 @@ function CustomersPageContent() {
     );
   }
 
-  // I) FIX: Empty state for new users - show immediately if not loading
-  if (!hasData && !loading) {
+  // I) FIX: Empty state for new users - show immediately if not loading AND no error
+  // If there's an error, the error state above will handle it
+  if (!hasData && !loading && !error) {
     return (
       <ProtectedLayout>
         <div className="space-y-6 p-6">
