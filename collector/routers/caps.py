@@ -545,24 +545,38 @@ async def trigger_cap_check():
 
 
 @router.post("/test-email")
-async def test_email(email: str = Query(..., description="Email address to send test to")):
+async def test_email(
+    email: str = Query(..., description="Email address to send test to"),
+    current_spend: float = Query(default=85.00, description="Current spend amount"),
+    cap_limit: float = Query(default=100.00, description="Cap limit amount"),
+    percentage: float = Query(default=85.0, description="Percentage used"),
+    alert_type: str = Query(default="threshold_reached", description="Alert type: 'threshold_reached' or 'cap_exceeded'"),
+    period: str = Query(default="monthly", description="Period: 'daily', 'weekly', 'monthly'"),
+):
     """
     Send a test email to verify email configuration is working.
+    
+    Pass custom values to send emails with real data instead of test data.
     """
     try:
         from email_service import send_alert_email
         success = await send_alert_email(
             to_email=email,
-            alert_type="threshold_reached",
+            alert_type=alert_type,
             target_type="global",
-            target_name="Test Alert",
-            current_spend=85.00,
-            cap_limit=100.00,
-            percentage=85.0,
-            period="monthly",
+            target_name="All Services",
+            current_spend=current_spend,
+            cap_limit=cap_limit,
+            percentage=percentage,
+            period=period,
         )
         if success:
-            return {"status": "success", "message": f"Test email sent to {email}"}
+            return {"status": "success", "message": f"Alert email sent to {email}", "data": {
+                "current_spend": current_spend,
+                "cap_limit": cap_limit,
+                "percentage": percentage,
+                "alert_type": alert_type,
+            }}
         else:
             return {"status": "error", "message": "Email send failed - check logs"}
     except Exception as e:
