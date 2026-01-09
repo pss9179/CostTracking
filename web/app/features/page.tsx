@@ -15,9 +15,11 @@ import {
   fetchSectionStats, 
   fetchProviderStats,
   fetchModelStats,
+  fetchSectionDetail,
   type SectionStats,
   type ProviderStats,
   type ModelStats,
+  type SectionDetail,
 } from "@/lib/api";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { KPIGrid, calculateKPIs } from "@/components/analytics/KPIGrid";
@@ -380,11 +382,13 @@ function useFeaturesData(hours: number) {
 // ============================================================================
 
 function FeaturesPageContent() {
+  const { getToken } = useAuth();
   const searchParams = useSearchParams();
   const [dateRange, setDateRange] = useState<DateRange>(
     (searchParams.get('range') as DateRange) || "7d"
   );
   const [selectedFeature, setSelectedFeature] = useState<FeatureRow | null>(null);
+  const [featureDetail, setFeatureDetail] = useState<SectionDetail | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [filters, setFilters] = useState<FilterState>({});
   
@@ -467,11 +471,21 @@ function FeaturesPageContent() {
     [sectionStats]
   );
   
-  // Handle row click
-  const handleRowClick = useCallback((feature: FeatureRow) => {
+  // Handle row click - fetch detail data for drawer
+  const handleRowClick = useCallback(async (feature: FeatureRow) => {
     setSelectedFeature(feature);
+    setFeatureDetail(null); // Clear previous detail
     setDrawerOpen(true);
-  }, []);
+    
+    // Fetch detailed breakdown
+    try {
+      const token = await getToken();
+      const detail = await fetchSectionDetail(feature.section, hours, token || undefined);
+      setFeatureDetail(detail);
+    } catch (err) {
+      console.error("[Features] Failed to fetch section detail:", err);
+    }
+  }, [getToken, hours]);
   
   // Handle KPI click (apply filter)
   const handleKPIClick = useCallback((kpiType: string, value?: string) => {
@@ -676,6 +690,18 @@ function FeaturesPageContent() {
               avg_latency_ms: selectedFeature.avg_latency_ms,
               percentage: selectedFeature.percentage,
             }}
+            providerBreakdown={featureDetail?.by_provider?.map(p => ({
+              provider: p.provider,
+              cost: p.cost,
+              calls: p.calls,
+              percentage: p.percentage,
+            }))}
+            modelBreakdown={featureDetail?.by_model?.map(m => ({
+              model: m.model,
+              cost: m.cost,
+              calls: m.calls,
+              percentage: m.percentage,
+            }))}
           />
         )}
       </div>

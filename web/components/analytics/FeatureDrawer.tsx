@@ -354,11 +354,11 @@ export function FeatureDrawer({
             />
           )}
           
-          {/* No detail data placeholder */}
+          {/* Loading state when no breakdown data yet */}
           {!trendData && !providerBreakdown && !modelBreakdown && (
             <div className="text-center py-8 text-slate-400">
-              <Layers className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">Detailed breakdown coming soon</p>
+              <div className="w-6 h-6 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-sm">Loading breakdown...</p>
             </div>
           )}
         </div>

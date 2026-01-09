@@ -499,6 +499,40 @@ export async function fetchCustomerList(token?: string): Promise<string[]> {
   return customers.map(c => c.customer_id).filter(Boolean);
 }
 
+// Section/Feature Detail
+export interface SectionDetail {
+  section: string;
+  total_cost: number;
+  call_count: number;
+  avg_latency_ms: number;
+  by_provider: Array<{
+    provider: string;
+    cost: number;
+    calls: number;
+    percentage: number;
+  }>;
+  by_model: Array<{
+    model: string;
+    cost: number;
+    calls: number;
+    percentage: number;
+  }>;
+  hours: number;
+}
+
+export async function fetchSectionDetail(section: string, hours: number = 168, token?: string): Promise<SectionDetail> {
+  const headers = await getDashboardAuthHeaders(token);
+  const response = await fetch(`${COLLECTOR_URL}/stats/section/${encodeURIComponent(section)}?hours=${hours}`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch section detail: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
 export async function fetchInsights(tenantId?: string | null, token?: string): Promise<Insight[]> {
   const headers = await getDashboardAuthHeaders(token);
   let url = `${COLLECTOR_URL}/insights/daily`;

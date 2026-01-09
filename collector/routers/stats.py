@@ -797,6 +797,130 @@ async def get_costs_by_section(
     return sections
 
 
+@router.get("/section/{section:path}")
+async def get_section_detail(
+    section: str,
+    hours: int = Query(168, description="Time window in hours (default 7 days)"),
+    session: Session = Depends(get_session),
+    current_user = Depends(get_current_clerk_user)
+) -> Dict[str, Any]:
+    """
+    Get detailed breakdown for a specific section/feature.
+    
+    Returns:
+    - Total cost, call count, avg latency
+    - Breakdown by provider
+    - Breakdown by model
+    """
+    from urllib.parse import unquote
+    section = unquote(section)  # Handle URL-encoded section names
+    
+    user_id = current_user.id
+    clerk_user_id = current_user.clerk_user_id
+    
+    # Build user filter for data isolation
+    if clerk_user_id:
+        user_filter = or_(
+            TraceEvent.tenant_id == clerk_user_id,
+            TraceEvent.user_id == user_id
+        )
+    else:
+        user_filter = and_(
+            TraceEvent.user_id == user_id,
+            TraceEvent.user_id.isnot(None)
+        )
+    
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    
+    # Get total stats for this section
+    stats_stmt = select(
+        func.sum(TraceEvent.cost_usd).label("total_cost"),
+        func.count(TraceEvent.id).label("call_count"),
+        func.avg(TraceEvent.latency_ms).label("avg_latency")
+    ).where(and_(
+        user_filter,
+        TraceEvent.section == section,
+        TraceEvent.created_at >= cutoff
+    ))
+    stats = session.exec(stats_stmt).first()
+    
+    if not stats or not stats.total_cost:
+        return {
+            "section": section,
+            "total_cost": 0,
+            "call_count": 0,
+            "avg_latency_ms": 0,
+            "by_provider": [],
+            "by_model": [],
+            "hours": hours
+        }
+    
+    # Breakdown by provider
+    provider_stmt = (
+        select(
+            TraceEvent.provider,
+            func.sum(TraceEvent.cost_usd).label("cost"),
+            func.count(TraceEvent.id).label("calls")
+        )
+        .where(and_(
+            user_filter,
+            TraceEvent.section == section,
+            TraceEvent.created_at >= cutoff,
+            TraceEvent.provider != "internal"
+        ))
+        .group_by(TraceEvent.provider)
+        .order_by(func.sum(TraceEvent.cost_usd).desc())
+    )
+    providers = session.exec(provider_stmt).all()
+    
+    # Breakdown by model
+    model_stmt = (
+        select(
+            TraceEvent.model,
+            func.sum(TraceEvent.cost_usd).label("cost"),
+            func.count(TraceEvent.id).label("calls")
+        )
+        .where(and_(
+            user_filter,
+            TraceEvent.section == section,
+            TraceEvent.model.isnot(None),
+            TraceEvent.created_at >= cutoff
+        ))
+        .group_by(TraceEvent.model)
+        .order_by(func.sum(TraceEvent.cost_usd).desc())
+        .limit(10)
+    )
+    models = session.exec(model_stmt).all()
+    
+    total_cost = stats.total_cost or 0
+    
+    return {
+        "section": section,
+        "total_cost": round(total_cost, 6),
+        "call_count": stats.call_count or 0,
+        "avg_latency_ms": round(stats.avg_latency or 0, 2),
+        "by_provider": [
+            {
+                "provider": p.provider,
+                "cost": round(p.cost or 0, 6),
+                "calls": p.calls,
+                "percentage": round((p.cost / total_cost * 100) if total_cost > 0 else 0, 2)
+            }
+            for p in providers
+        ],
+        "by_model": [
+            {
+                "model": m.model,
+                "cost": round(m.cost or 0, 6),
+                "calls": m.calls,
+                "percentage": round((m.cost / total_cost * 100) if total_cost > 0 else 0, 2)
+            }
+            for m in models
+        ],
+        "hours": hours
+    }
+
+
 @router.get("/debug-by-customer-auth")
 async def debug_by_customer_auth(
     session: Session = Depends(get_session),
