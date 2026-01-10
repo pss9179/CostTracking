@@ -990,45 +990,6 @@ function DashboardPageContent() {
           </div>
         )}
         
-        {/* No data in selected period (but has historical data) */}
-        {hasHistoricalData && !hasData && !loading && !isRefreshing && !hasActiveFilters && (
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 text-center">
-            <div className="max-w-md mx-auto">
-              <span className="text-2xl mb-2 block">📊</span>
-              <h3 className="text-lg font-medium text-slate-900 mb-2">
-                No activity in this period
-              </h3>
-              <p className="text-slate-600 text-sm">
-                No costs recorded in the selected time range. Try expanding the date range to see your data.
-              </p>
-            </div>
-          </div>
-        )}
-        
-        {/* Filter empty state - has data but current filter returns nothing */}
-        {hasData && !hasAnySpend && hasActiveFilters && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
-            <div className="max-w-md mx-auto">
-              <span className="text-2xl mb-2 block">🔍</span>
-              <h3 className="text-lg font-medium text-slate-900 mb-2">
-                No data matches your filters
-              </h3>
-              <p className="text-slate-600 text-sm mb-4">
-                Try adjusting your provider or model filters to see data.
-              </p>
-              <button
-                onClick={() => {
-                  setSelectedProviders([]);
-                  setSelectedModels([]);
-                }}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors text-sm"
-              >
-                Clear filters
-              </button>
-            </div>
-          </div>
-        )}
-        
         {/* Comparison Banner */}
         {compareEnabled && comparisonStats && (
           <div className={cn(
@@ -1068,7 +1029,7 @@ function DashboardPageContent() {
           </div>
         )}
         
-        {/* KPI Cards - show skeleton while loading to prevent $0 flash */}
+        {/* KPI Cards - ALWAYS show when we have historical data, show skeleton when loading fresh */}
         {(loading || isRefreshing) && dailyAggregates.length === 0 ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
@@ -1105,6 +1066,41 @@ function DashboardPageContent() {
               }
             />
           </MetricCardRow>
+        )}
+        
+        {/* No data in selected period (but has historical data) */}
+        {hasHistoricalData && !hasData && !loading && !isRefreshing && !hasActiveFilters && (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-lg">📊</span>
+              <span className="text-slate-600 text-sm">
+                No activity in the selected time range. Try expanding the date range.
+              </span>
+            </div>
+          </div>
+        )}
+        
+        {/* Filter empty state - has data but current filter returns nothing */}
+        {hasData && !hasAnySpend && hasActiveFilters && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🔍</span>
+                <span className="text-slate-600 text-sm">
+                  No data matches your filters.
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedProviders([]);
+                  setSelectedModels([]);
+                }}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg transition-colors text-sm"
+              >
+                Clear filters
+              </button>
+            </div>
+          </div>
         )}
         
         {/* Spend Distribution (stacked bar) */}
