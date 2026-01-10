@@ -83,3 +83,11 @@ logs/
 .cache/
 
 .vercel
+
+# Test files with potential secrets
+test_*.py
+send_*.py
+*_test.py
+*.env
+.env*
+!.env.example
