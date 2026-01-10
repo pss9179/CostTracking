@@ -42,11 +42,12 @@ import type { DateRange } from "@/contexts/AnalyticsContext";
 // ============================================================================
 
 interface DashboardStats {
-  totalCost24h: number;
-  totalCalls24h: number;
-  weekCost: number;
-  monthCost: number;
-  yesterdayCost: number;
+  todayCost: number;      // Fixed: today's cost
+  periodCost: number;     // Variable: selected time range total
+  periodCalls: number;    // Variable: selected time range calls
+  weekCost: number;       // Fixed: last 7 days
+  monthCost: number;      // Fixed: last 30 days
+  yesterdayCost: number;  // Fixed: yesterday's cost
   avgCostPerCall: number;
   topProvider: string | null;
   topModel: string | null;
@@ -173,7 +174,9 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     }
   }, [dateRange]);
   
-  const days = useMemo(() => Math.ceil(hours / 24), [hours]);
+  // ALWAYS fetch at least 30 days of daily aggregates for KPI cards (TODAY, WEEK, MONTH)
+  // This ensures we have accurate data regardless of the selected date range
+  const days = useMemo(() => Math.max(30, Math.ceil(hours / 24)), [hours]);
   
   // Handle cacheKey CHANGES only (when dateRange or compareEnabled changes)
   useEffect(() => {
@@ -690,21 +693,60 @@ function DashboardPageContent() {
     return day.total || 0;
   }, [selectedProviders, selectedModels]);
   
-  // Calculate aggregated stats - FILTERED by selected provider/model
+  // Calculate aggregated stats - use dailyAggregates for time-based KPIs
+  // dailyAggregates has actual daily data (not hourly buckets like dailyStats might have for short ranges)
   const stats = useMemo<DashboardStats>(() => {
-    const totalCost = filteredProviderStats.reduce((sum, stat) => sum + (stat.total_cost || 0), 0);
-    const totalCalls = filteredProviderStats.reduce((sum, stat) => sum + (stat.call_count || 0), 0);
+    // Period stats (for selected time range) - from filteredProviderStats
+    const periodCost = filteredProviderStats.reduce((sum, stat) => sum + (stat.total_cost || 0), 0);
+    const periodCalls = filteredProviderStats.reduce((sum, stat) => sum + (stat.call_count || 0), 0);
     
-    // Week cost: sum of last 7 days from daily stats (FILTERED)
-    const weekCost = dailyStats.slice(-7).reduce((sum, day) => sum + getFilteredDayCost(day), 0);
+    // Helper to get date string in YYYY-MM-DD format
+    const getDateStr = (daysAgo: number = 0): string => {
+      const date = new Date();
+      date.setDate(date.getDate() - daysAgo);
+      return date.toISOString().split('T')[0];
+    };
     
-    // Month cost: sum of last 30 days from daily stats (FILTERED)
-    const monthCost = dailyStats.slice(-30).reduce((sum, day) => sum + getFilteredDayCost(day), 0);
+    const todayStr = getDateStr(0);
+    const yesterdayStr = getDateStr(1);
     
-    // Yesterday's cost from daily stats (FILTERED)
-    const yesterdayCost = dailyStats.length >= 2 
-      ? getFilteredDayCost(dailyStats[dailyStats.length - 2]) 
-      : 0;
+    // Create a map for quick date lookup from dailyAggregates
+    const dailyMap = new Map<string, DailyStats>();
+    for (const day of dailyAggregates) {
+      // Normalize date string to YYYY-MM-DD
+      const dateKey = day.date?.split('T')[0] || day.date;
+      if (dateKey) {
+        dailyMap.set(dateKey, day);
+      }
+    }
+    
+    // TODAY: Get today's cost from dailyAggregates
+    const todayData = dailyMap.get(todayStr);
+    const todayCost = todayData ? getFilteredDayCost(todayData) : 0;
+    
+    // YESTERDAY: Get yesterday's cost
+    const yesterdayData = dailyMap.get(yesterdayStr);
+    const yesterdayCost = yesterdayData ? getFilteredDayCost(yesterdayData) : 0;
+    
+    // WEEK: Sum last 7 days from dailyAggregates
+    let weekCost = 0;
+    for (let i = 0; i < 7; i++) {
+      const dateStr = getDateStr(i);
+      const dayData = dailyMap.get(dateStr);
+      if (dayData) {
+        weekCost += getFilteredDayCost(dayData);
+      }
+    }
+    
+    // MONTH: Sum last 30 days from dailyAggregates
+    let monthCost = 0;
+    for (let i = 0; i < 30; i++) {
+      const dateStr = getDateStr(i);
+      const dayData = dailyMap.get(dateStr);
+      if (dayData) {
+        monthCost += getFilteredDayCost(dayData);
+      }
+    }
     
     // Top provider
     const sortedProviders = [...filteredProviderStats].sort((a, b) => b.total_cost - a.total_cost);
@@ -715,16 +757,17 @@ function DashboardPageContent() {
     const topModel = sortedModels[0]?.model || null;
     
     return {
-      totalCost24h: totalCost,
-      totalCalls24h: totalCalls,
+      todayCost,
+      periodCost,
+      periodCalls,
       weekCost,
       monthCost,
       yesterdayCost,
-      avgCostPerCall: totalCalls > 0 ? totalCost / totalCalls : 0,
+      avgCostPerCall: periodCalls > 0 ? periodCost / periodCalls : 0,
       topProvider,
       topModel,
     };
-  }, [filteredProviderStats, filteredModelStats, dailyStats, getFilteredDayCost]);
+  }, [filteredProviderStats, filteredModelStats, dailyAggregates, getFilteredDayCost]);
   
   // Prepare chart data - FILTERED by selected provider/model
   const chartData = useMemo(() => {
@@ -798,7 +841,7 @@ function DashboardPageContent() {
   
   // A) FIX: Data presence overrides all other states
   const hasData = providerStats.length > 0;
-  const hasAnySpend = stats.totalCost24h > 0 || stats.weekCost > 0 || stats.monthCost > 0;
+  const hasAnySpend = stats.todayCost > 0 || stats.weekCost > 0 || stats.monthCost > 0 || stats.periodCost > 0;
   
   // TIMING: Log first meaningful render
   useEffect(() => {
@@ -815,7 +858,8 @@ function DashboardPageContent() {
     providerStatsLen: providerStats.length,
     modelStatsLen: modelStats.length,
     dailyStatsLen: dailyStats.length,
-    totalCost24h: stats.totalCost24h,
+    todayCost: stats.todayCost,
+    periodCost: stats.periodCost,
     weekCost: stats.weekCost,
     selectedProviders,
     selectedModels,
@@ -1009,7 +1053,7 @@ function DashboardPageContent() {
         <MetricCardRow columns={4}>
           <MetricCard
             title="Today"
-            value={stats.totalCost24h}
+            value={stats.todayCost}
             previousValue={stats.yesterdayCost}
             deltaLabel="vs yesterday"
             variant="primary"
@@ -1025,12 +1069,12 @@ function DashboardPageContent() {
           />
           <MetricCard
             title="API Calls"
-            value={formatCompactNumber(stats.totalCalls24h)}
-            formatValue={() => formatCompactNumber(stats.totalCalls24h)}
+            value={formatCompactNumber(stats.periodCalls)}
+            formatValue={() => formatCompactNumber(stats.periodCalls)}
             tooltipContent={
               <div>
                 <p className="font-medium">Total API Calls</p>
-                <p className="text-slate-300 tabular-nums">{stats.totalCalls24h.toLocaleString()}</p>
+                <p className="text-slate-300 tabular-nums">{stats.periodCalls.toLocaleString()}</p>
               </div>
             }
           />
@@ -1052,7 +1096,7 @@ function DashboardPageContent() {
             </div>
             <StackedBarChart
               data={costDistributionData}
-              totalCost={stats.totalCost24h}
+              totalCost={costDistributionData.reduce((sum, p) => sum + p.cost, 0)}
               topN={6}
               height={16}
               onClick={(item) => {
@@ -1090,7 +1134,7 @@ function DashboardPageContent() {
             {chartData.length > 1 && (
               <div className="text-xs text-slate-500">
                 Avg: <span className="font-medium text-slate-700">
-                  {formatSmartCost(stats.weekCost / Math.max(chartData.length, 1))}/day
+                  {formatSmartCost(stats.periodCost / Math.max(chartData.length, 1))}/day
                 </span>
               </div>
             )}
@@ -1109,14 +1153,14 @@ function DashboardPageContent() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ProviderBreakdown
             providers={filteredProviderStats}
-            totalCost={stats.totalCost24h}
+            totalCost={stats.periodCost}
           />
           <ModelBreakdown
             models={filteredModelStats.map(m => ({
               ...m,
-              percentage: stats.totalCost24h > 0 ? (m.total_cost / stats.totalCost24h) * 100 : 0,
+              percentage: stats.periodCost > 0 ? (m.total_cost / stats.periodCost) * 100 : 0,
             }))}
-            totalCost={stats.totalCost24h}
+            totalCost={stats.periodCost}
           />
         </div>
         
