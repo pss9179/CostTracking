@@ -170,7 +170,7 @@ def _build_email_content(
                             
                             <!-- CTA Button -->
                             <div style="text-align: center; margin-top: 28px;">
-                                <a href="https://app.llmobserve.com/caps" style="display: inline-block; background: #0f172a; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 14px;">View Dashboard</a>
+                                <a href="https://app.llmobserve.com/dashboard" style="display: inline-block; background: #0f172a; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 500; font-size: 14px;">View Dashboard</a>
                             </div>
                             
                         </td>
