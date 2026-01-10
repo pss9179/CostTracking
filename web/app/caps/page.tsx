@@ -45,6 +45,7 @@ import {
   Bell,
   Plus,
   Trash2,
+  Pencil,
   Shield,
   DollarSign,
   Server,
@@ -116,6 +117,8 @@ interface CreateCapDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (cap: CapCreate) => Promise<void>;
+  onUpdate?: (capId: string, cap: CapCreate) => Promise<void>;
+  editingCap?: Cap | null;
   providers: string[];
   models: string[];
   features: string[];
@@ -124,18 +127,61 @@ interface CreateCapDialogProps {
 
 type SubScope = "all" | "provider" | "model";
 
-function CreateCapDialog({ open, onOpenChange, onSubmit, providers, models, features, customers }: CreateCapDialogProps) {
-  const [capType, setCapType] = useState<CapType>("global");
-  const [targetName, setTargetName] = useState("");
-  const [subScope, setSubScope] = useState<SubScope>("all");  // For customer caps
-  const [subTarget, setSubTarget] = useState("");  // Provider/model for customer caps
-  const [limitAmount, setLimitAmount] = useState("100");
-  const [period, setPeriod] = useState<Period>("monthly");
-  const [enforcement, setEnforcement] = useState<Enforcement>("alert");
-  const [alertThreshold, setAlertThreshold] = useState("80");
-  const [alertEmail, setAlertEmail] = useState("");
+function CreateCapDialog({ open, onOpenChange, onSubmit, onUpdate, editingCap, providers, models, features, customers }: CreateCapDialogProps) {
+  const isEditing = !!editingCap;
+  
+  // Map agent back to feature for UI display
+  const getCapTypeForUI = (cap: Cap): CapType => {
+    if (cap.cap_type === "agent") return "feature";
+    return cap.cap_type as CapType;
+  };
+  
+  const [capType, setCapType] = useState<CapType>(() => 
+    editingCap ? getCapTypeForUI(editingCap) : "global"
+  );
+  const [targetName, setTargetName] = useState(() => 
+    editingCap?.target_name || ""
+  );
+  const [subScope, setSubScope] = useState<SubScope>(() => 
+    (editingCap?.sub_scope as SubScope) || "all"
+  );
+  const [subTarget, setSubTarget] = useState(() => 
+    editingCap?.sub_target || ""
+  );
+  const [limitAmount, setLimitAmount] = useState(() => 
+    editingCap ? String(editingCap.limit_amount) : "100"
+  );
+  const [period, setPeriod] = useState<Period>(() => 
+    (editingCap?.period as Period) || "monthly"
+  );
+  const [enforcement, setEnforcement] = useState<Enforcement>(() => 
+    (editingCap?.enforcement as Enforcement) || "alert"
+  );
+  const [alertThreshold, setAlertThreshold] = useState(() => 
+    editingCap ? String(editingCap.alert_threshold * 100) : "80"
+  );
+  const [alertEmail, setAlertEmail] = useState(() => 
+    editingCap?.alert_email || ""
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Reset form when editingCap changes
+  useEffect(() => {
+    if (editingCap) {
+      setCapType(getCapTypeForUI(editingCap));
+      setTargetName(editingCap.target_name || "");
+      setSubScope((editingCap.sub_scope as SubScope) || "all");
+      setSubTarget(editingCap.sub_target || "");
+      setLimitAmount(String(editingCap.limit_amount));
+      setPeriod((editingCap.period as Period) || "monthly");
+      setEnforcement((editingCap.enforcement as Enforcement) || "alert");
+      setAlertThreshold(String(editingCap.alert_threshold * 100));
+      setAlertEmail(editingCap.alert_email || "");
+    } else {
+      resetForm();
+    }
+  }, [editingCap]);
 
   const targetOptions = capType === "provider" ? providers 
     : capType === "model" ? models 
@@ -199,9 +245,13 @@ function CreateCapDialog({ open, onOpenChange, onSubmit, providers, models, feat
         alert_email: alertEmail || null,
       };
       
-      console.log("[CreateCap] Submitting cap:", capData);
-      
-      await onSubmit(capData);
+      if (isEditing && editingCap && onUpdate) {
+        console.log("[EditCap] Updating cap:", editingCap.id, capData);
+        await onUpdate(editingCap.id, capData);
+      } else {
+        console.log("[CreateCap] Submitting cap:", capData);
+        await onSubmit(capData);
+      }
       resetForm();
       onOpenChange(false);
     } catch (err) {
@@ -222,10 +272,12 @@ function CreateCapDialog({ open, onOpenChange, onSubmit, providers, models, feat
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-blue-500" />
-              Create Spending Cap
+              {isEditing ? "Edit Spending Cap" : "Create Spending Cap"}
             </DialogTitle>
             <DialogDescription>
-              Set a spending limit with alerts or hard blocks when exceeded.
+              {isEditing 
+                ? "Modify your spending limit settings." 
+                : "Set a spending limit with alerts or hard blocks when exceeded."}
             </DialogDescription>
           </DialogHeader>
 
@@ -425,7 +477,7 @@ function CreateCapDialog({ open, onOpenChange, onSubmit, providers, models, feat
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Create Cap"}
+              {loading ? (isEditing ? "Saving..." : "Creating...") : (isEditing ? "Save Changes" : "Create Cap")}
             </Button>
           </DialogFooter>
         </form>
@@ -442,9 +494,10 @@ interface CapsTableProps {
   caps: Cap[];
   onDelete: (capId: string) => Promise<void>;
   onToggle: (capId: string, enabled: boolean) => Promise<void>;
+  onEdit: (cap: Cap) => void;
 }
 
-function CapsTable({ caps, onDelete, onToggle }: CapsTableProps) {
+function CapsTable({ caps, onDelete, onToggle, onEdit }: CapsTableProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -491,7 +544,7 @@ function CapsTable({ caps, onDelete, onToggle }: CapsTableProps) {
             <TableHead className="w-[160px]">Usage</TableHead>
             <TableHead className="w-[120px]">Action</TableHead>
             <TableHead className="text-center w-[80px]">Active</TableHead>
-            <TableHead className="w-[60px]"></TableHead>
+            <TableHead className="w-[80px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -576,15 +629,25 @@ function CapsTable({ caps, onDelete, onToggle }: CapsTableProps) {
                   />
                 </TableCell>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(cap.id)}
-                    disabled={deletingId === cap.id}
-                    className="text-gray-400 hover:text-rose-600 h-8 w-8 p-0"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onEdit(cap)}
+                      className="text-gray-400 hover:text-blue-600 h-8 w-8 p-0"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(cap.id)}
+                      disabled={deletingId === cap.id}
+                      className="text-gray-400 hover:text-rose-600 h-8 w-8 p-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             );
@@ -751,6 +814,7 @@ export default function CapsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editingCap, setEditingCap] = useState<Cap | null>(null);
   const [activeTab, setActiveTab] = useState<"caps" | "alerts">("caps");
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
@@ -1011,6 +1075,20 @@ export default function CapsPage() {
     await loadData(true);
   };
 
+  const handleEditCap = (cap: Cap) => {
+    setEditingCap(cap);
+    setCreateDialogOpen(true);
+  };
+
+  const handleUpdateCap = async (capId: string, capData: CapCreate) => {
+    const token = await getToken();
+    if (!token) throw new Error("Not authenticated");
+    
+    await updateCap(capId, capData, token);
+    setEditingCap(null);
+    await loadData(true);
+  };
+
   const alertCount24h = alerts.filter(a => 
     new Date(a.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)
   ).length;
@@ -1118,7 +1196,7 @@ export default function CapsPage() {
           </TabsList>
 
           <TabsContent value="caps" className="mt-6">
-            <CapsTable caps={caps} onDelete={handleDeleteCap} onToggle={handleToggleCap} />
+            <CapsTable caps={caps} onDelete={handleDeleteCap} onToggle={handleToggleCap} onEdit={handleEditCap} />
           </TabsContent>
 
           <TabsContent value="alerts" className="mt-6">
@@ -1163,11 +1241,16 @@ export default function CapsPage() {
           </div>
         </div>
 
-        {/* Create Dialog */}
+        {/* Create/Edit Dialog */}
         <CreateCapDialog
           open={createDialogOpen}
-          onOpenChange={setCreateDialogOpen}
+          onOpenChange={(open) => {
+            setCreateDialogOpen(open);
+            if (!open) setEditingCap(null);
+          }}
           onSubmit={handleCreateCap}
+          onUpdate={handleUpdateCap}
+          editingCap={editingCap}
           providers={providers}
           models={models}
           features={features}
