@@ -717,8 +717,6 @@ function DashboardPageContent() {
       }
     }
     
-    console.log('[Dashboard] dailyMap keys:', [...dailyMap.keys()]);
-    console.log('[Dashboard] todayUTC:', getUTCDateStr(0), 'yesterdayUTC:', getUTCDateStr(1));
     
     // TODAY: Get today's cost from dailyAggregates (UTC)
     const todayStr = getUTCDateStr(0);
@@ -750,7 +748,6 @@ function DashboardPageContent() {
       }
     }
     
-    console.log('[Dashboard] todayCost:', todayCost, 'weekCost:', weekCost, 'monthCost:', monthCost);
     
     // Top provider
     const sortedProviders = [...filteredProviderStats].sort((a, b) => b.total_cost - a.total_cost);
@@ -844,7 +841,10 @@ function DashboardPageContent() {
   const hasActiveFilters = selectedProviders.length > 0 || selectedModels.length > 0;
   
   // A) FIX: Data presence overrides all other states
+  // hasData: any data in selected period (for charts)
+  // hasHistoricalData: any data in past 30 days (for showing KPIs vs onboarding)
   const hasData = providerStats.length > 0;
+  const hasHistoricalData = dailyAggregates.length > 0 || stats.monthCost > 0;
   const hasAnySpend = stats.todayCost > 0 || stats.weekCost > 0 || stats.monthCost > 0 || stats.periodCost > 0;
   
   // TIMING: Log first meaningful render
@@ -954,9 +954,9 @@ function DashboardPageContent() {
           </div>
         )}
         
-        {/* Empty state for new users - only show if NO data at all AND no error (not filtered) */}
-        {/* If there's an error, show error state instead of onboarding */}
-        {!hasData && !loading && !isRefreshing && !error && (
+        {/* Empty state for new users - only show if NO historical data at all */}
+        {/* Uses hasHistoricalData (30 days) not hasData (selected period) to avoid false onboarding */}
+        {!hasHistoricalData && !loading && !isRefreshing && !error && (
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-8 text-center">
             <div className="max-w-md mx-auto">
               <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4">
@@ -986,6 +986,21 @@ function DashboardPageContent() {
                   View docs
                 </a>
               </div>
+            </div>
+          </div>
+        )}
+        
+        {/* No data in selected period (but has historical data) */}
+        {hasHistoricalData && !hasData && !loading && !isRefreshing && !hasActiveFilters && (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 text-center">
+            <div className="max-w-md mx-auto">
+              <span className="text-2xl mb-2 block">📊</span>
+              <h3 className="text-lg font-medium text-slate-900 mb-2">
+                No activity in this period
+              </h3>
+              <p className="text-slate-600 text-sm">
+                No costs recorded in the selected time range. Try expanding the date range to see your data.
+              </p>
             </div>
           </div>
         )}
