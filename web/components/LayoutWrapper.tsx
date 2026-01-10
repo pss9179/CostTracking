@@ -27,7 +27,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
         <div className="flex-1 flex flex-col min-w-0 mt-2 mb-4 mr-2 rounded-xl bg-white shadow-lg overflow-hidden">
           <TopBar />
           {/* Filters are now in each page's AnalyticsHeader - no more duplicate */}
-          <main className="flex-1 overflow-y-auto bg-background px-8 py-6">
+          <main className="flex-1 overflow-y-auto bg-background px-6 py-4">
             {children}
           </main>
         </div>

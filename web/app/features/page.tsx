@@ -519,7 +519,7 @@ function FeaturesPageContent() {
   if (error && !hasData) {
     return (
       <ProtectedLayout>
-        <div className="p-8">
+        <div>
           <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 flex items-start gap-4">
             <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
             <div>
@@ -547,7 +547,7 @@ function FeaturesPageContent() {
   if (!hasData && loading) {
     return (
       <ProtectedLayout>
-        <div className="space-y-6 p-6">
+        <div className="space-y-4">
           <Skeleton className="h-10 w-48" />
           <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
             {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
@@ -565,7 +565,7 @@ function FeaturesPageContent() {
   if (!hasData && !loading && !error) {
     return (
       <ProtectedLayout>
-        <div className="space-y-6 p-6">
+        <div className="space-y-4">
           <AnalyticsHeader
             title="Feature Costs"
             subtitle="Track costs by feature"
@@ -598,7 +598,7 @@ function FeaturesPageContent() {
   
   return (
     <ProtectedLayout>
-      <div className="space-y-6 p-6">
+      <div className="space-y-4">
         {/* Header */}
         <AnalyticsHeader
           title="Feature Costs"
@@ -725,7 +725,7 @@ export default function FeaturesPage() {
   return (
     <Suspense fallback={
       <ProtectedLayout>
-        <div className="p-6">
+        <div>
           <Skeleton className="h-96 w-full rounded-xl" />
         </div>
       </ProtectedLayout>

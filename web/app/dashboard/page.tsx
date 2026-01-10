@@ -825,7 +825,7 @@ function DashboardPageContent() {
   if (error && !hasData) {
     return (
       <ProtectedLayout>
-        <div className="p-8">
+        <div>
           <div className="bg-rose-50 border border-rose-200 rounded-xl p-6 flex items-start gap-4">
             <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
             <div>
@@ -876,7 +876,7 @@ function DashboardPageContent() {
   
   return (
     <ProtectedLayout>
-      <div className="space-y-6 -mt-2">
+      <div className="space-y-4">
         {/* Header with filters */}
         <AnalyticsHeader
           title="Cost Overview"

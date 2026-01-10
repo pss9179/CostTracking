@@ -1060,7 +1060,7 @@ export default function CapsPage() {
   if (!hasLoadedCaps && loading) {
     return (
       <ProtectedLayout>
-        <div className="p-6 space-y-6">
+        <div className="space-y-4">
           <Skeleton className="h-10 w-64" />
           <Skeleton className="h-[400px] rounded-xl" />
         </div>
@@ -1070,7 +1070,7 @@ export default function CapsPage() {
 
   return (
     <ProtectedLayout>
-      <div className="p-6 space-y-6">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -1127,7 +1127,7 @@ export default function CapsPage() {
         </Tabs>
 
         {/* Help Section */}
-        <div className="bg-gray-50 rounded-xl p-6 space-y-4 mt-8">
+        <div className="bg-gray-50 rounded-xl p-4 space-y-3">
           <h3 className="font-semibold text-gray-900">How Caps Work</h3>
           <div className="grid md:grid-cols-3 gap-6 text-sm">
             <div>
