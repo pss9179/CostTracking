@@ -1068,36 +1068,44 @@ function DashboardPageContent() {
           </div>
         )}
         
-        {/* KPI Cards */}
-        <MetricCardRow columns={4}>
-          <MetricCard
-            title="Today"
-            value={stats.todayCost}
-            previousValue={stats.yesterdayCost}
-            deltaLabel="vs yesterday"
-            variant="primary"
-            icon={<span className="text-emerald-400">$</span>}
-          />
-          <MetricCard
-            title="This Week"
-            value={stats.weekCost}
-          />
-          <MetricCard
-            title="This Month"
-            value={stats.monthCost}
-          />
-          <MetricCard
-            title="API Calls"
-            value={formatCompactNumber(stats.periodCalls)}
-            formatValue={() => formatCompactNumber(stats.periodCalls)}
-            tooltipContent={
-              <div>
-                <p className="font-medium">Total API Calls</p>
-                <p className="text-slate-300 tabular-nums">{stats.periodCalls.toLocaleString()}</p>
-              </div>
-            }
-          />
-        </MetricCardRow>
+        {/* KPI Cards - show skeleton while loading to prevent $0 flash */}
+        {(loading || isRefreshing) && dailyAggregates.length === 0 ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-24 rounded-xl" />
+            ))}
+          </div>
+        ) : (
+          <MetricCardRow columns={4}>
+            <MetricCard
+              title="Today"
+              value={stats.todayCost}
+              previousValue={stats.yesterdayCost}
+              deltaLabel="vs yesterday"
+              variant="primary"
+              icon={<span className="text-emerald-400">$</span>}
+            />
+            <MetricCard
+              title="This Week"
+              value={stats.weekCost}
+            />
+            <MetricCard
+              title="This Month"
+              value={stats.monthCost}
+            />
+            <MetricCard
+              title="API Calls"
+              value={formatCompactNumber(stats.periodCalls)}
+              formatValue={() => formatCompactNumber(stats.periodCalls)}
+              tooltipContent={
+                <div>
+                  <p className="font-medium">Total API Calls</p>
+                  <p className="text-slate-300 tabular-nums">{stats.periodCalls.toLocaleString()}</p>
+                </div>
+              }
+            />
+          </MetricCardRow>
+        )}
         
         {/* Spend Distribution (stacked bar) */}
         {costDistributionData.length > 0 && (

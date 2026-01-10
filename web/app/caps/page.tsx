@@ -842,7 +842,12 @@ export default function CapsPage() {
     }
     measure('caps-auth-ready', 'caps-loadData');
     
-    if (fetchInProgressRef.current) return false;
+    // If a fetch is already in progress, don't start another one
+    // But also don't set isRefreshing before this check!
+    if (fetchInProgressRef.current) {
+      console.log('[Caps] loadData: fetch already in progress, skipping');
+      return false;
+    }
     
     const cache = getCachedWithMeta<CapsCacheData>(CAPS_CACHE_KEY);
     logCacheStatus('Caps', CAPS_CACHE_KEY, cache.exists, cache.isStale);
@@ -854,11 +859,12 @@ export default function CapsPage() {
     
     fetchInProgressRef.current = true;
     
-    // B) FIX: Only set loading if we haven't loaded yet
+    // B) FIX: Only set loading/refreshing AFTER we know we're actually fetching
     const isBackground = !forceRefresh && cache.exists;
     if (!isBackground && !hasLoadedRef.current) {
       if (mountedRef.current) setLoading(true);
-    } else if (!isBackground) {
+    } else if (forceRefresh) {
+      // Only show refreshing state for manual refresh
       if (mountedRef.current) setIsRefreshing(true);
     }
     
