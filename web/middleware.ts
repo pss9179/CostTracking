@@ -4,8 +4,8 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
   "/sign-up(.*)",
-  "/docs(.*)",
-  "/api-docs(.*)",
+  "/docs(.*)",      // Public docs page (standalone, no auth)
+  // "/api-docs" requires auth - shows with sidebar for logged-in users
   "/api/webhook(.*)",
   "/pricing(.*)",
 ]);

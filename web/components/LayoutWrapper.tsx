@@ -13,9 +13,9 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const isAuthPage = pathname?.startsWith('/sign-');
   const isLandingPage = pathname === '/';
   const isOnboardingPage = pathname?.startsWith('/onboarding');
-  const isDocsPage = pathname?.startsWith('/docs') || pathname?.startsWith('/api-docs');
+  const isPublicDocsPage = pathname?.startsWith('/docs'); // Public docs only (not /api-docs)
 
-  if (isAuthPage || isLandingPage || isOnboardingPage || isDocsPage) {
+  if (isAuthPage || isLandingPage || isOnboardingPage || isPublicDocsPage) {
     return <>{children}</>;
   }
 
