@@ -700,38 +700,40 @@ function DashboardPageContent() {
     const periodCost = filteredProviderStats.reduce((sum, stat) => sum + (stat.total_cost || 0), 0);
     const periodCalls = filteredProviderStats.reduce((sum, stat) => sum + (stat.call_count || 0), 0);
     
-    // Helper to get date string in YYYY-MM-DD format
-    const getDateStr = (daysAgo: number = 0): string => {
+    // Helper to get UTC date string in YYYY-MM-DD format (backend uses UTC)
+    const getUTCDateStr = (daysAgo: number = 0): string => {
       const date = new Date();
-      date.setDate(date.getDate() - daysAgo);
+      date.setUTCDate(date.getUTCDate() - daysAgo);
       return date.toISOString().split('T')[0];
     };
-    
-    const todayStr = getDateStr(0);
-    const yesterdayStr = getDateStr(1);
     
     // Create a map for quick date lookup from dailyAggregates
     const dailyMap = new Map<string, DailyStats>();
     for (const day of dailyAggregates) {
-      // Normalize date string to YYYY-MM-DD
-      const dateKey = day.date?.split('T')[0] || day.date;
+      // Normalize date string to YYYY-MM-DD (handle various formats)
+      const dateKey = day.date?.split('T')[0]?.split(' ')[0] || day.date;
       if (dateKey) {
         dailyMap.set(dateKey, day);
       }
     }
     
-    // TODAY: Get today's cost from dailyAggregates
+    console.log('[Dashboard] dailyMap keys:', [...dailyMap.keys()]);
+    console.log('[Dashboard] todayUTC:', getUTCDateStr(0), 'yesterdayUTC:', getUTCDateStr(1));
+    
+    // TODAY: Get today's cost from dailyAggregates (UTC)
+    const todayStr = getUTCDateStr(0);
     const todayData = dailyMap.get(todayStr);
     const todayCost = todayData ? getFilteredDayCost(todayData) : 0;
     
-    // YESTERDAY: Get yesterday's cost
+    // YESTERDAY: Get yesterday's cost (UTC)
+    const yesterdayStr = getUTCDateStr(1);
     const yesterdayData = dailyMap.get(yesterdayStr);
     const yesterdayCost = yesterdayData ? getFilteredDayCost(yesterdayData) : 0;
     
     // WEEK: Sum last 7 days from dailyAggregates
     let weekCost = 0;
     for (let i = 0; i < 7; i++) {
-      const dateStr = getDateStr(i);
+      const dateStr = getUTCDateStr(i);
       const dayData = dailyMap.get(dateStr);
       if (dayData) {
         weekCost += getFilteredDayCost(dayData);
@@ -741,12 +743,14 @@ function DashboardPageContent() {
     // MONTH: Sum last 30 days from dailyAggregates
     let monthCost = 0;
     for (let i = 0; i < 30; i++) {
-      const dateStr = getDateStr(i);
+      const dateStr = getUTCDateStr(i);
       const dayData = dailyMap.get(dateStr);
       if (dayData) {
         monthCost += getFilteredDayCost(dayData);
       }
     }
+    
+    console.log('[Dashboard] todayCost:', todayCost, 'weekCost:', weekCost, 'monthCost:', monthCost);
     
     // Top provider
     const sortedProviders = [...filteredProviderStats].sort((a, b) => b.total_cost - a.total_cost);
