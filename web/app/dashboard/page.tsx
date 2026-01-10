@@ -128,9 +128,26 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     return getCached<DashboardCacheData>(cacheKey)?.dailyStats ?? [];
   });
   
+  // dailyAggregates: used for chart display (follows date range)
   const [dailyAggregates, setDailyAggregates] = useState<DailyStats[]>(() => {
     if (typeof window === 'undefined') return [];
     return getCached<DashboardCacheData>(cacheKey)?.dailyStats ?? [];
+  });
+  
+  // kpiAggregates: STABLE 30-day data for KPI cards - NEVER reset by date range changes
+  // This ensures TODAY/WEEK/MONTH always show accurate values
+  const [kpiAggregates, setKpiAggregates] = useState<DailyStats[]>(() => {
+    if (typeof window === 'undefined') return [];
+    // Initialize from any available cache
+    const cached = getCached<DashboardCacheData>(cacheKey);
+    return cached?.dailyStats ?? [];
+  });
+  
+  // Total API calls (all time) - stable, not affected by date range
+  const [totalApiCalls, setTotalApiCalls] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0;
+    const cached = getCached<DashboardCacheData>(cacheKey);
+    return cached?.providerStats?.reduce((sum, p) => sum + (p.call_count || 0), 0) ?? 0;
   });
   
   const [prevProviderStats, setPrevProviderStats] = useState<ProviderStats[]>(() => {
@@ -201,12 +218,18 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       setDailyAggregates(cached.dailyStats || []);
       setPrevProviderStats(cached.prevProviderStats || []);
       setPrevDailyStats(cached.prevDailyStats || []);
+      // Update kpiAggregates only if the cached data has 30+ days
+      if (cached.dailyStats && cached.dailyStats.length >= 7) {
+        setKpiAggregates(cached.dailyStats);
+        setTotalApiCalls(cached.providerStats?.reduce((sum, p) => sum + (p.call_count || 0), 0) ?? 0);
+      }
       hasLoadedRef.current = true;
       setLoading(false);
       console.log('[Dashboard] Hydrated from cache on key change');
     } else {
       // New cache key with no data - need to fetch
-      console.log('[Dashboard] No cache for new key, will fetch');
+      // IMPORTANT: Do NOT reset kpiAggregates - keep showing stable values
+      console.log('[Dashboard] No cache for new key, will fetch (keeping KPI data stable)');
     }
     // NEVER clear state on cache miss - keep existing data
   }, [cacheKey]);
@@ -448,6 +471,17 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       if (Array.isArray(dailyData)) setDailyAggregates(dailyData);
       if (Array.isArray(prevProvidersData)) setPrevProviderStats(prevProvidersData);
       if (Array.isArray(prevDailyOnly)) setPrevDailyStats(prevDailyOnly);
+      
+      // Update stable KPI data - only if we have good data
+      // This ensures TODAY/WEEK/MONTH never flash to $0
+      if (Array.isArray(dailyData) && dailyData.length > 0) {
+        setKpiAggregates(dailyData);
+      }
+      if (Array.isArray(providersData)) {
+        const total = providersData.reduce((sum, p) => sum + (p.call_count || 0), 0);
+        if (total > 0) setTotalApiCalls(total);
+      }
+      
       setLastRefresh(new Date());
       
       // Only clear error if fetch actually succeeded, otherwise set a generic error
@@ -693,8 +727,9 @@ function DashboardPageContent() {
     return day.total || 0;
   }, [selectedProviders, selectedModels]);
   
-  // Calculate aggregated stats - use dailyAggregates for time-based KPIs
-  // dailyAggregates has actual daily data (not hourly buckets like dailyStats might have for short ranges)
+  // Calculate aggregated stats
+  // Uses kpiAggregates (stable 30-day data) for TODAY/WEEK/MONTH - never affected by date range
+  // Uses filteredProviderStats for period stats (charts) - follows date range selection
   const stats = useMemo<DashboardStats>(() => {
     // Period stats (for selected time range) - from filteredProviderStats
     const periodCost = filteredProviderStats.reduce((sum, stat) => sum + (stat.total_cost || 0), 0);
@@ -707,9 +742,9 @@ function DashboardPageContent() {
       return date.toISOString().split('T')[0];
     };
     
-    // Create a map for quick date lookup from dailyAggregates
+    // Create a map for quick date lookup from kpiAggregates (STABLE data)
     const dailyMap = new Map<string, DailyStats>();
-    for (const day of dailyAggregates) {
+    for (const day of kpiAggregates) {
       // Normalize date string to YYYY-MM-DD (handle various formats)
       const dateKey = day.date?.split('T')[0]?.split(' ')[0] || day.date;
       if (dateKey) {
@@ -717,18 +752,17 @@ function DashboardPageContent() {
       }
     }
     
-    
-    // TODAY: Get today's cost from dailyAggregates (UTC)
+    // TODAY: Get today's cost from kpiAggregates (UTC) - STABLE
     const todayStr = getUTCDateStr(0);
     const todayData = dailyMap.get(todayStr);
     const todayCost = todayData ? getFilteredDayCost(todayData) : 0;
     
-    // YESTERDAY: Get yesterday's cost (UTC)
+    // YESTERDAY: Get yesterday's cost (UTC) - STABLE
     const yesterdayStr = getUTCDateStr(1);
     const yesterdayData = dailyMap.get(yesterdayStr);
     const yesterdayCost = yesterdayData ? getFilteredDayCost(yesterdayData) : 0;
     
-    // WEEK: Sum last 7 days from dailyAggregates
+    // WEEK: Sum last 7 days from kpiAggregates - STABLE
     let weekCost = 0;
     for (let i = 0; i < 7; i++) {
       const dateStr = getUTCDateStr(i);
@@ -738,7 +772,7 @@ function DashboardPageContent() {
       }
     }
     
-    // MONTH: Sum last 30 days from dailyAggregates
+    // MONTH: Sum last 30 days from kpiAggregates - STABLE
     let monthCost = 0;
     for (let i = 0; i < 30; i++) {
       const dateStr = getUTCDateStr(i);
@@ -748,12 +782,11 @@ function DashboardPageContent() {
       }
     }
     
-    
-    // Top provider
+    // Top provider (from selected period)
     const sortedProviders = [...filteredProviderStats].sort((a, b) => b.total_cost - a.total_cost);
     const topProvider = sortedProviders[0]?.provider || null;
     
-    // Top model
+    // Top model (from selected period)
     const sortedModels = [...filteredModelStats].sort((a, b) => b.total_cost - a.total_cost);
     const topModel = sortedModels[0]?.model || null;
     
@@ -768,7 +801,7 @@ function DashboardPageContent() {
       topProvider,
       topModel,
     };
-  }, [filteredProviderStats, filteredModelStats, dailyAggregates, getFilteredDayCost]);
+  }, [filteredProviderStats, filteredModelStats, kpiAggregates, getFilteredDayCost]);
   
   // Prepare chart data - FILTERED by selected provider/model
   const chartData = useMemo(() => {
@@ -843,8 +876,9 @@ function DashboardPageContent() {
   // A) FIX: Data presence overrides all other states
   // hasData: any data in selected period (for charts)
   // hasHistoricalData: any data in past 30 days (for showing KPIs vs onboarding)
+  // Uses kpiAggregates which is STABLE and not affected by date range changes
   const hasData = providerStats.length > 0;
-  const hasHistoricalData = dailyAggregates.length > 0 || stats.monthCost > 0;
+  const hasHistoricalData = kpiAggregates.length > 0 || stats.monthCost > 0 || totalApiCalls > 0;
   const hasAnySpend = stats.todayCost > 0 || stats.weekCost > 0 || stats.monthCost > 0 || stats.periodCost > 0;
   
   // TIMING: Log first meaningful render
@@ -1056,12 +1090,12 @@ function DashboardPageContent() {
             />
             <MetricCard
               title="API Calls"
-              value={formatCompactNumber(stats.periodCalls)}
-              formatValue={() => formatCompactNumber(stats.periodCalls)}
+              value={formatCompactNumber(totalApiCalls)}
+              formatValue={() => formatCompactNumber(totalApiCalls)}
               tooltipContent={
                 <div>
-                  <p className="font-medium">Total API Calls</p>
-                  <p className="text-slate-300 tabular-nums">{stats.periodCalls.toLocaleString()}</p>
+                  <p className="font-medium">Total API Calls (All Time)</p>
+                  <p className="text-slate-300 tabular-nums">{totalApiCalls.toLocaleString()}</p>
                 </div>
               }
             />
