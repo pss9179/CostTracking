@@ -36,7 +36,7 @@ interface MetricCardProps {
   icon?: ReactNode;
   
   // Styling
-  variant?: 'default' | 'primary' | 'success' | 'warning' | 'danger';
+  variant?: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
@@ -76,6 +76,12 @@ const VARIANT_STYLES = {
     value: "text-rose-900",
     icon: "text-rose-500",
   },
+  info: {
+    container: "bg-blue-50 border border-blue-200/60",
+    title: "text-blue-600",
+    value: "text-blue-900",
+    icon: "text-blue-500",
+  },
 };
 
 const SIZE_STYLES = {
@@ -105,7 +111,7 @@ const SIZE_STYLES = {
 
 interface DeltaBadgeProps {
   delta: PercentChange;
-  variant: 'default' | 'primary' | 'success' | 'warning' | 'danger';
+  variant: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';
 }
 
 function DeltaBadge({ delta, variant }: DeltaBadgeProps) {
@@ -260,7 +266,7 @@ export function MetricCard({
 
 interface MetricCardRowProps {
   children: ReactNode;
-  columns?: 2 | 3 | 4;
+  columns?: 2 | 3 | 4 | 5;
   className?: string;
 }
 
@@ -269,6 +275,7 @@ export function MetricCardRow({ children, columns = 4, className }: MetricCardRo
     2: "grid-cols-1 sm:grid-cols-2",
     3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
     4: "grid-cols-2 lg:grid-cols-4",
+    5: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
   }[columns];
   
   return (

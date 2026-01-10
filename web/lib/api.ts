@@ -405,9 +405,12 @@ export interface DashboardAllResponse {
   generated_at: string;
 }
 
-export async function fetchDashboardAll(hours: number = 168, days: number = 7, token?: string): Promise<DashboardAllResponse> {
+export async function fetchDashboardAll(hours: number = 168, days: number = 7, token?: string, customerId?: string | null): Promise<DashboardAllResponse> {
   const headers = await getDashboardAuthHeaders(token);
-  const url = `${COLLECTOR_URL}/stats/dashboard-all?hours=${hours}&days=${days}`;
+  let url = `${COLLECTOR_URL}/stats/dashboard-all?hours=${hours}&days=${days}`;
+  if (customerId) {
+    url += `&customer_id=${encodeURIComponent(customerId)}`;
+  }
   
   const fetchStart = Date.now();
   const response = await fetch(url, { headers });

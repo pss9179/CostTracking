@@ -13,10 +13,12 @@ import {
   fetchTimeseries,
   fetchDailyStats,
   fetchDashboardAll,
+  fetchCustomerStats,
   type Run,
   type ProviderStats,
   type ModelStats,
   type DailyStats,
+  type CustomerStats,
 } from "@/lib/api";
 import { getCached, setCached, getCachedWithMeta } from "@/lib/cache";
 import { mark, measure, logCacheStatus, logAuth } from "@/lib/perf";
@@ -54,6 +56,24 @@ interface DashboardStats {
 }
 
 // ============================================================================
+// CONSTANTS
+// ============================================================================
+
+// Date range labels for display in KPI cards
+const DATE_RANGE_LABELS: Record<string, string> = {
+  "1h": "1h",
+  "6h": "6h",
+  "24h": "24h",
+  "3d": "3d",
+  "7d": "7d",
+  "14d": "14d",
+  "30d": "30d",
+  "90d": "90d",
+  "180d": "6mo",
+  "365d": "1y",
+};
+
+// ============================================================================
 // HOOKS
 // ============================================================================
 
@@ -73,7 +93,7 @@ if (typeof window !== 'undefined') {
   console.log('[Dashboard] PAGE MOUNT at', PAGE_MOUNT_TIME.toFixed(0), 'ms');
 }
 
-function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false) {
+function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false, customerId: string | null = null) {
   const { getToken } = useAuth();
   const { isLoaded, isSignedIn, user } = useUser();
   
@@ -89,7 +109,8 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     }
   }, [isLoaded]);
   
-  const cacheKey = `dashboard-${dateRange}-${compareEnabled}`;
+  // Include customerId in cache key so filtered data is cached separately
+  const cacheKey = `dashboard-${dateRange}-${compareEnabled}${customerId ? `-c:${customerId}` : ''}`;
   
   // Refs to track state across renders without causing re-renders
   const fetchInProgressRef = useRef(false);
@@ -122,6 +143,8 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     if (typeof window === 'undefined') return [];
     return getCached<DashboardCacheData>(cacheKey)?.modelStats ?? [];
   });
+  
+  const [customerStats, setCustomerStats] = useState<CustomerStats[]>([]);
   
   const [dailyStats, setDailyStats] = useState<DailyStats[]>(() => {
     if (typeof window === 'undefined') return [];
@@ -380,13 +403,15 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
             console.error('[Dashboard] fetchRuns error:', e.message);
             return [];
           }),
-          fetchWithTimeout(fetchDashboardAll(hours, days, token), API_TIMEOUT).catch((e) => {
+          // Pass customerId to filter dashboard data by customer
+          fetchWithTimeout(fetchDashboardAll(hours, days, token, customerId), API_TIMEOUT).catch((e) => {
             console.error('[Dashboard] fetchDashboardAll error:', e.message);
             fetchSucceeded = false;
             return null;
           }),
           // Fetch timeseries separately to get provider breakdown for chart
-          fetchWithTimeout(fetchTimeseries(hours, null, null, token), API_TIMEOUT).catch((e) => {
+          // Pass customerId to filter timeseries by customer
+          fetchWithTimeout(fetchTimeseries(hours, null, customerId, token), API_TIMEOUT).catch((e) => {
             console.error('[Dashboard] fetchTimeseries error:', e.message);
             return [];
           }),
@@ -484,6 +509,16 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       if (Array.isArray(providersData)) {
         const total = providersData.reduce((sum, p) => sum + (p.call_count || 0), 0);
         if (total > 0) setTotalApiCalls(total);
+      }
+      
+      // Fetch customer list for filtering (30-day window)
+      try {
+        const customerData = await fetchCustomerStats(720, null, token);
+        if (Array.isArray(customerData) && customerData.length > 0) {
+          setCustomerStats(customerData);
+        }
+      } catch (e) {
+        console.log('[Dashboard] fetchCustomerStats error (non-critical):', e);
       }
       
       setLastRefresh(new Date());
@@ -612,6 +647,7 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     runs,
     providerStats,
     modelStats,
+    customerStats,
     dailyStats,
     dailyAggregates,
     kpiAggregates,
@@ -637,12 +673,22 @@ function DashboardPageContent() {
   );
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
+  
+  // Stable filter options - never cleared, only grows as new data is seen
+  const [stableProviders, setStableProviders] = useState<string[]>([]);
+  const [stableModels, setStableModels] = useState<string[]>([]);
+  const [stableCustomers, setStableCustomers] = useState<string[]>([]);
   const [compareEnabled, setCompareEnabled] = useState(false);
+  
+  // First selected customer for API-level filtering (null = no customer filter)
+  const selectedCustomerId = selectedCustomers.length > 0 ? selectedCustomers[0] : null;
   
   const {
     runs,
     providerStats,
     modelStats,
+    customerStats,
     dailyStats,
     dailyAggregates,
     kpiAggregates,
@@ -654,7 +700,7 @@ function DashboardPageContent() {
     error,
     lastRefresh,
     refresh,
-  } = useDashboardData(dateRange, compareEnabled);
+  } = useDashboardData(dateRange, compareEnabled, selectedCustomerId);
   
   // Calculate comparison stats
   const comparisonStats = useMemo(() => {
@@ -856,17 +902,45 @@ function DashboardPageContent() {
     });
   }, [dailyStats, selectedProviders, selectedModels]);
   
-  // Available filters
-  const availableProviders = useMemo(() => 
-    [...new Set(providerStats.map(p => p.provider.toLowerCase()))]
-      .filter(p => p !== 'internal' && p !== 'unknown'),
-    [providerStats]
-  );
+  // Update stable filter options when data arrives (never clear, only add)
+  useEffect(() => {
+    if (providerStats.length > 0) {
+      const newProviders = providerStats
+        .map(p => p.provider.toLowerCase())
+        .filter(p => p !== 'internal' && p !== 'unknown');
+      setStableProviders(prev => {
+        const combined = [...new Set([...prev, ...newProviders])];
+        return combined.sort();
+      });
+    }
+  }, [providerStats]);
   
-  const availableModels = useMemo(() =>
-    [...new Set(modelStats.map(m => m.model))],
-    [modelStats]
-  );
+  useEffect(() => {
+    if (modelStats.length > 0) {
+      const newModels = modelStats.map(m => m.model);
+      setStableModels(prev => {
+        const combined = [...new Set([...prev, ...newModels])];
+        return combined.sort();
+      });
+    }
+  }, [modelStats]);
+  
+  useEffect(() => {
+    if (customerStats.length > 0) {
+      const newCustomers = customerStats
+        .map(c => c.customer_id)
+        .filter(c => c && c !== 'unknown');
+      setStableCustomers(prev => {
+        const combined = [...new Set([...prev, ...newCustomers])];
+        return combined.sort();
+      });
+    }
+  }, [customerStats]);
+  
+  // Available filters - use stable lists so they don't disappear when changing date range
+  const availableProviders = stableProviders;
+  const availableModels = stableModels;
+  const availableCustomers = stableCustomers;
   
   // Cost distribution data for stacked bar
   const costDistributionData = useMemo(() => 
@@ -979,12 +1053,17 @@ function DashboardPageContent() {
           models={selectedModels}
           availableModels={availableModels}
           onModelsChange={setSelectedModels}
+          customers={selectedCustomers}
+          availableCustomers={availableCustomers}
+          onCustomersChange={setSelectedCustomers}
           compareEnabled={compareEnabled}
           onCompareToggle={() => setCompareEnabled(!compareEnabled)}
-          hasActiveFilters={hasActiveFilters}
+          hasActiveFilters={hasActiveFilters || selectedCustomers.length > 0}
+          filterLabel="affects charts & breakdowns"
           onReset={() => {
             setSelectedProviders([]);
             setSelectedModels([]);
+            setSelectedCustomers([]);
           }}
         />
         
@@ -1073,41 +1152,61 @@ function DashboardPageContent() {
         
         {/* KPI Cards - ALWAYS show when we have historical data, show skeleton when loading fresh */}
         {(loading || isRefreshing) && dailyAggregates.length === 0 ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            {[1, 2, 3, 4, 5].map((i) => (
               <Skeleton key={i} className="h-24 rounded-xl" />
             ))}
           </div>
         ) : (
-          <MetricCardRow columns={4}>
-            <MetricCard
-              title="Today"
-              value={stats.todayCost}
-              previousValue={stats.yesterdayCost}
-              deltaLabel="vs yesterday"
-              variant="primary"
-              icon={<span className="text-emerald-400">$</span>}
-            />
-            <MetricCard
-              title="This Week"
-              value={stats.weekCost}
-            />
-            <MetricCard
-              title="This Month"
-              value={stats.monthCost}
-            />
-            <MetricCard
-              title="API Calls"
-              value={formatCompactNumber(totalApiCalls)}
-              formatValue={() => formatCompactNumber(totalApiCalls)}
-              tooltipContent={
-                <div>
-                  <p className="font-medium">Total API Calls (All Time)</p>
-                  <p className="text-slate-300 tabular-nums">{totalApiCalls.toLocaleString()}</p>
-                </div>
-              }
-            />
-          </MetricCardRow>
+          <>
+            {/* Fixed KPIs - never change with filters */}
+            <MetricCardRow columns={5}>
+              <MetricCard
+                title="Today"
+                value={stats.todayCost}
+                previousValue={stats.yesterdayCost}
+                deltaLabel="vs yesterday"
+                variant="primary"
+                icon={<span className="text-emerald-400">$</span>}
+              />
+              <MetricCard
+                title="This Week"
+                value={stats.weekCost}
+              />
+              <MetricCard
+                title="This Month"
+                value={stats.monthCost}
+              />
+              <MetricCard
+                title={`Period Cost (${DATE_RANGE_LABELS[dateRange] || dateRange})`}
+                value={stats.periodCost}
+                variant={hasActiveFilters || selectedCustomers.length > 0 ? "info" : "default"}
+                tooltipContent={
+                  (hasActiveFilters || selectedCustomers.length > 0) ? (
+                    <div>
+                      <p className="font-medium">Filtered Period Cost</p>
+                      <p className="text-slate-300 text-xs">Reflects selected filters</p>
+                    </div>
+                  ) : undefined
+                }
+              />
+              <MetricCard
+                title={`API Calls (${DATE_RANGE_LABELS[dateRange] || dateRange})`}
+                value={formatCompactNumber(stats.periodCalls)}
+                formatValue={() => formatCompactNumber(stats.periodCalls)}
+                variant={hasActiveFilters || selectedCustomers.length > 0 ? "info" : "default"}
+                tooltipContent={
+                  <div>
+                    <p className="font-medium">Period API Calls</p>
+                    <p className="text-slate-300 tabular-nums">{stats.periodCalls.toLocaleString()} calls</p>
+                    {(hasActiveFilters || selectedCustomers.length > 0) && (
+                      <p className="text-slate-300 text-xs mt-1">Reflects selected filters</p>
+                    )}
+                  </div>
+                }
+              />
+            </MetricCardRow>
+          </>
         )}
         
         {/* No data in selected period (but has historical data) */}

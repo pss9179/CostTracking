@@ -44,6 +44,11 @@ interface AnalyticsHeaderProps {
   availableFeatures?: string[];
   onFeaturesChange?: (features: string[]) => void;
   
+  // Customer filter
+  customers?: string[];
+  availableCustomers?: string[];
+  onCustomersChange?: (customers: string[]) => void;
+  
   // Compare toggle
   compareEnabled?: boolean;
   onCompareToggle?: () => void;
@@ -60,6 +65,9 @@ interface AnalyticsHeaderProps {
   // Title (optional)
   title?: string;
   subtitle?: string;
+  
+  // Filter label to clarify what filters affect
+  filterLabel?: string;
   
   className?: string;
 }
@@ -222,6 +230,9 @@ export function AnalyticsHeader({
   features = [],
   availableFeatures = [],
   onFeaturesChange,
+  customers = [],
+  availableCustomers = [],
+  onCustomersChange,
   compareEnabled = false,
   onCompareToggle,
   groupBy,
@@ -231,6 +242,7 @@ export function AnalyticsHeader({
   hasActiveFilters = false,
   title,
   subtitle,
+  filterLabel,
   className,
 }: AnalyticsHeaderProps) {
   const currentRange = DATE_RANGE_OPTIONS.find(o => o.value === dateRange);
@@ -303,6 +315,23 @@ export function AnalyticsHeader({
           />
         )}
         
+        {/* Customer filter */}
+        {onCustomersChange && availableCustomers.length > 0 && (
+          <MultiSelectFilter
+            label="Customer"
+            selected={customers}
+            available={availableCustomers}
+            onChange={onCustomersChange}
+          />
+        )}
+        
+        {/* Filter label to clarify what filters affect */}
+        {filterLabel && (providers.length > 0 || models.length > 0 || features.length > 0 || customers.length > 0) && (
+          <span className="text-xs text-slate-400 italic ml-1">
+            {filterLabel}
+          </span>
+        )}
+        
         {/* Compare toggle */}
         {onCompareToggle && (
           <>
@@ -347,7 +376,7 @@ export function AnalyticsHeader({
         )}
         
         {/* Active filter badges */}
-        {(providers.length > 0 || models.length > 0 || features.length > 0) && (
+        {(providers.length > 0 || models.length > 0 || features.length > 0 || customers.length > 0) && (
           <>
             <div className="h-4 w-px bg-slate-200 ml-1" />
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -376,6 +405,22 @@ export function AnalyticsHeader({
               {models.length > 3 && (
                 <Badge variant="secondary" className="h-6 px-2 bg-slate-100">
                   +{models.length - 3} more
+                </Badge>
+              )}
+              {customers.slice(0, 2).map((c) => (
+                <Badge
+                  key={c}
+                  variant="secondary"
+                  className="h-6 gap-1 px-2 bg-blue-100 hover:bg-blue-200 cursor-pointer text-blue-700"
+                  onClick={() => onCustomersChange?.(customers.filter(x => x !== c))}
+                >
+                  {c}
+                  <X className="h-3 w-3" />
+                </Badge>
+              ))}
+              {customers.length > 2 && (
+                <Badge variant="secondary" className="h-6 px-2 bg-blue-100 text-blue-700">
+                  +{customers.length - 2} more
                 </Badge>
               )}
             </div>

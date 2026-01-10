@@ -1299,6 +1299,7 @@ async def get_customer_detail(
 async def get_dashboard_all(
     hours: int = Query(168, description="Time window in hours for stats"),
     days: int = Query(7, description="Number of days for daily aggregates"),
+    customer_id: Optional[str] = Query(None, description="Filter by customer ID"),
     session: Session = Depends(get_session),
     current_user = Depends(get_current_clerk_user)
 ) -> Dict[str, Any]:
@@ -1318,13 +1319,13 @@ async def get_dashboard_all(
     clerk_user_id = current_user.clerk_user_id  # Use Clerk user ID for tenant filtering
     
     # Check cache first
-    cache_key = make_cache_key("dashboard-all", str(user_id), hours=hours, days=days)
+    cache_key = make_cache_key("dashboard-all", str(user_id), hours=hours, days=days, customer_id=customer_id or "")
     cached = get_cached_response(cache_key)
     if cached is not None:
         print(f"[dashboard-all] CACHE HIT in {(time.time()-start_time)*1000:.0f}ms", flush=True)
         return cached
     
-    print(f"[dashboard-all] START user_id={user_id} clerk_user_id={clerk_user_id} email={current_user.email} hours={hours} days={days}", flush=True)
+    print(f"[dashboard-all] START user_id={user_id} clerk_user_id={clerk_user_id} email={current_user.email} hours={hours} days={days} customer_id={customer_id}", flush=True)
     
     cutoff_hours = datetime.utcnow() - timedelta(hours=hours)
     cutoff_days = datetime.utcnow() - timedelta(days=days)
@@ -1336,9 +1337,14 @@ async def get_dashboard_all(
     # CRITICAL: Filter by tenant_id OR user_id to match both API key events and direct events
     provider_conditions = [
         TraceEvent.created_at >= cutoff_hours,
-        TraceEvent.customer_id.is_(None),
         TraceEvent.provider != "internal"
     ]
+    
+    # Filter by customer_id if specified, otherwise exclude customer-specific events
+    if customer_id:
+        provider_conditions.append(TraceEvent.customer_id == customer_id)
+    else:
+        provider_conditions.append(TraceEvent.customer_id.is_(None))
     # Filter by tenant_id (Clerk user ID) OR user_id - ensures we catch all events
     # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
     # - user_id: Fallback for events created through other means
@@ -1377,9 +1383,13 @@ async def get_dashboard_all(
     # CRITICAL: Filter by tenant_id OR user_id to match both API key events and direct events
     model_conditions = [
         TraceEvent.created_at >= cutoff_hours,
-        TraceEvent.customer_id.is_(None),
         TraceEvent.model.isnot(None)
     ]
+    # Filter by customer_id if specified, otherwise exclude customer-specific events
+    if customer_id:
+        model_conditions.append(TraceEvent.customer_id == customer_id)
+    else:
+        model_conditions.append(TraceEvent.customer_id.is_(None))
     # Same user filtering as provider query
     if clerk_user_id:
         model_conditions.append(
@@ -1425,9 +1435,13 @@ async def get_dashboard_all(
     
     # 3. Daily aggregates - filter by tenant_id OR user_id to match both API key events and direct events
     daily_conditions = [
-        TraceEvent.created_at >= cutoff_days,
-        TraceEvent.customer_id.is_(None)
+        TraceEvent.created_at >= cutoff_days
     ]
+    # Filter by customer_id if specified, otherwise exclude customer-specific events
+    if customer_id:
+        daily_conditions.append(TraceEvent.customer_id == customer_id)
+    else:
+        daily_conditions.append(TraceEvent.customer_id.is_(None))
     # Same user filtering as other queries
     if clerk_user_id:
         daily_conditions.append(
