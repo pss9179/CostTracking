@@ -218,10 +218,14 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
       setDailyAggregates(cached.dailyStats || []);
       setPrevProviderStats(cached.prevProviderStats || []);
       setPrevDailyStats(cached.prevDailyStats || []);
-      // Update kpiAggregates only if the cached data has 30+ days
+      // Update kpiAggregates only if the cached data has good data
       if (cached.dailyStats && cached.dailyStats.length >= 7) {
         setKpiAggregates(cached.dailyStats);
-        setTotalApiCalls(cached.providerStats?.reduce((sum, p) => sum + (p.call_count || 0), 0) ?? 0);
+      }
+      // Only update totalApiCalls if we have actual provider data with calls
+      const cachedCalls = cached.providerStats?.reduce((sum, p) => sum + (p.call_count || 0), 0) ?? 0;
+      if (cachedCalls > 0) {
+        setTotalApiCalls(cachedCalls);
       }
       hasLoadedRef.current = true;
       setLoading(false);
@@ -610,6 +614,8 @@ function useDashboardData(dateRange: DateRange, compareEnabled: boolean = false)
     modelStats,
     dailyStats,
     dailyAggregates,
+    kpiAggregates,
+    totalApiCalls,
     prevProviderStats,
     prevDailyStats,
     loading,
@@ -639,6 +645,8 @@ function DashboardPageContent() {
     modelStats,
     dailyStats,
     dailyAggregates,
+    kpiAggregates,
+    totalApiCalls,
     prevProviderStats,
     prevDailyStats,
     loading,
