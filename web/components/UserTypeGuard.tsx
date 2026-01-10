@@ -4,8 +4,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useUser, useOrganizationList } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 
-// Auth routes that should bypass the guard entirely
-const AUTH_ROUTES = ["/sign-in", "/sign-up", "/sso-callback"];
+// Routes that should bypass the guard entirely (auth + public docs)
+const PUBLIC_ROUTES = ["/sign-in", "/sign-up", "/sso-callback", "/api-docs", "/docs"];
 
 export function UserTypeGuard({ children }: { children: React.ReactNode }) {
     const { isLoaded, isSignedIn, user } = useUser();
@@ -18,12 +18,12 @@ export function UserTypeGuard({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const [checked, setChecked] = useState(false);
 
-    // Check if current route is an auth route - render immediately without waiting
-    const isAuthRoute = AUTH_ROUTES.some(route => pathname?.startsWith(route));
+    // Check if current route is a public route - render immediately without waiting
+    const isPublicRoute = PUBLIC_ROUTES.some(route => pathname?.startsWith(route));
 
     useEffect(() => {
-        // Auth routes bypass all checks - render immediately
-        if (isAuthRoute) {
+        // Public routes bypass all checks - render immediately
+        if (isPublicRoute) {
             setChecked(true);
             return;
         }
@@ -60,10 +60,10 @@ export function UserTypeGuard({ children }: { children: React.ReactNode }) {
             // All good
             setChecked(true);
         }
-    }, [isLoaded, isOrgListLoaded, isSignedIn, user, userMemberships, pathname, router, isAuthRoute]);
+    }, [isLoaded, isOrgListLoaded, isSignedIn, user, userMemberships, pathname, router, isPublicRoute]);
 
-    // Auth routes render immediately without waiting for Clerk
-    if (isAuthRoute) {
+    // Public routes render immediately without waiting for Clerk
+    if (isPublicRoute) {
         return <>{children}</>;
     }
 
