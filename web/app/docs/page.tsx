@@ -422,10 +422,7 @@ try {
             <footer className="border-t border-gray-200 bg-gray-50">
                 <div className="max-w-5xl mx-auto px-6 py-8 flex items-center justify-between text-sm text-gray-600">
                     <span>© 2025 Skyline / LLMObserve</span>
-                    <div className="flex gap-6">
-                        <Link href="https://llmobserve.com" className="hover:text-gray-900">Home</Link>
-                        <Link href="https://app.llmobserve.com/pricing" className="hover:text-gray-900">Pricing</Link>
-                    </div>
+                    <Link href="https://llmobserve.com" className="hover:text-gray-900">Home</Link>
                 </div>
             </footer>
         </div>
