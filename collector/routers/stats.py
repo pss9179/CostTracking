@@ -1113,8 +1113,16 @@ async def get_costs_by_customer(
         # DEBUG: Log what we're looking for
         print(f"[by-customer] user_id={user_id}, clerk_user_id={clerk_user_id}, hours={hours}", flush=True)
         
+        # Prefer explicit tenant_id if provided (org/multi-tenant views)
+        effective_tenant_id = tenant_id or clerk_user_id
+
         # Check server-side cache first
-        cache_key = make_cache_key("by-customer", str(user_id), hours=hours, tenant_id=tenant_id)
+        cache_key = make_cache_key(
+            "by-customer",
+            str(user_id),
+            hours=hours,
+            tenant_id=effective_tenant_id
+        )
         cached = get_cached_response(cache_key)
         if cached is not None:
             print(f"[by-customer] Returning cached response with {len(cached)} customers", flush=True)
@@ -1141,7 +1149,9 @@ async def get_costs_by_customer(
         
         print(f"[by-customer] Filtering by clerk_user_id={clerk_user_id}, user_id={user_id}", flush=True)
         
-        if clerk_user_id:
+        if effective_tenant_id:
+            statement = statement.where(TraceEvent.tenant_id == effective_tenant_id)
+        elif clerk_user_id:
             statement = statement.where(
                 or_(
                     TraceEvent.tenant_id == clerk_user_id,
@@ -1170,16 +1180,20 @@ async def get_costs_by_customer(
         print(f"[by-customer] Query returned {len(results)} customers for clerk_user_id={clerk_user_id}", flush=True)
         
         # DEBUG: Count matching events
-        debug_count_stmt = select(func.count(TraceEvent.id)).where(
-            and_(
-                TraceEvent.customer_id.isnot(None),
-                TraceEvent.created_at >= cutoff,
+        debug_filters = [
+            TraceEvent.customer_id.isnot(None),
+            TraceEvent.created_at >= cutoff,
+        ]
+        if effective_tenant_id:
+            debug_filters.append(TraceEvent.tenant_id == effective_tenant_id)
+        else:
+            debug_filters.append(
                 or_(
                     TraceEvent.tenant_id == clerk_user_id,
                     TraceEvent.user_id == user_id
                 )
             )
-        )
+        debug_count_stmt = select(func.count(TraceEvent.id)).where(and_(*debug_filters))
         debug_count = session.exec(debug_count_stmt).first() or 0
         print(f"[by-customer] DEBUG: Found {debug_count} matching events for user", flush=True)
         
@@ -1209,6 +1223,7 @@ async def get_costs_by_customer(
 async def get_customer_detail(
     customer_id: str,
     days: int = Query(30, ge=1, le=90, description="Number of days to look back"),
+    tenant_id: Optional[str] = Query(None, description="Tenant identifier for multi-tenant isolation"),
     session: Session = Depends(get_session),
     current_user = Depends(get_current_clerk_user)  # Require Clerk authentication
 ) -> Dict[str, Any]:
@@ -1230,8 +1245,10 @@ async def get_customer_detail(
         
         cutoff = datetime.utcnow() - timedelta(days=days)
         
-        # Build user filter condition
-        if clerk_user_id:
+        # Build user filter condition (tenant override if provided)
+        if tenant_id:
+            user_filter = TraceEvent.tenant_id == tenant_id
+        elif clerk_user_id:
             user_filter = or_(
                 TraceEvent.tenant_id == clerk_user_id,
                 TraceEvent.user_id == user_id

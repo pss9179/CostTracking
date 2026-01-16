@@ -52,10 +52,12 @@ async def get_my_customers(
             TraceEvent.created_at >= time_ago
         ))
         
-        # CRITICAL: Filter by tenant_id (Clerk user ID) OR user_id to ensure data isolation
+        # CRITICAL: Filter by tenant_id if explicitly provided, otherwise by clerk_user_id OR user_id
         # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
         # - user_id: Fallback for events created through other means
-        if clerk_user_id:
+        if tenant_id:
+            statement = statement.where(TraceEvent.tenant_id == tenant_id)
+        elif clerk_user_id:
             statement = statement.where(
                 or_(
                     TraceEvent.tenant_id == clerk_user_id,
