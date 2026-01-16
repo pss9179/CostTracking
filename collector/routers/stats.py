@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query, Header, HTTPException
 from sqlmodel import Session, select, func, and_, or_
 from sqlalchemy import case, or_
 from models import TraceEvent, User
-from db import get_session
+from db import get_session, IS_POSTGRESQL
 from auth import get_current_user_id
 from clerk_auth import get_current_clerk_user
 
@@ -608,44 +608,6 @@ async def get_cost_timeseries(
         bucket_minutes = 1440
         bucket_count = (hours * 60) // bucket_minutes
     
-    # Query raw events within time window
-    statement = select(
-        TraceEvent.created_at,
-        TraceEvent.provider,
-        TraceEvent.cost_usd
-    ).where(TraceEvent.created_at >= cutoff)
-    
-    # CRITICAL: Filter by tenant_id (Clerk user ID) OR user_id to ensure data isolation
-    # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
-    # - user_id: Fallback for events created through other means
-    if clerk_user_id:
-        statement = statement.where(
-            or_(
-                TraceEvent.tenant_id == clerk_user_id,
-                TraceEvent.user_id == user_id
-            )
-        )
-    elif user_id:
-        statement = statement.where(
-            and_(
-                TraceEvent.user_id == user_id,
-                TraceEvent.user_id.isnot(None)
-            )
-        )
-    
-    # Filter by customer_id if provided, otherwise exclude customer data
-    if customer_id:
-        statement = statement.where(TraceEvent.customer_id == customer_id)
-    else:
-        # Dashboard: exclude customer-specific events
-        statement = statement.where(TraceEvent.customer_id.is_(None))
-    
-    # Exclude internal provider
-    statement = statement.where(TraceEvent.provider != "internal")
-    statement = statement.order_by(TraceEvent.created_at)
-    
-    results = session.exec(statement).all()
-    
     # Helper to get bucket key/label based on time and bucket size
     def get_bucket_info(dt: datetime, bucket_mins: int):
         if bucket_mins >= 1440:
@@ -664,6 +626,61 @@ async def get_cost_timeseries(
             bucket_key = dt.strftime(f"%Y-%m-%d %H:{minute_bucket:02d}")
             bucket_label = dt.strftime(f"%H:{minute_bucket:02d}")
         return bucket_key, bucket_label
+
+    # Build base filters
+    base_filters = [TraceEvent.created_at >= cutoff]
+    
+    # CRITICAL: Filter by tenant_id (Clerk user ID) OR user_id to ensure data isolation
+    # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
+    # - user_id: Fallback for events created through other means
+    if clerk_user_id:
+        base_filters.append(
+            or_(
+                TraceEvent.tenant_id == clerk_user_id,
+                TraceEvent.user_id == user_id
+            )
+        )
+    elif user_id:
+        base_filters.append(
+            and_(
+                TraceEvent.user_id == user_id,
+                TraceEvent.user_id.isnot(None)
+            )
+        )
+    
+    # Filter by customer_id if provided, otherwise exclude customer data
+    if customer_id:
+        base_filters.append(TraceEvent.customer_id == customer_id)
+    else:
+        # Dashboard: exclude customer-specific events
+        base_filters.append(TraceEvent.customer_id.is_(None))
+    
+    # Exclude internal provider
+    base_filters.append(TraceEvent.provider != "internal")
+
+    # PostgreSQL: aggregate in DB to avoid loading raw events
+    if IS_POSTGRESQL:
+        bucket_seconds = bucket_minutes * 60
+        bucket_ts = func.to_timestamp(
+            func.floor(func.extract('epoch', TraceEvent.created_at) / bucket_seconds) * bucket_seconds
+        ).label("bucket_ts")
+
+        statement = select(
+            bucket_ts,
+            TraceEvent.provider,
+            func.sum(TraceEvent.cost_usd).label("total_cost"),
+            func.count(TraceEvent.id).label("call_count")
+        ).where(and_(*base_filters)).group_by(bucket_ts, TraceEvent.provider).order_by(bucket_ts)
+
+        results = session.exec(statement).all()
+    else:
+        # SQLite fallback: query raw events and bucket in Python
+        statement = select(
+            TraceEvent.created_at,
+            TraceEvent.provider,
+            TraceEvent.cost_usd
+        ).where(and_(*base_filters)).order_by(TraceEvent.created_at)
+        results = session.exec(statement).all()
     
     # Create time buckets
     now = datetime.utcnow()
@@ -683,16 +700,24 @@ async def get_cost_timeseries(
     
     # Aggregate events into buckets
     for event in results:
-        event_time = event.created_at
-        bucket_key, _ = get_bucket_info(event_time, bucket_minutes)
-        
-        if bucket_key in buckets:
-            buckets[bucket_key]["total"] += event.cost_usd or 0
+        if IS_POSTGRESQL:
+            bucket_time = event.bucket_ts
             provider = event.provider or "unknown"
+            cost = event.total_cost or 0
+            calls = event.call_count or 0
+        else:
+            bucket_time = event.created_at
+            provider = event.provider or "unknown"
+            cost = event.cost_usd or 0
+            calls = 1
+
+        bucket_key, _ = get_bucket_info(bucket_time, bucket_minutes)
+        if bucket_key in buckets:
+            buckets[bucket_key]["total"] += cost
             if provider not in buckets[bucket_key]["providers"]:
                 buckets[bucket_key]["providers"][provider] = {"cost": 0, "calls": 0}
-            buckets[bucket_key]["providers"][provider]["cost"] += event.cost_usd or 0
-            buckets[bucket_key]["providers"][provider]["calls"] += 1
+            buckets[bucket_key]["providers"][provider]["cost"] += cost
+            buckets[bucket_key]["providers"][provider]["calls"] += calls
     
     # Return sorted by timestamp
     result_list = sorted(buckets.values(), key=lambda x: x["timestamp"])
