@@ -659,6 +659,7 @@ async def get_cost_timeseries(
     base_filters.append(TraceEvent.provider != "internal")
 
     # PostgreSQL: aggregate in DB to avoid loading raw events
+    use_db_aggregation = IS_POSTGRESQL
     if IS_POSTGRESQL:
         bucket_seconds = bucket_minutes * 60
         bucket_ts = func.to_timestamp(
@@ -673,8 +674,19 @@ async def get_cost_timeseries(
         ).where(and_(*base_filters)).group_by(bucket_ts, TraceEvent.provider).order_by(bucket_ts)
 
         results = session.exec(statement).all()
+        if not results:
+            # If aggregation returned nothing but there are matching events, fall back to raw scan.
+            # This avoids an empty chart if the DB aggregation behaves unexpectedly.
+            event_count = session.exec(
+                select(func.count(TraceEvent.id)).where(and_(*base_filters))
+            ).one()
+            if event_count and event_count > 0:
+                use_db_aggregation = False
     else:
         # SQLite fallback: query raw events and bucket in Python
+        use_db_aggregation = False
+
+    if not use_db_aggregation:
         statement = select(
             TraceEvent.created_at,
             TraceEvent.provider,
@@ -700,11 +712,17 @@ async def get_cost_timeseries(
     
     # Aggregate events into buckets
     for event in results:
-        if IS_POSTGRESQL:
-            bucket_time = event.bucket_ts
-            provider = event.provider or "unknown"
-            cost = event.total_cost or 0
-            calls = event.call_count or 0
+        if use_db_aggregation:
+            bucket_time = getattr(event, "bucket_ts", None)
+            provider = getattr(event, "provider", None)
+            cost = getattr(event, "total_cost", None)
+            calls = getattr(event, "call_count", None)
+            # Tuple fallback for drivers that return plain tuples
+            if bucket_time is None and isinstance(event, (tuple, list)) and len(event) >= 4:
+                bucket_time, provider, cost, calls = event[0], event[1], event[2], event[3]
+            provider = provider or "unknown"
+            cost = cost or 0
+            calls = calls or 0
         else:
             bucket_time = event.created_at
             provider = event.provider or "unknown"
