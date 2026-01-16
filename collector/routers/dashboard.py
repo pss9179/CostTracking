@@ -56,7 +56,15 @@ async def get_my_customers(
         # - tenant_id: Set when events created via API key (matches API key owner's clerk_user_id)
         # - user_id: Fallback for events created through other means
         if tenant_id:
-            statement = statement.where(TraceEvent.tenant_id == tenant_id)
+            if clerk_user_id and tenant_id == clerk_user_id:
+                statement = statement.where(
+                    or_(
+                        TraceEvent.tenant_id == tenant_id,
+                        TraceEvent.user_id == user_id
+                    )
+                )
+            else:
+                statement = statement.where(TraceEvent.tenant_id == tenant_id)
         elif clerk_user_id:
             statement = statement.where(
                 or_(

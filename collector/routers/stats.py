@@ -1150,7 +1150,15 @@ async def get_costs_by_customer(
         print(f"[by-customer] Filtering by clerk_user_id={clerk_user_id}, user_id={user_id}", flush=True)
         
         if effective_tenant_id:
-            statement = statement.where(TraceEvent.tenant_id == effective_tenant_id)
+            if clerk_user_id and effective_tenant_id == clerk_user_id:
+                statement = statement.where(
+                    or_(
+                        TraceEvent.tenant_id == effective_tenant_id,
+                        TraceEvent.user_id == user_id
+                    )
+                )
+            else:
+                statement = statement.where(TraceEvent.tenant_id == effective_tenant_id)
         elif clerk_user_id:
             statement = statement.where(
                 or_(
@@ -1185,7 +1193,15 @@ async def get_costs_by_customer(
             TraceEvent.created_at >= cutoff,
         ]
         if effective_tenant_id:
-            debug_filters.append(TraceEvent.tenant_id == effective_tenant_id)
+            if clerk_user_id and effective_tenant_id == clerk_user_id:
+                debug_filters.append(
+                    or_(
+                        TraceEvent.tenant_id == effective_tenant_id,
+                        TraceEvent.user_id == user_id
+                    )
+                )
+            else:
+                debug_filters.append(TraceEvent.tenant_id == effective_tenant_id)
         else:
             debug_filters.append(
                 or_(
@@ -1247,7 +1263,13 @@ async def get_customer_detail(
         
         # Build user filter condition (tenant override if provided)
         if tenant_id:
-            user_filter = TraceEvent.tenant_id == tenant_id
+            if clerk_user_id and tenant_id == clerk_user_id:
+                user_filter = or_(
+                    TraceEvent.tenant_id == tenant_id,
+                    TraceEvent.user_id == user_id
+                )
+            else:
+                user_filter = TraceEvent.tenant_id == tenant_id
         elif clerk_user_id:
             user_filter = or_(
                 TraceEvent.tenant_id == clerk_user_id,
