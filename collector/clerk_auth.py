@@ -7,7 +7,7 @@ import logging
 import os
 import base64
 import json
-from typing import Optional
+from typing import Optional, Tuple
 from fastapi import HTTPException, Request, Depends
 from fastapi import Request as FastAPIRequest
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -22,6 +22,54 @@ security = HTTPBearer(auto_error=False)
 
 CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY", "")
 CLERK_DOMAIN = "superb-toucan-96.clerk.accounts.dev"  # From your .env
+
+
+def _extract_email_and_name_from_payload(token_payload: dict, clerk_user_id: str) -> Tuple[Optional[str], Optional[str]]:
+    """Extract email and name from a Clerk JWT payload."""
+    email = (
+        token_payload.get("email")
+        or token_payload.get("email_address")
+        or token_payload.get("primary_email")
+    )
+    if not email:
+        email_addresses = token_payload.get("email_addresses")
+        if isinstance(email_addresses, list) and email_addresses:
+            email = email_addresses[0].get("email_address")
+    if not email:
+        email = f"user_{clerk_user_id[:8]}@clerk.local"
+    name = token_payload.get("name") or token_payload.get("full_name") or None
+    return email, name
+
+
+async def _fetch_clerk_user_email(clerk_user_id: str) -> Tuple[Optional[str], Optional[str]]:
+    """Fetch user email/name from Clerk API if JWT payload lacks them."""
+    if not CLERK_SECRET_KEY:
+        return None, None
+    try:
+        import httpx
+
+        url = f"https://api.clerk.com/v1/users/{clerk_user_id}"
+        headers = {"Authorization": f"Bearer {CLERK_SECRET_KEY}"}
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, headers=headers)
+        if resp.status_code != 200:
+            logger.warning(f"[Clerk Auth] Clerk API lookup failed: {resp.status_code}")
+            return None, None
+        data = resp.json()
+        email_addresses = data.get("email_addresses", [])
+        primary_id = data.get("primary_email_address_id")
+        email = None
+        for entry in email_addresses:
+            if entry.get("id") == primary_id:
+                email = entry.get("email_address")
+                break
+        if not email and email_addresses:
+            email = email_addresses[0].get("email_address")
+        name = data.get("full_name") or None
+        return email, name
+    except Exception as e:
+        logger.warning(f"[Clerk Auth] Clerk API lookup error: {e}")
+        return None, None
 
 
 async def verify_clerk_token(token: str) -> Optional[dict]:
@@ -126,8 +174,7 @@ async def get_current_clerk_user(
             try:
                 decoded_payload = base64.urlsafe_b64decode(payload)
                 token_payload = json.loads(decoded_payload)
-                email = token_payload.get("email") or f"user_{clerk_user_id[:8]}@clerk.local"
-                name = token_payload.get("name") or None
+                email, name = _extract_email_and_name_from_payload(token_payload, clerk_user_id)
             except Exception as decode_error:
                 logger.warning(f"[Clerk Auth] Failed to decode token payload: {decode_error}")
                 email = f"user_{clerk_user_id[:8]}@clerk.local"
@@ -144,7 +191,15 @@ async def get_current_clerk_user(
     if not clerk_user_id:
         raise HTTPException(status_code=401, detail="Could not extract user ID from token")
     
-    # Look up user in local DB, create if doesn't exist (lazy user creation)
+        # If token payload did not include a real email, try Clerk API
+        if email and email.endswith("@clerk.local"):
+            fetched_email, fetched_name = await _fetch_clerk_user_email(clerk_user_id)
+            if fetched_email:
+                email = fetched_email
+            if fetched_name:
+                name = fetched_name
+
+        # Look up user in local DB, create if doesn't exist (lazy user creation)
     try:
         # First check by clerk_user_id (primary lookup)
         statement = select(User).where(User.clerk_user_id == clerk_user_id)
@@ -211,6 +266,14 @@ async def get_current_clerk_user(
                 else:
                     raise
         else:
+            # Update placeholder email if we have a real one now
+            if email and user.email.endswith("@clerk.local") and user.email != email:
+                user.email = email
+                if name:
+                    user.name = name
+                session.add(user)
+                session.commit()
+                session.refresh(user)
             logger.info(f"[Clerk Auth] User found: {user.email} (ID: {user.id})")
         
         return user

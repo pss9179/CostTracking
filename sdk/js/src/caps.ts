@@ -90,7 +90,7 @@ export async function checkSpendingCaps(options: {
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout for cold starts
 
     const response = await fetch(`${_collectorUrl}/caps/check?${params}`, {
       method: 'GET',

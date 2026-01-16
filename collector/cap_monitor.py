@@ -5,15 +5,12 @@ Runs periodically to check all enabled caps and send email alerts when threshold
 """
 import asyncio
 import logging
-from datetime import datetime, timedelta
-from typing import List
-from uuid import UUID
 
-from sqlmodel import Session, select, and_
+from sqlmodel import Session, select
 
-from models import SpendingCap, Alert, User
+from models import SpendingCap, User
 from db import SessionLocal
-from email_service import send_alert_email
+from cap_alerts import maybe_send_cap_alert
 
 logger = logging.getLogger(__name__)
 
@@ -92,9 +89,6 @@ async def check_single_cap(session: Session, cap: SpendingCap):
         sub_target=getattr(cap, 'sub_target', None),
     )
     
-    # Calculate percentage
-    percentage = (current_spend / cap.limit_amount * 100) if cap.limit_amount > 0 else 0
-    
     # Determine if alert should be triggered
     should_alert = False
     alert_type = None
@@ -110,73 +104,14 @@ async def check_single_cap(session: Session, cap: SpendingCap):
         # No alert needed
         return
     
-    # Check if we already sent an alert recently (avoid spam)
-    cooldown_minutes = 60  # Don't send same alert more than once per hour
-    if cap.last_alerted_at:
-        time_since_alert = datetime.utcnow() - cap.last_alerted_at
-        if time_since_alert < timedelta(minutes=cooldown_minutes):
-            logger.debug(f"[CapMonitor] Skipping alert for cap {cap.id} (cooldown)")
-            return
-    
-    # Check if we already have an alert for this period
-    existing_alert = session.exec(
-        select(Alert).where(
-            and_(
-                Alert.cap_id == cap.id,
-                Alert.period_start == period_start,
-                Alert.alert_type == alert_type,
-            )
-        )
-    ).first()
-    
-    if existing_alert:
-        logger.debug(f"[CapMonitor] Alert already exists for cap {cap.id} in current period")
-        return
-    
-    # Create alert record
-    alert = Alert(
-        user_id=cap.user_id,
-        cap_id=cap.id,
-        alert_type=alert_type,
+    await maybe_send_cap_alert(
+        session=session,
+        cap=cap,
         current_spend=current_spend,
-        cap_limit=cap.limit_amount,
-        percentage=percentage,
-        target_type=cap.cap_type,
-        target_name=cap.target_name or "global",
         period_start=period_start,
         period_end=period_end,
-    )
-    
-    session.add(alert)
-    session.flush()  # Get alert ID
-    
-    # Send email
-    email_sent = await send_alert_email(
-        to_email=cap.alert_email,
         alert_type=alert_type,
-        target_type=cap.cap_type,
-        target_name=cap.target_name or "all services",
-        current_spend=current_spend,
-        cap_limit=cap.limit_amount,
-        percentage=percentage,
-        period=cap.period,
-    )
-    
-    # Update alert record
-    alert.email_sent = email_sent
-    if email_sent:
-        alert.email_sent_at = datetime.utcnow()
-    
-    session.add(alert)
-    
-    # Update cap's last_alerted_at
-    cap.last_alerted_at = datetime.utcnow()
-    session.add(cap)
-    
-    logger.info(
-        f"[CapMonitor] Alert triggered for cap {cap.id}: {alert_type} "
-        f"({current_spend:.2f}/{cap.limit_amount:.2f} = {percentage:.1f}%) "
-        f"email_sent={email_sent}"
+        user=user,
     )
 
 

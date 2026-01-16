@@ -24,6 +24,7 @@ from models import (
 from db import get_session
 from clerk_auth import get_current_clerk_user
 from auth import get_current_user as auth_get_current_user  # Explicit import for API key auth
+from cap_alerts import maybe_send_cap_alert
 
 # Verify import worked
 import sys
@@ -163,6 +164,7 @@ async def create_cap(
     if cap_data.enforcement not in ["alert", "hard_block"]:
         raise HTTPException(status_code=400, detail="Enforcement must be 'alert' or 'hard_block'")
     
+    alert_email = (cap_data.alert_email or "").strip() or user.email
     cap = SpendingCap(
         user_id=user.id,
         cap_type=cap_data.cap_type,
@@ -173,7 +175,7 @@ async def create_cap(
         period=cap_data.period,
         enforcement=cap_data.enforcement,
         alert_threshold=cap_data.alert_threshold,
-        alert_email=cap_data.alert_email,
+        alert_email=alert_email,
     )
     
     session.add(cap)
@@ -517,6 +519,17 @@ async def check_caps(
             if not cap.exceeded_at:
                 cap.exceeded_at = datetime.utcnow()
                 session.add(cap)
+            
+            # Send alert immediately for hard cap exceedance
+            await maybe_send_cap_alert(
+                session=session,
+                cap=cap,
+                current_spend=current_spend,
+                period_start=period_start,
+                period_end=period_end,
+                alert_type="cap_exceeded",
+                user=user,
+            )
     
     # Commit any exceeded_at updates
     if exceeded_caps:

@@ -552,12 +552,13 @@ def patch_requests():
             if config.is_enabled():
                 collector_url = config.get_collector_url()
                 proxy_url = config.get_proxy_url()
+                request_url_str = str(url)
                 
                 # Skip internal requests
                 is_internal = False
-                if collector_url and url.startswith(collector_url):
+                if collector_url and request_url_str.startswith(collector_url):
                     is_internal = True
-                elif proxy_url and url.startswith(proxy_url):
+                elif proxy_url and request_url_str.startswith(proxy_url):
                     is_internal = True
                 
                 if not is_internal:
@@ -574,7 +575,7 @@ def patch_requests():
                         else:
                             request_body_str = None
                         
-                        request_id = request_tracker.generate_request_id(method, url, request_body_str)
+                        request_id = request_tracker.generate_request_id(method, request_url_str, request_body_str)
                         
                         # Check retry
                         if request_tracker.is_request_tracked(request_id):
@@ -602,7 +603,7 @@ def patch_requests():
                         
                         # If proxy is configured, route through proxy
                         if proxy_url:
-                            headers["X-LLMObserve-Target-URL"] = url
+                            headers["X-LLMObserve-Target-URL"] = request_url_str
                             if "Accept-Encoding" in headers:
                                 del headers["Accept-Encoding"]
                             if "accept-encoding" in headers:
@@ -610,6 +611,31 @@ def patch_requests():
                             url = f"{proxy_url}/proxy"
                         
                         kwargs["headers"] = headers
+                        
+                        # Check spending caps before making request
+                        if should_check_caps():
+                            provider = extract_provider_from_url(request_url_str)
+                            customer_id = context.get_customer_id()
+                            agent = context.get_current_section()
+                            
+                            model = None
+                            try:
+                                if request_body is not None:
+                                    if isinstance(request_body, dict):
+                                        model = extract_model_from_request(request_body, provider or "")
+                                    elif isinstance(request_body, (str, bytes)):
+                                        body_text = request_body.decode("utf-8") if isinstance(request_body, bytes) else request_body
+                                        body_dict = json.loads(body_text)
+                                        model = extract_model_from_request(body_dict, provider or "")
+                            except Exception as e:
+                                logger.debug(f"[llmobserve] Failed to extract model for cap check: {e}")
+                            
+                            check_spending_caps(
+                                provider=provider,
+                                model=model,
+                                customer_id=customer_id,
+                                agent=agent if agent != "/" else None,
+                            )
                         
                         # Track start time
                         start_time = time.time()
@@ -635,7 +661,11 @@ def patch_requests():
                                 )
                         
                         return response
-                        
+                    
+                    except BudgetExceededError:
+                        # CRITICAL: Re-raise budget exceeded errors - don't fail open for hard caps!
+                        raise
+                    
                     except Exception as e:
                         logger.debug(f"[llmobserve] Tracking failed (requests): {e}")
                         return original_request(self, method, url, **kwargs)
@@ -726,6 +756,31 @@ def patch_aiohttp():
                         
                         kwargs["headers"] = headers
                         
+                        # Check spending caps before making request
+                        if should_check_caps():
+                            provider = extract_provider_from_url(url_str)
+                            customer_id = context.get_customer_id()
+                            agent = context.get_current_section()
+                            
+                            model = None
+                            try:
+                                if request_body is not None:
+                                    if isinstance(request_body, dict):
+                                        model = extract_model_from_request(request_body, provider or "")
+                                    elif isinstance(request_body, (str, bytes)):
+                                        body_text = request_body.decode("utf-8") if isinstance(request_body, bytes) else request_body
+                                        body_dict = json.loads(body_text)
+                                        model = extract_model_from_request(body_dict, provider or "")
+                            except Exception as e:
+                                logger.debug(f"[llmobserve] Failed to extract model for cap check: {e}")
+                            
+                            check_spending_caps(
+                                provider=provider,
+                                model=model,
+                                customer_id=customer_id,
+                                agent=agent if agent != "/" else None,
+                            )
+                        
                         # Track start time
                         start_time = time.time()
                         
@@ -757,7 +812,11 @@ def patch_aiohttp():
                                 )
                         
                         return response
-                        
+                    
+                    except BudgetExceededError:
+                        # CRITICAL: Re-raise budget exceeded errors - don't fail open for hard caps!
+                        raise
+                    
                     except Exception as e:
                         logger.debug(f"[llmobserve] Tracking failed (aiohttp): {e}")
                         return await original_request(self, method, url, **kwargs)
@@ -856,6 +915,31 @@ def patch_urllib3():
                     
                     kwargs["headers"] = headers
                     
+                    # Check spending caps before making request
+                    if should_check_caps():
+                        provider = extract_provider_from_url(url_str)
+                        customer_id = context.get_customer_id()
+                        agent = context.get_current_section()
+                        
+                        model = None
+                        try:
+                            if request_body is not None:
+                                if isinstance(request_body, dict):
+                                    model = extract_model_from_request(request_body, provider or "")
+                                elif isinstance(request_body, (str, bytes)):
+                                    body_text = request_body.decode("utf-8") if isinstance(request_body, bytes) else request_body
+                                    body_dict = json.loads(body_text)
+                                    model = extract_model_from_request(body_dict, provider or "")
+                        except Exception as e:
+                            logger.debug(f"[llmobserve] Failed to extract model for cap check: {e}")
+                        
+                        check_spending_caps(
+                            provider=provider,
+                            model=model,
+                            customer_id=customer_id,
+                            agent=agent if agent != "/" else None,
+                        )
+                    
                     # Track start time
                     start_time = time.time()
                     
@@ -880,7 +964,11 @@ def patch_urllib3():
                             )
                     
                     return response
-                    
+                
+                except BudgetExceededError:
+                    # CRITICAL: Re-raise budget exceeded errors - don't fail open for hard caps!
+                    raise
+                
                 except Exception as e:
                     logger.debug(f"[llmobserve] Tracking failed (urllib3): {e}")
                     return original_request(self, method, url, **kwargs)
