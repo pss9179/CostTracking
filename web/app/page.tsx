@@ -15,8 +15,8 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default function LandingPage() {
-  const { userId } = auth();
+export default async function LandingPage() {
+  const { userId } = await auth();
   if (userId) {
     redirect("/dashboard");
   }
