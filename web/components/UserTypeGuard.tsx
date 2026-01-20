@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 
 // Routes that should bypass the guard entirely (auth pages + public docs)
 // Note: /api-docs requires auth (shows with sidebar), /docs is public (standalone)
-const PUBLIC_ROUTES = ["/sign-in", "/sign-up", "/sso-callback", "/docs"];
+const PUBLIC_ROUTES = ["/", "/sign-in", "/sign-up", "/sso-callback", "/docs"];
 
 export function UserTypeGuard({ children }: { children: React.ReactNode }) {
     const { isLoaded, isSignedIn, user } = useUser();
