@@ -1,8 +1,5 @@
-"use client";
-
-import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
-import { useEffect } from "react";
+import { redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
@@ -17,31 +14,9 @@ import {
 import Link from "next/link";
 
 export default function LandingPage() {
-  const router = useRouter();
-  const { isLoaded, isSignedIn } = useUser();
-
-  // Redirect to dashboard if already signed in
-  useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      router.push("/dashboard");
-    }
-  }, [isLoaded, isSignedIn, router]);
-
-  // Show loading state while checking auth
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Don't render landing page if signed in (redirect will happen)
-  if (isSignedIn) {
-    return null;
+  const { userId } = auth();
+  if (userId) {
+    redirect("/dashboard");
   }
 
   return (
@@ -63,11 +38,8 @@ export default function LandingPage() {
               >
                 Login
               </Link>
-              <Button
-                onClick={() => router.push("/sign-up")}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              >
-                Get Started - $5/month
+              <Button asChild className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                <Link href="/sign-up">Get Started - $5/month</Link>
               </Button>
             </div>
           </div>
@@ -93,11 +65,13 @@ export default function LandingPage() {
             <div className="flex justify-center items-center mb-4">
               <Button
                 size="lg"
-                onClick={() => router.push("/sign-up")}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-lg px-8 py-6 h-auto"
+                asChild
               >
-                Get Started
-                <ArrowRight className="ml-2 w-5 h-5" />
+                <Link href="/sign-up">
+                  Get Started
+                  <ArrowRight className="ml-2 w-5 h-5" />
+                </Link>
               </Button>
             </div>
             <div className="flex gap-8 justify-center text-sm text-gray-500">
@@ -350,10 +324,10 @@ observe(api_key=os.getenv("LLMOBSERVE_API_KEY"))
           <div className="flex justify-center">
             <Button
               size="lg"
-              onClick={() => router.push("/sign-up")}
               className="bg-white text-indigo-600 hover:bg-gray-100 text-lg px-8 py-6 h-auto"
+              asChild
             >
-              Get Started
+              <Link href="/sign-up">Get Started</Link>
             </Button>
           </div>
           <p className="text-indigo-100 mt-4 text-sm">
