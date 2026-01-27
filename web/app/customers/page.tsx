@@ -700,7 +700,7 @@ function CustomersPageContent() {
       console.log('[Customers] CLERK HYDRATED at', now.toFixed(0), 'ms (took', (now - CUSTOMERS_MOUNT_TIME).toFixed(0), 'ms from mount)');
     }
   }, [isLoaded]);
-  const { filters, setSelectedCustomer: setGlobalCustomer } = useGlobalFilters();
+  const { filters, setSelectedCustomer: setGlobalCustomer, setDateRange } = useGlobalFilters();
   
   const cacheKey = `customers-${filters.dateRange}`;
   
@@ -1105,6 +1105,7 @@ function CustomersPageContent() {
   // I) FIX: Empty state for new users - show immediately if not loading AND no error
   // If there's an error, the error state above will handle it
   if (!hasData && !loading && !error) {
+    const isShortRange = ["1h", "6h", "24h", "3d", "7d"].includes(filters.dateRange);
     return (
       <ProtectedLayout>
         <div className="space-y-6 p-6">
@@ -1119,9 +1120,21 @@ function CustomersPageContent() {
               No customer data yet
             </h3>
             <p className="text-gray-500 mb-6 max-w-md mx-auto">
-              Use <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">set_customer_id()</code> in 
-              your code to track costs per customer.
+              {isShortRange
+                ? "No customer data in this time range. Try a longer range like the last 30 days."
+                : "Use "}
+              {!isShortRange && (
+                <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">
+                  set_customer_id()
+                </code>
+              )}
+              {!isShortRange && " in your code to track costs per customer."}
             </p>
+            {isShortRange && (
+              <Button size="sm" onClick={() => setDateRange("30d")}>
+                Show last 30 days
+              </Button>
+            )}
           </div>
         </div>
       </ProtectedLayout>
